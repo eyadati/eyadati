@@ -9,84 +9,78 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1️⃣ PROVIDER CLASS: Handles ALL business logic and lifecycle
-// ─────────────────────────────────────────────────────────────────────────────
+/// Manages clinic appointment state with optimized Firestore queries
+/// and proper lifecycle management to prevent memory leaks.
 class ClinicAppointmentProvider extends ChangeNotifier {
   final String clinicId;
   DateTime selectedDate;
-
-  // Streams: heatmap never changes, appointments changes with date
-  late final Stream<QuerySnapshot> heatMapStream;
-  Stream<QuerySnapshot>? _appointmentsStream;
+  
+  late final Stream<QuerySnapshot> _appointmentsStream;
   StreamSubscription<QuerySnapshot>? _appointmentsSubscription;
 
-  ClinicAppointmentProvider({required this.clinicId, DateTime? initialDate})
-    : selectedDate = initialDate ?? DateTime.now() {
-    // Initialize streams once
-    heatMapStream = _createHeatMapStream();
+  ClinicAppointmentProvider({
+    required this.clinicId,
+    DateTime? initialDate,
+  }) : selectedDate = (initialDate ?? DateTime.now()).toUtc() {
     _appointmentsStream = _createAppointmentsStream();
   }
 
-  Stream<QuerySnapshot> _createHeatMapStream() {
-    final now = DateTime.now();
-    final firstDay = DateTime(now.year, now.month, 1);
-    final lastDay = DateTime(now.year, now.month + 1, 0);
+  /// Creates a stream for the selected day's appointments
+  Stream<QuerySnapshot> _createAppointmentsStream() {
+    final dayStart = DateTime.utc(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
+    final dayEnd = dayStart.add(const Duration(days: 1));
 
     return FirebaseFirestore.instance
+        .collection('clinics')
+        .doc(clinicId)
+        .collection('appointments')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
+        .where('date', isLessThan: Timestamp.fromDate(dayEnd))
+        .where('date', isGreaterThan: Timestamp.fromDate(DateTime.now().toUtc()))
+        .orderBy('date')
+        .snapshots();
+  }
+
+  /// Fetches heatmap data once (static monthly data)
+  Future<Map<DateTime, int>> getHeatMapData() async {
+    final now = DateTime.now().toUtc();
+    final firstDay = DateTime.utc(now.year, now.month, 1);
+    final lastDay = DateTime.utc(now.year, now.month + 1, 0);
+
+    final snapshot = await FirebaseFirestore.instance
         .collection('clinics')
         .doc(clinicId)
         .collection('appointments')
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(firstDay))
         .where('date', isLessThanOrEqualTo: Timestamp.fromDate(lastDay))
-        .snapshots();
-  }
+        .get();
 
-  Stream<QuerySnapshot> _createAppointmentsStream() {
-    final startOfDay = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-    final endOfDay = startOfDay.add(const Duration(days: 1));
-
-    return FirebaseFirestore.instance
-        .collection('clinics')
-        .doc(clinicId)
-        .collection('appointments')
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-        .where('date', isLessThan: Timestamp.fromDate(endOfDay))
-        .where('date', isGreaterThan: Timestamp.fromDate(DateTime.now()))
-        .orderBy('date')
-        .snapshots();
-  }
-
-  // 📅 Called when user taps a date in heatmap
-  void updateSelectedDate(DateTime date) {
-    selectedDate = date;
-    _appointmentsSubscription?.cancel(); // Cancel old listener
-    _appointmentsStream = _createAppointmentsStream(); // Create new one
-    notifyListeners(); // Rebuild only widgets that listen
-  }
-
-  // 🔥 Process raw Firestore data into heatmap format
-  Map<DateTime, int> getHeatMapData(List<QueryDocumentSnapshot> docs) {
-    final Map<DateTime, int> heatMapData = {};
-
-    for (var doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final appointmentDate = (data['date'] as Timestamp).toDate();
-      final dateOnly = DateTime(
+    final heatMapData = <DateTime, int>{};
+    for (var doc in snapshot.docs) {
+      final appointmentDate = (doc.data()['date'] as Timestamp).toDate().toUtc();
+      final dateKey = DateTime.utc(
         appointmentDate.year,
         appointmentDate.month,
         appointmentDate.day,
       );
-      heatMapData[dateOnly] = (heatMapData[dateOnly] ?? 0) + 1;
+      heatMapData[dateKey] = (heatMapData[dateKey] ?? 0) + 1;
     }
     return heatMapData;
   }
 
-  // ❌ Cancel appointment + notify user
+  /// Updates the selected date and refreshes appointment stream
+  void updateSelectedDate(DateTime date) {
+    selectedDate = date.toUtc();
+    _appointmentsSubscription?.cancel();
+    _appointmentsStream = _createAppointmentsStream();
+    notifyListeners();
+  }
+
+  /// Cancels an appointment and sends notification
   Future<void> cancelAppointment(
     String appointmentId,
     Map<String, dynamic> appointmentData,
@@ -94,24 +88,27 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   ) async {
     await ClinicFirestore().cancelAppointment(appointmentId, clinicId, context);
 
-    await NotificationService().sendDirectNotification(
-      fcmToken: appointmentData['FCM'],
-      title: 'appointment cancelled'.tr(),
-      body: 'your appointment at ${appointmentData['date']} got cancelled'.tr(),
-    );
+    if (appointmentData['FCM'] != null) {
+      await NotificationService().sendDirectNotification(
+        fcmToken: appointmentData['FCM'],
+        title: 'appointment cancelled'.tr(),
+        body: 'your appointment at ${appointmentData['date']} got cancelled'.tr(),
+      );
+    }
   }
 
-  // 🧹 Provider automatically calls this when widget is removed
+  /// Cleans up stream subscription to prevent memory leaks
   @override
   void dispose() {
     _appointmentsSubscription?.cancel();
     super.dispose();
   }
+
+  // Getter for stream access
+  Stream<QuerySnapshot> get appointmentsStream => _appointmentsStream;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2️⃣ UI LAYER: Pure, stateless, and simple
-// ─────────────────────────────────────────────────────────────────────────────
+/// Main widget that provides the appointment management state
 class ClinicAppointments extends StatelessWidget {
   final String clinicId;
 
@@ -119,7 +116,6 @@ class ClinicAppointments extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Create provider at the top of the widget tree
     return ChangeNotifierProvider(
       create: (_) => ClinicAppointmentProvider(clinicId: clinicId),
       child: const _ClinicAppointmentsView(),
@@ -127,7 +123,7 @@ class ClinicAppointments extends StatelessWidget {
   }
 }
 
-// Inner view - has access to provider but doesn't manage any state
+/// Main view with sliding panel layout
 class _ClinicAppointmentsView extends StatelessWidget {
   const _ClinicAppointmentsView();
 
@@ -138,15 +134,10 @@ class _ClinicAppointmentsView extends StatelessWidget {
         minHeight: MediaQuery.of(context).size.height * 0.4,
         maxHeight: MediaQuery.of(context).size.height * 0.9,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        panel: const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: _AppointmentsPanel(),
-        ),
+        panel: const _AppointmentsPanel(),
         body: Column(
           children: [
-            SizedBox(height: 10),
-            //  SegmentedButtons(),
-            //SizedBox(height: 5,),
+            const SizedBox(height: 10),
             const _HeatMap(),
             SizedBox(height: MediaQuery.of(context).size.height * 0.5),
           ],
@@ -156,38 +147,40 @@ class _ClinicAppointmentsView extends StatelessWidget {
   }
 }
 
-// Heatmap widget - reads from provider
+/// Monthly appointment heatmap with one-time data fetch
 class _HeatMap extends StatelessWidget {
   const _HeatMap();
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<ClinicAppointmentProvider>();
+    final provider = context.read<ClinicAppointmentProvider>();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: provider.heatMapStream,
+    return FutureBuilder<Map<DateTime, int>>(
+      future: provider.getHeatMapData(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('Heatmap error: ${snapshot.error}');
+          return const Center(child: Icon(Icons.error_outline, color: Colors.red));
+        }
+        
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final heatMapData = provider.getHeatMapData(snapshot.data!.docs);
-        final Color baseColor = Color(0xFF223A5E);
+        final baseColor = const Color(0xFF223A5E);
         final colorsets = {
-          1: baseColor.withOpacity( 0.3),
-          2: baseColor.withOpacity( 0.5),
-          3: baseColor.withOpacity (0.7),
+          1: baseColor.withOpacity(0.3),
+          2: baseColor.withOpacity(0.5),
+          3: baseColor.withOpacity(0.7),
           5: baseColor,
         };
 
         return Center(
           child: HeatMapCalendar(
             colorsets: colorsets,
-            onClick: (date) {
-              provider.updateSelectedDate(date); // Delegate to provider
-            },
+            onClick: provider.updateSelectedDate,
             size: 45,
-            datasets: heatMapData,
+            datasets: snapshot.data!,
             showColorTip: false,
             weekFontSize: 13,
             textColor: Colors.black,
@@ -201,78 +194,70 @@ class _HeatMap extends StatelessWidget {
   }
 }
 
-// Appointments list widget - reads from provider
+/// Daily appointments list with swipe-to-cancel
 class _AppointmentsPanel extends StatelessWidget {
   const _AppointmentsPanel();
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<ClinicAppointmentProvider>();
-
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Container(
-            height: 6,
-            width: 60,
-            decoration: BoxDecoration(
-              color: Colors.grey[400],
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-        ),
+        _buildDragHandle(context),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: provider._appointmentsStream,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+          child: Selector<ClinicAppointmentProvider, DateTime>(
+            selector: (_, provider) => provider.selectedDate,
+            builder: (_, __, ___) {
+              final provider = context.read<ClinicAppointmentProvider>();
+              
+              return StreamBuilder<QuerySnapshot>(
+                stream: provider.appointmentsStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    debugPrint('Appointments error: ${snapshot.error}');
+                    return Center(
+                      child: Text('Error loading appointments'.tr()),
+                    );
+                  }
 
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Center(
-                  child: Text(
-                    'No appointments for this day'.tr(),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No appointments for this day'.tr(),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final appointments = snapshot.data!.docs;
+
+                  return ListView.builder(
+                    itemCount: appointments.length,
+                    key: PageStorageKey(
+                      'appointments_${provider.selectedDate.toIso8601String()}',
                     ),
-                  ),
-                );
-              }
+                    itemBuilder: (context, index) {
+                      final doc = appointments[index];
+                      final appointment = doc.data() as Map<String, dynamic>;
+                      final appointmentId = doc.id;
 
-              final appointments = snapshot.data!.docs;
+                      final slot = (appointment['date'] as Timestamp).toDate();
+                      final timeFormatted = DateFormat('HH:mm').format(slot);
+                      final name = appointment['userName'] ?? 'Unknown';
+                      final phone = appointment['phone'] ?? 'No phone';
 
-              return ListView.builder(
-                itemCount: appointments.length,
-                key: PageStorageKey(
-                  'appointments_${provider.selectedDate.toIso8601String()}',
-                ),
-                itemBuilder: (context, index) {
-                  final doc = appointments[index];
-                  final appointment = doc.data() as Map<String, dynamic>;
-                  final appointmentId = doc.id;
-
-                  final slot = (appointment['date'] as Timestamp).toDate();
-                  final timeFormatted = DateFormat('HH:mm').format(slot);
-                  final name = appointment['userName'] ?? 'Unknown';
-                  final phone = appointment['phone'] ?? 'No phone';
-
-                  return Slidable(
-                    key: ValueKey(appointmentId),
-                    endActionPane: ActionPane(
-                      motion: const ScrollMotion(),
-                      children: [
-                        Container(
-                          height: 80,
-                          decoration: const BoxDecoration(
-                            borderRadius: BorderRadius.only(
-                              topRight: Radius.circular(12),
-                              bottomRight: Radius.circular(12),
-                            ),
-                          ),
-                          child: Center(
-                            child: IconButton(
+                      return Slidable(
+                        key: ValueKey(appointmentId),
+                        endActionPane: ActionPane(
+                          motion: const ScrollMotion(),
+                          extentRatio: 0.2,
+                          children: [
+                            IconButton(
                               onPressed: () async {
                                 await provider.cancelAppointment(
                                   appointmentId,
@@ -286,47 +271,47 @@ class _AppointmentsPanel extends StatelessWidget {
                                 size: 40,
                               ),
                             ),
+                          ],
+                        ),
+                        child: Container(
+                          height: 80,
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 100,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Text(
+                                    timeFormatted,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: ListTile(
+                                  title: Text(
+                                    name,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  subtitle: Text(
+                                    phone,
+                                    style: const TextStyle(color: Colors.white70),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                    child: Container(
-                      height: 80,
-                      width: MediaQuery.of(context).size.width,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(12),
-                        ),
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 100,
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text(
-                                timeFormatted,
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: ListTile(
-                              title: Text(
-                                name,
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              subtitle: Text(
-                                phone,
-                                style: const TextStyle(color: Colors.white70),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                      );
+                    },
                   );
                 },
               );
@@ -334,6 +319,20 @@ class _AppointmentsPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDragHandle(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Container(
+        height: 6,
+        width: 60,
+        decoration: BoxDecoration(
+          color: Colors.grey[400],
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
     );
   }
 }
