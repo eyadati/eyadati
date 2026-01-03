@@ -1,251 +1,326 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-// TODO: Move these imports to a centralized service locator or appropriate service files
-import 'package:eyadati/user/user_firestore.dart';
+// ================ PROVIDER ================
 
-class UserEditProfilePage extends StatefulWidget {
-  // TODO: Pass existing user data map to pre-fill the form
-  final String? userId;
+class UserEditProfileProvider extends ChangeNotifier {
+  final FirebaseAuth auth;
+  final FirebaseFirestore firestore;
 
-  const UserEditProfilePage({super.key, this.userId});
-
-  @override
-  _UserEditProfilePageState createState() => _UserEditProfilePageState();
-}
-
-class _UserEditProfilePageState extends State<UserEditProfilePage> {
-  // Form key for validation
-  final _formKey = GlobalKey<FormState>();
-
-  // Text editing controllers
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController cityController = TextEditingController();
-
-  // Loading state
-  bool _isSaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // TODO: Load existing user data from Firestore
-    // _loadUserData();
+  UserEditProfileProvider({
+    required this.auth,
+    required this.firestore,
+  }) {
+    _initializeData();
   }
 
-  // TODO: MOVE TO USER SERVICE FILE
-  // Future<void> _loadUserData() async {
-  //   if (widget.userId != null) {
-  //     // Fetch user document from Firestore
-  //     // Update all controllers with existing data
-  //     // Example:
-  //     // final userData = await UserFirestore().getUser(widget.userId!);
-  //     // nameController.text = userData['name'] ?? '';
-  //     // emailController.text = userData['email'] ?? '';
-  //     // phoneController.text = userData['phone'] ?? '';
-  //     // cityController.text = userData['city'] ?? '';
-  //   }
-  // }
+  // Form key
+  final formKey = GlobalKey<FormState>();
+  
+  // Controllers
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final phoneController = TextEditingController();
+  
+  // State
+  String? selectedCity;
+  bool isLoading = true;
+  bool isSaving = false;
+  String? error;
+
+  // Algerian cities list (matching registration)
+  final List<String> algerianCities = [
+    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa',
+    'Sétif', 'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret',
+    'Béjaïa', 'Tlemcen', 'Béchar', 'Mostaganem', 'Bordj Bou Arreridj',
+    'Chlef', 'Souk Ahras', 'El Eulma', 'Médéa', 'Tizi Ouzou', 'Jijel',
+    'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila', 'Relizane', 'Saïda',
+    'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara', 'Khenchela',
+    'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
+    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
+    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
+    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh',
+    'El Guerrara', 'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa',
+    'Hassi Bahbah', 'Khemis Miliana', 'Ksar Chellala', 'Ksar Boukhari',
+    'Lakhdaria', 'Larbaâ',
+  ];
+
+  Future<void> _initializeData() async {
+    isLoading = true;
+    notifyListeners();
+    
+    try {
+      await _loadUserData();
+    } catch (e) {
+      error = 'fetch_user_data_error'.tr(args: [e.toString()]);
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final user = auth.currentUser;
+    if (user == null) throw Exception('no_user_found'.tr());
+
+    final doc = await firestore.collection('users').doc(user.uid).get();
+    if (!doc.exists) throw Exception('user_document_not_found'.tr());
+
+    final data = doc.data()!;
+    nameController.text = data['name'] ?? '';
+    emailController.text = data['email'] ?? '';
+    phoneController.text = data['phone'] ?? '';
+    
+    // Match city case-insensitively
+    final cityFromDb = data['city']?.toString().toLowerCase();
+    if (cityFromDb != null) {
+      selectedCity = algerianCities.firstWhere(
+        (c) => c.toLowerCase() == cityFromDb,
+        orElse: () => algerianCities[0],
+      );
+    }
+  }
+
+  Future<void> updateProfile(BuildContext context) async {
+    if (!formKey.currentState!.validate()) return;
+    if (selectedCity == null) {
+      error = 'city_required'.tr();
+      notifyListeners();
+      return;
+    }
+
+    isSaving = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final user = auth.currentUser;
+      if (user == null) throw Exception('no_user_found'.tr());
+
+      await firestore.collection('users').doc(user.uid).update({
+        'name': nameController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'city': selectedCity!.toLowerCase(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('profile_updated_success'.tr())),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      error = 'error_updating_profile'.tr(args: [e.toString()]);
+    } finally {
+      isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // Validation methods
+  String? validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return 'required_field'.tr();
+    final pattern = RegExp(r'^\S+@\S+\.\S+$');
+    if (!pattern.hasMatch(value.trim())) return 'invalid_email'.tr();
+    return null;
+  }
+
+  String? validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) return 'required_field'.tr();
+    final pattern = RegExp(r'^[0-9]+$');
+    if (!pattern.hasMatch(value.trim())) return 'invalid_phone'.tr();
+    return null;
+  }
+
+  String? validateRequired(String? value) {
+    if (value == null || value.trim().isEmpty) return 'required_field'.tr();
+    return null;
+  }
 
   @override
   void dispose() {
-    // Dispose all controllers to prevent memory leaks
     nameController.dispose();
     emailController.dispose();
     phoneController.dispose();
-    cityController.dispose();
     super.dispose();
   }
+}
+
+// ================ UI PAGE ================
+
+class UserEditProfilePage extends StatelessWidget {
+  const UserEditProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => UserEditProfileProvider(
+        auth: FirebaseAuth.instance,
+        firestore: FirebaseFirestore.instance,
+      ),
+      child: const UserEditProfileView(),
+    );
+  }
+}
+
+class UserEditProfileView extends StatelessWidget {
+  const UserEditProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: Text('edit_profile'.tr()),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Personal Information Section
-                _buildSectionTitle('Personal Information'),
-                const SizedBox(height: 16),
-                _buildTextFormField(nameController, "Full Name"),
-                const SizedBox(height: 16),
-                _buildTextFormField(
-                  emailController,
-                  "Email",
-                  validator: _validateEmail,
-                  readOnly: true, // Email typically can't be changed easily
-                  helperText: "Contact support to change email",
-                ),
-                const SizedBox(height: 24),
+        child: Consumer<UserEditProfileProvider>(
+          builder: (context, provider, _) {
+            if (provider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                // Contact Information Section
-                _buildSectionTitle('Contact Information'),
-                const SizedBox(height: 16),
-                _buildTextFormField(
-                  phoneController,
-                  "Phone Number",
-                  inputType: TextInputType.phone,
-                  validator: _validatePhone,
-                ),
-                const SizedBox(height: 16),
-                _buildTextFormField(cityController, "City"),
-                const SizedBox(height: 24),
+            if (provider.error != null) {
+              return _buildErrorState(context, provider);
+            }
 
-                // Save Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+            return Form(
+              key: provider.formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle(context, 'personal_information'.tr()),
+                    const SizedBox(height: 16),
+                    _buildTextField(provider.nameController, 'full_name'.tr(), provider.validateRequired),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      provider.emailController,
+                      'email'.tr(),
+                      provider.validateEmail,
+                      readOnly: true,
+                      helperText: 'email_change_help'.tr(),
+                    ),
+                    const SizedBox(height: 24),
+
+                    _buildSectionTitle(context, 'contact_information'.tr()),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      provider.phoneController,
+                      'phone_number'.tr(),
+                      provider.validatePhone,
+                      inputType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildCityDropdown(context, provider),
+                    const SizedBox(height: 24),
+
+                    if (provider.error != null) ...[
+                      Text(provider.error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 8),
+                    ],
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: provider.isSaving ? null : () => provider.updateProfile(context),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: provider.isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Text('save_changes'.tr(), style: const TextStyle(fontSize: 16)),
                       ),
                     ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            "Save Changes",
-                            style: TextStyle(fontSize: 16),
-                          ),
-                  ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  // TODO: MOVE TO SHARED UI HELPERS FILE
-  // Builds a section title widget
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: Theme.of(
-        context,
-      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+  Widget _buildErrorState(BuildContext context, UserEditProfileProvider provider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text(provider.error!, style: TextStyle(color: Colors.red.shade700), textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => provider._initializeData(),
+            icon: const Icon(Icons.refresh),
+            label: Text('retry'.tr()),
+          ),
+        ],
+      ),
     );
   }
 
-  // TODO: MOVE TO VALIDATION SERVICE FILE
-  // Validates email format
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Required';
-    final pattern = RegExp(r'^\S+@\S+\.\S+$');
-    if (!pattern.hasMatch(value.trim())) return 'Invalid email';
-    return null;
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+    );
   }
 
-  // TODO: MOVE TO VALIDATION SERVICE FILE
-  // Validates password strength (kept for potential password change feature)
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Required';
-    if (value.length < 6) return 'Password too short';
-    return null;
-  }
-
-  // TODO: MOVE TO VALIDATION SERVICE FILE
-  // Validates phone number format
-  String? _validatePhone(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Required';
-    final pattern = RegExp(r'^[0-9]+$');
-    if (!pattern.hasMatch(value.trim())) return 'Invalid number';
-    return null;
-  }
-
-  // TODO: MOVE TO WIDGET/UI COMPONENTS FILE
-  // Reusable text form field builder with enhanced options
-  Widget _buildTextFormField(
+  Widget _buildTextField(
     TextEditingController controller,
-    String label, {
-    bool obscureText = false,
+    String label,
+    String? Function(String?) validator, {
     TextInputType? inputType,
-    String? Function(String?)? validator,
     bool readOnly = false,
     String? helperText,
   }) {
     return TextFormField(
       controller: controller,
-      obscureText: obscureText,
-      keyboardType: inputType ?? TextInputType.text,
+      keyboardType: inputType,
       readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
         helperText: helperText,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
       ),
-      validator:
-          validator ??
-          (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'This field is required';
-            }
-            return null;
-          },
+      validator: validator,
     );
   }
 
-  // TODO: MOVE TO USER SERVICE FILE
-  // Saves the profile data to Firestore
-  Future<void> _saveProfile() async {
-    // Validate form
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // Validate required fields
-    if (nameController.text.trim().isEmpty ||
-        phoneController.text.trim().isEmpty ||
-        cityController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all required fields")),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-      await UserFirestore().updateUser(
-        nameController.text.trim(),
-        phoneController.text.trim(),
-        cityController.text.trim(),
-      );
-
-      // Temporary placeholder until you implement update logic
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile updated successfully")),
-      );
-
-      Navigator.of(context).pop();
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error updating profile: $e")));
-    } finally {
-      setState(() {
-        _isSaving = false;
-      });
-    }
+  Widget _buildCityDropdown(BuildContext context, UserEditProfileProvider provider) {
+    return DropdownButtonFormField<String>(
+      value: provider.selectedCity,
+      decoration: InputDecoration(
+        labelText: 'city'.tr(),
+        prefixIcon: const Icon(Icons.location_city),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+      ),
+      hint: Text('select_city'.tr()),
+      items: provider.algerianCities.map((city) {
+        return DropdownMenuItem(value: city, child: Text(city));
+      }).toList(),
+      onChanged: (value) {
+        provider.selectedCity = value;
+        provider.notifyListeners();
+      },
+      validator: (value) => value == null ? 'city_required'.tr() : null,
+    );
   }
 }
+

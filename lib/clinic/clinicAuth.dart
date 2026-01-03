@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,26 +17,26 @@ class Clinicauth {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text("Login"),
+          title: Text("Login".tr()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: loginEmail,
-                decoration: InputDecoration(labelText: "Email"),
+                decoration: InputDecoration(labelText: "Email".tr()),
               ),
               SizedBox(height: 12),
               TextField(
                 controller: loginPassword,
                 obscureText: true,
-                decoration: InputDecoration(labelText: "Password"),
+                decoration: InputDecoration(labelText: "Password".tr()),
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text("Cancel"),
+              child: Text("Cancel".tr()),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -58,10 +59,10 @@ class Clinicauth {
                   debugPrint("Login error: $e");
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(SnackBar(content: Text("Login failed")));
+                  ).showSnackBar(SnackBar(content: Text("Login failed".tr())));
                 }
               },
-              child: Text("Login"),
+              child: Text("Login".tr()),
             ),
           ],
         );

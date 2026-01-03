@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 
 Future<Widget> decidePage() async {
   final currentUser = FirebaseAuth.instance.currentUser;
-  print(currentUser!.email);
 
   if (currentUser == null) {
     return intro();
@@ -43,9 +42,11 @@ Widget intro() {
   return Builder(
     builder: (context) {
       // Make it fit small screens
-      final containerSize = MediaQuery.of(context).size.width * 0.4;
+      final containerSize = MediaQuery.of(context).size.width * 0.5;
+      final containerHeight = MediaQuery.of(context).size.width * 0.3;
       return Center(
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment:
               MainAxisAlignment.spaceEvenly, // Better spacing
           children: [
@@ -56,14 +57,7 @@ Widget intro() {
                   builder: (_) => ClinicOnboardingPages(),
                 ),
               ),
-              child: Container(
-                color: Colors.green,
-                height: containerSize,
-                width: containerSize,
-                child: const Center(
-                  child: Icon(Icons.local_hospital, size: 48),
-                ),
-              ),
+              child: Image.asset('assets/doctors2.png',height: containerHeight,width: containerSize,fit: BoxFit.fill,),
             ),
             GestureDetector(
               onTap: () => showModalBottomSheet(
@@ -73,12 +67,7 @@ Widget intro() {
                   height: MediaQuery.of(context).size.height*0.99,
                   child: UserOnboardingPages()),
               ),
-              child: Container(
-                color: Colors.green,
-                height: containerSize,
-                width: containerSize,
-                child: const Center(child: Icon(Icons.person, size: 48)),
-              ),
+              child: Image.asset('assets/doctors2.png',height: 300,width: containerSize,),
             ),
           ],
         ),

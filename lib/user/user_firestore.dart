@@ -62,7 +62,7 @@ class UserFirestore {
         .get();
 
     if (!appointmentDoc.exists) {
-      throw Exception('Appointment not found');
+      throw Exception('Appointment not found'.tr());
     }
 
     final appointmentData = appointmentDoc.data()!;

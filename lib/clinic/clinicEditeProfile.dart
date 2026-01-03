@@ -1,364 +1,505 @@
-// ignore_for_file: unused_element
-
-import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
 
-// TODO: Move these imports to a centralized service locator or appropriate service files
-import 'package:eyadati/clinic/clinic_firestore.dart';
+// ================ PROVIDER ================
 
-class ClinicEditProfilePage extends StatefulWidget {
-  // TODO: Pass existing clinic data map to pre-fill the form
-  final String? clinicId;
+class ClinicEditProfileProvider extends ChangeNotifier {
+  final FirebaseAuth auth;
+  final FirebaseFirestore firestore;
+
+  ClinicEditProfileProvider({
+    required this.auth,
+    required this.firestore,
+  }) {
+    _loadClinicData();
+  }
+
+  // Form key
+  final formKey = GlobalKey<FormState>();
   
-  const ClinicEditProfilePage({
-    super.key, 
-    this.clinicId,
-  });
+  // Controllers
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final clinicNameController = TextEditingController();
+  final specialtyController = TextEditingController();
+  final staffController = TextEditingController();
+  final addressController = TextEditingController();
+  final phoneController = TextEditingController();
+  final mapsLinkController = TextEditingController();
 
-  @override
-  _ClinicEditProfilePageState createState() => _ClinicEditProfilePageState();
-}
-
-class _ClinicEditProfilePageState extends State<ClinicEditProfilePage> {
-  // Form key for validation
-  final _formKey = GlobalKey<FormState>();
-
-  // Text editing controllers
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController clinicNameController = TextEditingController();
-  final TextEditingController cityController = TextEditingController();
-  final TextEditingController addressController = TextEditingController();
-  final TextEditingController mapsLinkController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController staffController = TextEditingController();
-
-  // Time values stored as minutes since midnight
+  // State
+  String? selectedCity;
+  List<int> workingDays = [];
   int? openingMinutes;
   int? closingMinutes;
   int? breakStartMinutes;
   int? breakEndMinutes;
-  List<int> workingDays = [];
-
-  // Specialty selection
-  final List<String> specialties = [
-    'General Medicine', 'Pediatrics', 'Gynecology', 'Dermatology', 'Dentistry',
-    'Orthopedics', 'Ophthalmology', 'ENT (Ear, Nose, Throat)', 'Cardiology',
-    'Psychiatry', 'Psychology', 'Physiotherapy', 'Nutrition', 'Neurology',
-    'Gastroenterology', 'Urology', 'Pulmonology', 'Endocrinology', 'Rheumatology',
-    'Oncology', 'Surgery', 'Radiology', 'Laboratory Services', 'Nephrology',
-  ];
-  String? selectedSpecialty;
-  
-  // Image handling
+  int avatarNumber = 1;
   XFile? profileImage;
-  String? existingImageUrl; // TODO: Store existing image URL for replacement/update logic
-  final ImagePicker _picker = ImagePicker();
-  
-  // Loading state
-  bool _isSaving = false;
+  bool isLoading = true;
+  bool isSaving = false;
+  String? error;
 
-  @override
-  void initState() {
-    super.initState();
-    // TODO: Load existing clinic data from Firestore
-    // _loadClinicData();
+  // Dropdown data
+  final List<String> algerianCities = [
+    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa',
+    'Sétif', 'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret',
+    'Béjaïa', 'Tlemcen', 'Béchar', 'Mostaganem', 'Bordj Bou Arreridj',
+    'Chlef', 'Souk Ahras', 'El Eulma', 'Médéa', 'Tizi Ouzou', 'Jijel',
+    'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila', 'Relizane', 'Saïda',
+    'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara', 'Khenchela',
+    'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
+    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
+    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
+    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh',
+    'El Guerrara', 'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa',
+    'Hassi Bahbah', 'Khemis Miliana', 'Ksar Chellala', 'Ksar Boukhari',
+    'Lakhdaria', 'Larbaâ',
+  ];
+
+  final List<String> specialties = [
+    'General Medicine'.tr(),
+    'Pediatrics'.tr(),
+    'Gynecology'.tr(),
+    'Dermatology'.tr(),
+    'Dentistry'.tr(),
+    'Orthopedics'.tr(),
+    'Ophthalmology'.tr(),
+    'ENT (Ear, Nose, Throat)'.tr(),
+    'Cardiology'.tr(),
+    'Psychiatry'.tr(),
+    'Psychology'.tr(),
+    'Physiotherapy'.tr(),
+    'Nutrition'.tr(),
+    'Neurology'.tr(),
+    'Gastroenterology'.tr(),
+    'Urology'.tr(),
+    'Pulmonology'.tr(),
+    'Endocrinology'.tr(),
+    'Rheumatology'.tr(),
+    'Oncology'.tr(),
+    'Surgery'.tr(),
+    'Radiology'.tr(),
+    'Laboratory Services'.tr(),
+    'Nephrology'.tr(),
+  ];
+  void OnSpecialtyChange(String? value){
+     specialtyController.text = value ?? '';
+        notifyListeners();
+  }
+  Future<void> _loadClinicData() async {
+    try {
+      final user = auth.currentUser;
+      if (user == null) {
+        error = "no_user_found".tr();
+        isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      final doc = await firestore.collection("clinics").doc(user.uid).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        nameController.text = data['name'] ?? '';
+        emailController.text = data['email'] ?? '';
+        clinicNameController.text = data['clinicName'] ?? '';
+        specialtyController.text = data['specialty'] ?? '';
+        staffController.text = data['staff']?.toString() ?? '';
+        addressController.text = data['address'] ?? '';
+        phoneController.text = data['phone'] ?? '';
+        mapsLinkController.text = data['mapsLink'] ?? '';
+        
+        selectedCity = data['city'] != null 
+          ? algerianCities.firstWhere(
+              (c) => c.toLowerCase() == data['city'].toLowerCase(),
+              orElse: () => algerianCities[0],
+            )
+          : null;
+        
+        workingDays = List<int>.from(data['workingDays'] ?? []);
+        openingMinutes = data['openingAt'];
+        closingMinutes = data['closingAt'];
+        breakStartMinutes = data['breakStart'];
+        breakEndMinutes = data['breakEnd'];
+        avatarNumber = data['avatarNumber'] ?? 1;
+      }
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
-  // TODO: MOVE TO CLINIC SERVICE FILE
-  // Future<void> _loadClinicData() async {
-  //   if (widget.clinicId != null) {
-  //     // Fetch clinic document from Firestore
-  //     // Update all controllers with existing data
-  //     // Set existingImageUrl if available
-  //     // Update state variables (times, workingDays, selectedSpecialty)
-  //   }
-  // }
+  Future<void> saveProfile(BuildContext context) async {
+    if (!formKey.currentState!.validate()) return;
+    if (selectedCity == null) {
+      error = "city_required".tr();
+      notifyListeners();
+      return;
+    }
+
+    isSaving = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final user = auth.currentUser;
+      if (user == null) throw Exception("no user found".tr());
+
+      await firestore.collection("clinics").doc(user.uid).update({
+        "name": nameController.text.trim(),
+        "clinicName": clinicNameController.text.trim(),
+        "specialty": specialtyController.text,
+        "staff": int.tryParse(staffController.text) ?? 1,
+        "city": selectedCity!.toLowerCase(),
+        "address": addressController.text.trim(),
+        "phone": phoneController.text.trim(),
+        "mapsLink": mapsLinkController.text.trim(),
+        "workingDays": workingDays,
+        "openingAt": openingMinutes,
+        "closingAt": closingMinutes,
+        "breakStart": breakStartMinutes,
+        "breakEnd": breakEndMinutes,
+        "avatarNumber": avatarNumber,
+        "updatedAt": FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('profile updated success'.tr())),
+      );
+      
+      Navigator.of(context).pop();
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  void selectCity(String? city) {
+    selectedCity = city;
+    notifyListeners();
+  }
+
+  void toggleWorkingDay(int dayIndex, bool selected) {
+    selected ? workingDays.add(dayIndex) : workingDays.remove(dayIndex);
+    notifyListeners();
+  }
+
+  void setTime(String type, TimeOfDay pickedTime) {
+    final minutes = pickedTime.hour * 60 + pickedTime.minute;
+    switch (type) {
+      case 'opening':
+        openingMinutes = minutes;
+        break;
+      case 'closing':
+        closingMinutes = minutes;
+        break;
+      case 'breakStart':
+        breakStartMinutes = minutes;
+        break;
+      case 'breakEnd':
+        breakEndMinutes = minutes;
+        break;
+    }
+    notifyListeners();
+  }
+
+  void selectAvatar(int index) {
+    avatarNumber = index;
+    notifyListeners();
+  }
 
   @override
   void dispose() {
-    // Dispose all controllers to prevent memory leaks
     nameController.dispose();
+    emailController.dispose();
     clinicNameController.dispose();
-    cityController.dispose();
-    addressController.dispose();
-    mapsLinkController.dispose();
-    phoneController.dispose();
+    specialtyController.dispose();
     staffController.dispose();
+    addressController.dispose();
+    phoneController.dispose();
+    mapsLinkController.dispose();
     super.dispose();
   }
+}
+
+// ================ UI PAGE ================
+
+class ClinicEditProfilePage extends StatelessWidget {
+  const ClinicEditProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => ClinicEditProfileProvider(
+        auth: FirebaseAuth.instance,
+        firestore: FirebaseFirestore.instance,
+      ),
+      child: const _ClinicEditProfileContent(),
+    );
+  }
+}
+
+class _ClinicEditProfileContent extends StatelessWidget {
+  const _ClinicEditProfileContent();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Clinic Profile'),
+        title: Text('edit_clinic_profile'.tr()),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Owner Information Section
-                _buildSectionTitle('Owner Information'),
-                const SizedBox(height: 16),
-                _buildTextFormField(nameController, "Owner Full Name"),
-                const SizedBox(height: 24),
+        child: Consumer<ClinicEditProfileProvider>(
+          builder: (context, provider, _) {
+            if (provider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                // Business Information Section
-                _buildSectionTitle('Business Information'),
-                const SizedBox(height: 16),
-                _buildTextFormField(clinicNameController, "Clinic Name"),
-                const SizedBox(height: 16),
-                
-                // Specialty Dropdown
-                Text("Specialty", style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedSpecialty,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  hint: const Text("Select Specialty"),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedSpecialty = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a specialty';
-                    }
-                    return null;
-                  },
-                  items: specialties.map((s) {
-                    return DropdownMenuItem(value: s, child: Text(s));
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                
-                _buildTextFormField(
-                  staffController,
-                  'Number of Doctors',
-                  inputType: TextInputType.number,
-                ),
-                const SizedBox(height: 24),
+            if (provider.error != null) {
+              return _buildErrorState(context, provider);
+            }
 
-                // Address & Contact Section
-                _buildSectionTitle('Address & Contact'),
-                const SizedBox(height: 16),
-                _buildTextFormField(cityController, "City"),
-                const SizedBox(height: 16),
-                _buildTextFormField(addressController, "Address"),
-                const SizedBox(height: 16),
-                _buildTextFormField(
-                  mapsLinkController,
-                  'Google Maps Link (so people can find your clinic)',
-                ),
-                const SizedBox(height: 10),
-                Center(
-                  child: TextButton(
-                    onPressed: () async {
-                      final uri = Uri.parse('https://www.google.com/maps');
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    },
-                    child: const Text("Open Google Maps"),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildTextFormField(
-                  phoneController,
-                  "Phone Number",
-                  inputType: TextInputType.phone,
-                  validator: _validatePhone,
-                ),
-                const SizedBox(height: 24),
+            return Form(
+              key: provider.formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle(context, 'clinic information'.tr()),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.clinicNameController, "clinic name".tr(), provider),
+                    const SizedBox(height: 16),
+                    _buildSpecialtyDropdown(context, provider),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.staffController, "staff count".tr(), provider, inputType: TextInputType.number),
+                    const SizedBox(height: 32),
 
-                // Working Hours Section
-                _buildSectionTitle('Working Hours'),
-                const SizedBox(height: 16),
-                _buildTimePickerRow("Opening Time", (minutes) {
-                  openingMinutes = minutes;
-                }),
-                const SizedBox(height: 16),
-                _buildTimePickerRow("Closing Time", (minutes) {
-                  closingMinutes = minutes;
-                }),
-                const SizedBox(height: 16),
-                _buildTimePickerRow("Break Start Time", (minutes) {
-                  breakStartMinutes = minutes;
-                }),
-                const SizedBox(height: 16),
-                _buildTimePickerRow("Break End Time", (minutes) {
-                  breakEndMinutes = minutes;
-                }),
-                const SizedBox(height: 24),
-                
-                Text(
-                  "Working Days",
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: List.generate(7, (i) {
-                    final dayName = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i];
-                    final selected = workingDays.contains(i);
-                    return FilterChip(
-                      label: Text(dayName),
-                      selected: selected,
-                      onSelected: (val) {
-                        setState(() {
-                          if (val) {
-                            workingDays.add(i);
-                          } else {
-                            workingDays.remove(i);
-                          }
-                        });
-                      },
-                    );
-                  }),
-                ),
-                const SizedBox(height: 24),
+                    _buildSectionTitle(context, 'owner information'.tr()),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.nameController, "owner name".tr(), provider),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.emailController, "email".tr(), provider, readOnly: true),
+                    const SizedBox(height: 32),
 
-                // Profile Image Section
-                _buildSectionTitle('Clinic Image'),
-                const SizedBox(height: 16),
-                Center(
-                  child: _buildAvatarPicker(profileImage, (xFile) {
-                    setState(() => profileImage = xFile);
-                  }),
-                ),
-                const SizedBox(height: 24),
+                    _buildSectionTitle(context, 'contact details'.tr()),
+                    const SizedBox(height: 16),
+                    _buildCityDropdown(context, provider),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.addressController, "address".tr(), provider),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.mapsLinkController, "maps link".tr(), provider),
+                    const SizedBox(height: 16),
+                    _buildTextFormField(provider.phoneController, "phone number".tr(), provider, inputType: TextInputType.phone),
+                    const SizedBox(height: 32),
 
-                // Save Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    _buildSectionTitle(context, 'working hours'.tr()),
+                    const SizedBox(height: 16),
+                    _buildTimePickerRow(context, "opening".tr(), 'opening', provider),
+                    const SizedBox(height: 12),
+                    _buildTimePickerRow(context, "closing".tr(), 'closing', provider),
+                    const SizedBox(height: 12),
+                    _buildTimePickerRow(context, "break_start".tr(), 'breakStart', provider),
+                    const SizedBox(height: 12),
+                    _buildTimePickerRow(context, "break_end".tr(), 'breakEnd', provider),
+                    const SizedBox(height: 24),
+
+                    _buildSectionTitle(context, 'working days'.tr(), isSmall: true),
+                    _buildWorkingDaysChips(context, provider),
+                    const SizedBox(height: 32),
+
+                    _buildSectionTitle(context, 'clinic avatar'.tr()),
+                    _buildAvatarPicker(context, provider),
+                    const SizedBox(height: 32),
+
+                    if (provider.error != null) ...[
+                      Text(provider.error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 8),
+                    ],
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: provider.isSaving ? null : () => provider.saveProfile(context),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: provider.isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Text("save changes".tr(), style: const TextStyle(fontSize: 16)),
                       ),
                     ),
-                    child: _isSaving 
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text(
-                          "Save Changes",
-                          style: TextStyle(fontSize: 16),
-                        ),
-                  ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  // TODO: MOVE TO SHARED UI HELPERS FILE
-  // Builds a section title widget
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-        fontWeight: FontWeight.bold,
+  Widget _buildErrorState(BuildContext context, ClinicEditProfileProvider provider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text(provider.error!, style: TextStyle(color: Colors.red.shade700)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => provider._loadClinicData(),
+            icon: const Icon(Icons.refresh),
+            label: Text('retry'.tr()),
+          ),
+        ],
       ),
     );
   }
 
-  // TODO: MOVE TO VALIDATION SERVICE FILE
-  // Validates email format
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Required';
-    final pattern = RegExp(r'^\S+@\S+\.\S+$');
-    if (!pattern.hasMatch(value.trim())) return 'Invalid email';
-    return null;
+  Widget _buildSectionTitle(BuildContext context, String title, {bool isSmall = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(
+        title,
+        style: isSmall
+          ? Theme.of(context).textTheme.titleMedium
+          : Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
   }
 
-  // TODO: MOVE TO VALIDATION SERVICE FILE
-  // Validates password strength
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Required';
-    if (value.length < 6) return 'Password too short';
-    return null;
-  }
-
-  // TODO: MOVE TO VALIDATION SERVICE FILE
-  // Validates phone number format
-  String? _validatePhone(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Required';
-    final pattern = RegExp(r'^[0-9]+$');
-    if (!pattern.hasMatch(value.trim())) return 'Invalid number';
-    return null;
-  }
-
-  // TODO: MOVE TO WIDGET/UI COMPONENTS FILE
-  // Reusable text form field builder
   Widget _buildTextFormField(
     TextEditingController controller,
-    String label, {
+    String label,
+    ClinicEditProfileProvider provider, {
     bool obscureText = false,
     TextInputType? inputType,
-    String? Function(String?)? validator,
+    bool readOnly = false,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: inputType ?? TextInputType.text,
+      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
       ),
-      validator:
-          validator ??
-          (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'This field is required';
-            }
-            return null;
-          },
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'required field'.tr();
+        }
+        return null;
+      },
     );
   }
 
-  // TODO: MOVE TO WIDGET/UI COMPONENTS FILE
-  // Builds a time picker row with label and button
-  Widget _buildTimePickerRow(
-    String label,
-    void Function(int minutesSinceMidnight) onSelected,
-  ) {
+  Widget _buildCityDropdown(BuildContext context, ClinicEditProfileProvider provider) {
+    return DropdownButtonFormField<String>(
+      value: provider.selectedCity,
+      decoration: InputDecoration(
+        labelText: "city".tr(),
+        prefixIcon: const Icon(Icons.location_city),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+      ),
+      hint: Text("select city".tr()),
+      items: provider.algerianCities.map((city) {
+        return DropdownMenuItem(value: city, child: Text(city));
+      }).toList(),
+      onChanged: provider.selectCity,
+      validator: (value) {
+        if (value == null) {
+          return 'city required'.tr();
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildSpecialtyDropdown(BuildContext context, ClinicEditProfileProvider provider) {
+    return DropdownButtonFormField<String>(
+      initialValue: provider.specialties.contains(provider.specialtyController.text) 
+        ? provider.specialtyController.text 
+        : null,
+      decoration: InputDecoration(
+        labelText: "specialty".tr(),
+        prefixIcon: const Icon(Icons.medical_services),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+      ),
+      hint: Text("select specialty".tr()),
+      items: provider.specialties.map((specialty) {
+        return DropdownMenuItem(value: specialty, child: Text(specialty));
+      }).toList(),
+      onChanged: (value) {
+       provider.OnSpecialtyChange(value);
+      },
+      validator: (value) {
+        if (value == null) {
+          return 'specialty required'.tr();
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildTimePickerRow(BuildContext context, String label, String type, ClinicEditProfileProvider provider) {
+    String? timeText;
+    int? minutes;
+    
+    switch (type) {
+      case 'opening':
+        minutes = provider.openingMinutes;
+        break;
+      case 'closing':
+        minutes = provider.closingMinutes;
+        break;
+      case 'breakStart':
+        minutes = provider.breakStartMinutes;
+        break;
+      case 'breakEnd':
+        minutes = provider.breakEndMinutes;
+        break;
+    }
+
+    if (minutes != null) {
+      timeText = "${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}";
+    }
+
     return Row(
       children: [
-        Expanded(child: Text(label)),
+        Expanded(child: Text(label, style: Theme.of(context).textTheme.titleMedium)),
         TextButton.icon(
           icon: const Icon(Icons.access_time),
-          label: const Text("Select"),
+          label: Text(timeText ?? "select time".tr()),
           onPressed: () async {
             TimeOfDay? picked = await showTimePicker(
               context: context,
               initialTime: TimeOfDay.now(),
             );
             if (picked != null) {
-              final int minutes = picked.hour * 60 + picked.minute;
-              onSelected(minutes);
-              setState(() {});
+              provider.setTime(type, picked);
             }
           },
         ),
@@ -366,112 +507,63 @@ class _ClinicEditProfilePageState extends State<ClinicEditProfilePage> {
     );
   }
 
-  // TODO: MOVE TO WIDGET/UI COMPONENTS FILE
-  // Builds an avatar/image picker widget
-  Widget _buildAvatarPicker(XFile? image, Function(XFile) onPick) {
-    return GestureDetector(
-      onTap: () async {
-        XFile? picked = await _picker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 80, // Built-in compression
+  Widget _buildWorkingDaysChips(BuildContext context, ClinicEditProfileProvider provider) {
+    final dayNames = [
+      "monday".tr(),
+      "tuesday".tr(),
+      "wednesday".tr(),
+      "thursday".tr(),
+      "friday".tr(),
+      "saturday".tr(),
+      "sunday".tr(),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(7, (i) {
+        return FilterChip(
+          label: Text(dayNames[i]),
+          selected: provider.workingDays.contains(i),
+          onSelected: (val) => provider.toggleWorkingDay(i, val),
         );
-        if (picked != null) onPick(picked);
-      },
-      child: CircleAvatar(
-        radius: 60,
-        backgroundColor: Colors.grey[300],
-        backgroundImage: image != null ? FileImage(File(image.path)) : null,
-        child: image == null
-            ? Icon(Icons.camera_alt, size: 40, color: Colors.grey[600])
-            : null,
-      ),
+      }),
     );
   }
 
-  // TODO: MOVE TO CLINIC SERVICE FILE
-  // Saves the profile data to Firestore
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    // Validate required business fields
-    if (clinicNameController.text.trim().isEmpty ||
-        selectedSpecialty == null ||
-        cityController.text.trim().isEmpty ||
-        addressController.text.trim().isEmpty ||
-        phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all required information")),
-      );
-      return;
-    }
-
-    // Validate time logic
-    if (openingMinutes == null ||
-        closingMinutes == null ||
-        openingMinutes! >= closingMinutes!) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please set valid opening and closing times")),
-      );
-      return;
-    }
-
-    if (breakStartMinutes != null &&
-        breakEndMinutes != null &&
-        !(openingMinutes! <= breakStartMinutes! &&
-            breakStartMinutes! < breakEndMinutes! &&
-            breakEndMinutes! <= closingMinutes!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Break time is invalid")),
-      );
-      return;
-    }
-
-    if (workingDays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Select at least one working day")),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-
-      await ClinicFirestore().updateClinic(
-                      nameController.text.trim(),
-                      clinicNameController.text.trim(),
-                      mapsLinkController.text.trim(),
-                      1,
-                      cityController.text.trim(),
-                      workingDays,
-                      phoneController.text.trim(),
-                      selectedSpecialty!,
-                      staffController.text.trim(),
-                      openingMinutes!,
-                      closingMinutes!,
-                      breakStartMinutes!,
-                      breakEndMinutes!,
-                      addressController.text.trim(),
-       );
-
-      // Temporary placeholder until you implement update logic
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile updated successfully")),
-      );
-
-      Navigator.of(context).pop();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error updating profile: $e")),
-      );
-    } finally {
-      setState(() {
-        _isSaving = false;
-      });
-    }
+  Widget _buildAvatarPicker(BuildContext context, ClinicEditProfileProvider provider) {
+    return Center(
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: List.generate(12, (i) {
+          return GestureDetector(
+            onTap: () => provider.selectAvatar(i + 1),
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: provider.avatarNumber == i + 1 ? Colors.blue : Colors.transparent,
+                  width: 3,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/avatars/${i + 1}.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.grey.shade300,
+                    child: const Icon(Icons.local_hospital),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
   }
 }
+

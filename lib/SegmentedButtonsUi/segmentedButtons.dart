@@ -1,3 +1,5 @@
+import 'package:easy_localization/easy_localization.dart';
+import 'package:eyadati/SegmentedButtonsUi/AppoitmentsManagment.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:eyadati/clinic/clinic_appointments.dart';
@@ -39,10 +41,9 @@ class _SegmentedContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<SegmentedButtonProvider>();
     
-    // Pages created fresh each build, but IndexedStack keeps them alive efficiently
     final pages = [
       ClinicAppointments(clinicId: clinicUid),
-      const _ManagementScreen(),
+       ManagementScreen(clinicUid: clinicUid,),
       const _DashboardScreen(),
     ];
 
@@ -55,10 +56,10 @@ class _SegmentedContent extends StatelessWidget {
           onSelectionChanged: (selected) {
             provider.select(selected.first); // Single line, no setState!
           },
-          segments: const [
-            ButtonSegment(value: "1", label: Text("Appointments")),
-            ButtonSegment(value: "2", label: Text("Management")),
-            ButtonSegment(value: "3", label: Text("Dashboard")),
+          segments:  [
+            ButtonSegment(value: "1", label: Text("Appointments".tr())),
+            ButtonSegment(value: "2", label: Text("Management".tr())),
+            ButtonSegment(value: "3", label: Text("Dashboard".tr())),
           ],
         ),
         Expanded(
@@ -73,15 +74,10 @@ class _SegmentedContent extends StatelessWidget {
   }
 }
 
-// Placeholder screens (make them const for zero rebuild cost)
-class _ManagementScreen extends StatelessWidget {
-  const _ManagementScreen();
-  @override
-  Widget build(BuildContext context) => const Center(child: Text('Management'));
-}
+
 
 class _DashboardScreen extends StatelessWidget {
   const _DashboardScreen();
   @override
-  Widget build(BuildContext context) => const Center(child: Text('Dashboard'));
+  Widget build(BuildContext context) =>  Center(child: Text('Coming soon'.tr()));
 }

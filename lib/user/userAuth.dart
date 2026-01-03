@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/user/UserHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -18,11 +19,9 @@ class Userauth {
       }
     }
   }
- 
 
- // USER LOGIN
+  // USER LOGIN
   Future<void> userLogIn(BuildContext context) async {
-     
     final TextEditingController loginEmail = TextEditingController();
     final TextEditingController loginPassword = TextEditingController();
 
@@ -36,13 +35,23 @@ class Userauth {
             children: [
               TextField(
                 controller: loginEmail,
-                decoration: InputDecoration(labelText: "Email"),
+                decoration: InputDecoration(
+                  labelText: "Email".tr(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
               SizedBox(height: 12),
               TextField(
                 controller: loginPassword,
                 obscureText: true,
-                decoration: InputDecoration(labelText: "Password"),
+                decoration: InputDecoration(
+                  labelText: "Password".tr(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ],
           ),
@@ -65,14 +74,14 @@ class Userauth {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (_) => Userhome()),
-                      (route)=>false
+                      (route) => false,
                     );
                   }
                 } catch (e) {
                   debugPrint("Login error: $e");
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(SnackBar(content: Text("Login failed")));
+                  ).showSnackBar(SnackBar(content: Text("Login failed".tr())));
                 }
               },
               child: Text("Login"),
@@ -83,9 +92,7 @@ class Userauth {
     );
   }
 
-  
-
-  Future<void> userLogOut()async{
+  Future<void> userLogOut() async {
     await FirebaseAuth.instance.signOut();
   }
 }

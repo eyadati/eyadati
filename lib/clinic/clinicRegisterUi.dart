@@ -25,7 +25,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final clinicNameController = TextEditingController();
-  final cityController = TextEditingController();
+
   final addressController = TextEditingController();
   final phoneController = TextEditingController();
 
@@ -39,45 +39,120 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   int? breakEndMinutes;
   List<int> workingDays = [];
   String? selectedSpecialty;
-  XFile? profileImage;
-
-  final ImagePicker _picker = ImagePicker();
+  String? _selectedCity;
+  String? get selectedCity => _selectedCity;
   int currentPage = 0;
   bool isSubmitting = false;
 
   // Specialties as getter for locale updates
   List<String> get specialties => [
-        'General Medicine'.tr(),
-        'Pediatrics'.tr(),
-        'Gynecology'.tr(),
-        'Dermatology'.tr(),
-        'Dentistry'.tr(),
-        'Orthopedics'.tr(),
-        'Ophthalmology'.tr(),
-        'ENT (Ear, Nose, Throat)'.tr(),
-        'Cardiology'.tr(),
-        'Psychiatry'.tr(),
-        'Psychology'.tr(),
-        'Physiotherapy'.tr(),
-        'Nutrition'.tr(),
-        'Neurology'.tr(),
-        'Gastroenterology'.tr(),
-        'Urology'.tr(),
-        'Pulmonology'.tr(),
-        'Endocrinology'.tr(),
-        'Rheumatology'.tr(),
-        'Oncology'.tr(),
-        'Surgery'.tr(),
-        'Radiology'.tr(),
-        'Laboratory Services'.tr(),
-        'Nephrology'.tr(),
-      ];
+    'General Medicine'.tr(),
+    'Pediatrics'.tr(),
+    'Gynecology'.tr(),
+    'Dermatology'.tr(),
+    'Dentistry'.tr(),
+    'Orthopedics'.tr(),
+    'Ophthalmology'.tr(),
+    'ENT (Ear, Nose, Throat)'.tr(),
+    'Cardiology'.tr(),
+    'Psychiatry'.tr(),
+    'Psychology'.tr(),
+    'Physiotherapy'.tr(),
+    'Nutrition'.tr(),
+    'Neurology'.tr(),
+    'Gastroenterology'.tr(),
+    'Urology'.tr(),
+    'Pulmonology'.tr(),
+    'Endocrinology'.tr(),
+    'Rheumatology'.tr(),
+    'Oncology'.tr(),
+    'Surgery'.tr(),
+    'Radiology'.tr(),
+    'Laboratory Services'.tr(),
+    'Nephrology'.tr(),
+  ];
+  final List<String> algerianCities = [
+    'Algiers',
+    'Oran',
+    'Constantine',
+    'Annaba',
+    'Blida',
+    'Batna',
+    'Djelfa',
+    'Sétif',
+    'Sidi Bel Abbès',
+    'Biskra',
+    'Tébessa',
+    'Skikda',
+    'Tiaret',
+    'Béjaïa',
+    'Tlemcen',
+    'Béchar',
+    'Mostaganem',
+    'Bordj Bou Arreridj',
+    'Chlef',
+    'Souk Ahras',
+    'El Eulma',
+    'Médéa',
+    'Tizi Ouzou',
+    'Jijel',
+    'Laghouat',
+    'El Oued',
+    'Ouargla',
+    'M\'Sila',
+    'Relizane',
+    'Saïda',
+    'Bou Saâda',
+    'Guelma',
+    'Aïn Beïda',
+    'Maghnia',
+    'Mascara',
+    'Khenchela',
+    'Barika',
+    'Messaad',
+    'Aflou',
+    'Aïn Oussara',
+    'Adrar',
+    'Aïn Defla',
+    'Aïn Fakroun',
+    'Aïn Oulmene',
+    'Aïn M\'lila',
+    'Aïn Sefra',
+    'Aïn Témouchent',
+    'Aïn Touta',
+    'Akbou',
+    'Azzaba',
+    'Berrouaghia',
+    'Bir el-Ater',
+    'Boufarik',
+    'Bouira',
+    'Chelghoum Laid',
+    'Cheria',
+    'Chettia',
+    'El Bayadh',
+    'El Guerrara',
+    'El-Khroub',
+    'Frenda',
+    'Ferdjioua',
+    'Ghardaïa',
+    'Hassi Bahbah',
+    'Khemis Miliana',
+    'Ksar Chellala',
+    'Ksar Boukhari',
+    'Lakhdaria',
+    'Larbaâ',
+  ];
 
   // ──────────────────────────────────────────────────────────────────────────
   // Public methods
   // ──────────────────────────────────────────────────────────────────────────
   void selectAvatar(int i) {
     avatarNumber = i;
+    notifyListeners();
+  }
+
+  void selectCity(String? city) {
+    _selectedCity = city;
     notifyListeners();
   }
 
@@ -188,7 +263,9 @@ class ClinicOnboardingProvider extends ChangeNotifier {
           breakEndMinutes! <= closingMinutes!)) {
         if (!context.mounted) return false;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Break time must be within working hours".tr())),
+          SnackBar(
+            content: Text("Break time must be within working hours".tr()),
+          ),
         );
         return false;
       }
@@ -200,13 +277,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       );
       return false;
     }
-    if (profileImage == null) {
-      if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please upload a clinic image".tr())),
-      );
-      return false;
-    }
+  
 
     extractCoordinates();
 
@@ -225,7 +296,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
         extractedLatitude,
         clinicNameController.text.trim(),
         1,
-        cityController.text.trim(),
+        _selectedCity!,
         workingDays,
         phoneController.text.trim(),
         selectedSpecialty!,
@@ -265,7 +336,6 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     emailController.dispose();
     passwordController.dispose();
     clinicNameController.dispose();
-    cityController.dispose();
     addressController.dispose();
     phoneController.dispose();
     super.dispose();
@@ -427,14 +497,7 @@ class _FormPage extends StatelessWidget {
             const SizedBox(height: 32),
 
             _buildSectionTitle(context, "Address & Contact".tr()),
-            _buildTextFormField(
-              context,
-              controller: provider.cityController,
-              label: "City".tr(),
-              validator: provider.validateRequired,
-              focusNode: provider.focusNodes[5],
-              nextNode: provider.focusNodes[6],
-            ),
+            _buildCityDropdown(context),
             const SizedBox(height: 16),
             _buildTextFormField(
               context,
@@ -496,11 +559,15 @@ class _FormPage extends StatelessWidget {
                 onPressed: provider.isSubmitting
                     ? null
                     : () async {
-                        final success = await provider.validateAndSubmit(context);
+                        final success = await provider.validateAndSubmit(
+                          context,
+                        );
                         if (success && context.mounted) {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (_) => const Clinichome()),
+                            MaterialPageRoute(
+                              builder: (_) => const Clinichome(),
+                            ),
                           );
                         }
                       },
@@ -576,6 +643,29 @@ class _FormPage extends StatelessWidget {
     );
   }
 
+  Widget _buildCityDropdown(BuildContext context) {
+    final provider = context.watch<ClinicOnboardingProvider>();
+    return DropdownButtonFormField<String>(
+      initialValue: provider.algerianCities[0],
+      decoration: InputDecoration(
+        labelText: "City".tr(),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      hint: Text("Select City".tr()),
+      onChanged: provider.selectCity,
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please select a city'.tr();
+        }
+        return null;
+      },
+      items: provider.algerianCities.map((city) {
+        return DropdownMenuItem(value: city, child: Text(city));
+      }).toList(),
+      menuMaxHeight: 300,
+    );
+  }
+
   Widget _buildSpecialtyDropdown(BuildContext context) {
     final provider = context.watch<ClinicOnboardingProvider>();
     return DropdownButtonFormField<String>(
@@ -595,7 +685,7 @@ class _FormPage extends StatelessWidget {
       items: provider.specialties.map((s) {
         return DropdownMenuItem(value: s, child: Text(s));
       }).toList(),
-      menuMaxHeight: 250, // Prevent scroll jumps
+      menuMaxHeight: 250, 
     );
   }
 
@@ -682,16 +772,19 @@ class _FormPage extends StatelessWidget {
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
         ),
-        itemCount: 8,
+        itemCount: 10,
         itemBuilder: (cntx, i) {
           return GestureDetector(
             onTap: () {
               provider.selectAvatar(i);
             },
             child: CircleAvatar(
-              radius: 12,
-              backgroundColor:
-                  provider.avatarNumber == i ? Colors.black : Colors.green,
+              
+              radius: 11,
+              backgroundColor: provider.avatarNumber == i
+                  ? Colors.black
+                  : Colors.green,
+                  child: Image.asset("assets/avatars/${i+1}.png"),
             ),
           );
         },

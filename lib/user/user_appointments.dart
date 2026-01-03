@@ -41,7 +41,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
 
     try {
       final userId = auth.currentUser?.uid;
-      if (userId == null) throw Exception("User not logged in");
+      if (userId == null) throw Exception("User not logged in".tr());
 
       Query query = firestore
           .collection("users")
@@ -189,7 +189,7 @@ class _AppointmentsListView extends StatelessWidget {
 
               final clinicData = provider.getClinicData(clinicUid);
               if (clinicData == null) {
-                return const ListTile(title: Text("Clinic data not found"));
+                return  ListTile(title: Text("Clinic data not found".tr()));
               }
 
               return _AppointmentCard(
