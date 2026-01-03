@@ -6,6 +6,62 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+// ADD THIS: Provider using Firestore's built-in cache
+class ClinicsProvider extends ChangeNotifier {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final FirebaseAuth auth = FirebaseAuth.instance;
+  
+  List<Map<String, dynamic>> _clinics = [];
+  bool _isLoading = true;
+  String? _userCity;
+
+  List<Map<String, dynamic>> get clinics => _clinics;
+  bool get isLoading => _isLoading;
+  String? get userCity => _userCity;
+
+  Future<void> initialize() async {
+    await fetchClinics();
+  }
+
+  // Firestore handles caching automatically with GetOptions.source
+  Future<void> fetchClinics({bool forceRefresh = false}) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final userDoc = await firestore.collection('users').doc(auth.currentUser?.uid).get();
+      _userCity = userDoc.data()?['city'];
+      
+      if (_userCity == null || _userCity!.isEmpty) {
+        throw Exception('City not set');
+      }
+
+      final source = forceRefresh ? Source.server : Source.cache;
+      
+      final snapshot = await firestore
+          .collection('clinics')
+          .where('city', isEqualTo: _userCity)
+          .get(GetOptions(source: source));
+
+      // If cache empty, fetch from server
+      if (snapshot.docs.isEmpty && !forceRefresh) {
+        return fetchClinics(forceRefresh: true);
+      }
+
+      _clinics = snapshot.docs.map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      }).toList();
+      
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+}
+
 class Userhome extends StatefulWidget {
   const Userhome({super.key});
 
@@ -14,32 +70,31 @@ class Userhome extends StatefulWidget {
 }
 
 class _UserhomeState extends State<Userhome> {
-  final FirebaseAuth auth = FirebaseAuth.instance;
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => ClinicSearchProvider(firestore: firestore, auth: auth),
+          create: (_) {
+            final provider = ClinicsProvider();
+            provider.initialize(); // Fetch on start
+            return provider;
+          },
         ),
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: Text("Hello Oussama"),
+          title: const Text("Hello Oussama"),
           actions: [
             IconButton(
               onPressed: () => showModalBottomSheet(
                 context: context,
-                builder: (Context) {
-                  return SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.9,
-                    child: UserSettings(),
-                  );
-                },
+                builder: (context) => SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.9,
+                  child: const UserSettings(),
+                ),
               ),
-              icon: Icon(Icons.settings),
+              icon: const Icon(Icons.settings),
             ),
           ],
         ),
@@ -47,19 +102,25 @@ class _UserhomeState extends State<Userhome> {
           child: const Icon(Icons.add),
           onPressed: () => ClinicFilterBottomSheet.show(context),
         ),
+        body: Consumer<ClinicsProvider>(
+          builder: (context, provider, child) {
+            if (provider.isLoading) return const Center(child: CircularProgressIndicator());
+            
+            return Center(
+              child: Column(
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                  Expanded(
+                    child: Appointmentslistview(
 
-        body: Center(
-          child: Column(
-            children: [
-              SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-              Expanded(child: Appointmentslistview()),
-            ],
-          ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
-
-
-

@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/Appointments/slotsUi.dart';
@@ -12,28 +11,28 @@ class ClinicSearchProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
   final FirebaseAuth auth;
 
-  List<Map<String, dynamic>> _cachedClinics = [];
+  List<Map<String, dynamic>> _currentClinics = [];
   bool _isLoading = false;
   String? _error;
   String? _userCity;
 
-  // Filter states - null means "no filter"
+  // Filter states
   String _searchQuery = '';
-  String? _selectedCity; // null = all cities
-  String? _selectedSpecialty; // null = all specialties
+  String? _selectedCity; // null means user's city
+  String? _selectedSpecialty; // null means all specialties
 
   Timer? _debounceTimer;
 
   ClinicSearchProvider({required this.firestore, required this.auth}) {
-    _loadUserCity();
+    _initialize();
   }
 
   // Getters
-  List<Map<String, dynamic>> get cachedClinics => _cachedClinics;
+  List<Map<String, dynamic>> get currentClinics => _currentClinics;
   bool get isLoading => _isLoading;
   String? get error => _error;
   String? get userCity => _userCity;
-  String? get selectedFilterCity => _selectedCity; // Raw filter value
+  String? get selectedCity => _selectedCity;
   String? get selectedSpecialty => _selectedSpecialty;
   String get searchQuery => _searchQuery;
 
@@ -60,76 +59,87 @@ class ClinicSearchProvider extends ChangeNotifier {
     'Ksar Chellala', 'Ksar Boukhari', 'Lakhdaria', 'Larbaâ',
   ];
 
-  Future<void> _loadUserCity() async {
+  Future<void> _initialize() async {
     try {
       final user = auth.currentUser;
       if (user == null) return;
 
       final doc = await firestore.collection("users").doc(user.uid).get();
       _userCity = doc.data()?["city"]?.toString();
-      notifyListeners();
       
       if (_userCity != null) {
-        fetchClinics();
+        await fetchClinics();
       }
     } catch (e) {
-      debugPrint("Error loading user city: $e");
+      debugPrint("Error initializing: $e");
     }
   }
 
   List<Map<String, dynamic>> get filteredClinics {
-    if (_cachedClinics.isEmpty) return [];
-
-    return _cachedClinics.where((clinic) {
+    return _currentClinics.where((clinic) {
       final matchesSearch = _searchQuery.isEmpty ||
-          (clinic["clinicName"] ?? "").toString().contains(
-                _searchQuery,
+          (clinic["clinicName"] ?? "").toString().toLowerCase().contains(
+                _searchQuery.toLowerCase(),
               );
 
-      final matchesCity = _selectedCity == null ||
-          (clinic["city"] ?? "").toString() ==
-              _selectedCity;
-
       final matchesSpecialty = _selectedSpecialty == null ||
-          (clinic["specialty"] ?? "").toString() ==
-              _selectedSpecialty;
+          (clinic["specialty"] ?? "").toString() == _selectedSpecialty;
 
-      return matchesSearch && matchesCity && matchesSpecialty;
+      return matchesSearch && matchesSpecialty;
     }).toList();
   }
 
   Future<void> fetchClinics() async {
-    if (_isLoading || _userCity == null) return;
+    if (_isLoading) return;
+    
+    final cityToQuery = _selectedCity ?? _userCity;
+    if (cityToQuery == null) return;
 
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
+      // Use cache if querying user's own city, server otherwise
+      final useServer = _selectedCity != null && _selectedCity != _userCity;
+      final source = useServer ? Source.serverAndCache : Source.cache;
+      
       final querySnapshot = await firestore
           .collection("clinics")
-          .where("city", isEqualTo: _userCity)
+          .where("city", isEqualTo: cityToQuery)
           .limit(50)
-          .get();
-          print(querySnapshot);
+          .get(GetOptions(source: source));
 
-      _cachedClinics = querySnapshot.docs.map((doc) {
-        final data = doc.data();
-        return <String, dynamic>{"uid": doc.id, ...data};
-      }).toList();
+      // If cache returns empty and we're using cache, retry with server
+      if (querySnapshot.docs.isEmpty && !useServer) {
+        final serverSnapshot = await firestore
+            .collection("clinics")
+            .where("city", isEqualTo: cityToQuery)
+            .limit(50)
+            .get(GetOptions(source: Source.server));
+        _currentClinics = serverSnapshot.docs.map((doc) => {
+          'id': doc.id,
+          ...doc.data(),
+        }).toList();
+      } else {
+        _currentClinics = querySnapshot.docs.map((doc) => {
+          'id': doc.id,
+          ...doc.data(),
+        }).toList();
+      }
     } catch (e) {
       _error = "Failed to load clinics. Please try again.".tr();
+      debugPrint("Firestore error: $e");
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void applyFilters({String? city, String? specialty}) {
-    // Accept null values to clear filters
+  void applyFilters({String? city, String? specialty}) async {
     _selectedCity = city;
     _selectedSpecialty = specialty;
-    notifyListeners();
+    await fetchClinics();
   }
 
   void updateSearch(String query) {
@@ -141,10 +151,10 @@ class ClinicSearchProvider extends ChangeNotifier {
   }
 
   void clearFilters() {
-    _selectedCity = null; // Clear to null, not userCity
+    _selectedCity = null;
     _selectedSpecialty = null;
     _searchQuery = '';
-    notifyListeners();
+    fetchClinics();
   }
 
   @override
@@ -161,8 +171,12 @@ class ClinicFilterBottomSheet extends StatelessWidget {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (_) => ChangeNotifierProvider(create: (_)=>ClinicSearchProvider(firestore:FirebaseFirestore.instance, auth:FirebaseAuth.instance),
-      child: const _ClinicBottomSheetContent(),
+      builder: (_) => ChangeNotifierProvider(
+        create: (_) => ClinicSearchProvider(
+          firestore: FirebaseFirestore.instance,
+          auth: FirebaseAuth.instance,
+        ),
+        child: const _ClinicBottomSheetContent(),
       ),
     );
   }
@@ -234,11 +248,10 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                         onDeleted: () => provider.applyFilters(specialty: null),
                       ),
                     ),
-                  if (provider.selectedFilterCity != null && // Use raw filter value
-                      provider.selectedFilterCity != provider.userCity) // Compare with raw user city
+                  if (provider.selectedCity != null && provider.selectedCity != provider.userCity)
                     Chip(
-                      label: Text(provider.selectedFilterCity!),
-                      onDeleted: () => provider.applyFilters(city: provider.userCity),
+                      label: Text(provider.selectedCity!),
+                      onDeleted: () => provider.applyFilters(city: null),
                     ),
                 ],
               ),
@@ -251,7 +264,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
 
   Widget _buildClinicList(
       ClinicSearchProvider provider, ScrollController scrollController) {
-    if (provider.isLoading && provider.cachedClinics.isEmpty) {
+    if (provider.isLoading && provider.currentClinics.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -301,8 +314,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
   }
 
   void _showFilterDialog(BuildContext context, ClinicSearchProvider provider) {
-    // Use raw filter values
-    String? tempCity = provider.selectedFilterCity;
+    String? tempCity = provider.selectedCity;
     String? tempSpecialty = provider.selectedSpecialty;
 
     showDialog(
@@ -367,7 +379,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
     ClinicSearchProvider provider,
   ) {
     return DropdownButtonFormField<String>(
-      value: currentValue, // Can be null, userCity, or any city from list
+      value: currentValue,
       isExpanded: true,
       decoration: InputDecoration(
         labelText: "City".tr(),
@@ -375,20 +387,13 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       items: [
-        // Option 1: All Cities
-        DropdownMenuItem(value: null, child: Text('All Cities'.tr())),
-        // Option 2: User's city (if available)
-        if (provider.userCity != null)
-          DropdownMenuItem(
-            value: provider.userCity,
-            child: Text('${provider.userCity} (Your City)'),
-          ),
-        // Option 3+: All other cities (excluding user's city to avoid duplicates)
+        DropdownMenuItem(
+          value: null,
+          child: Text('${provider.userCity} (Your City)'),
+        ),
         ...ClinicSearchProvider.algerianCitiesList
             .where((city) => city != provider.userCity)
-            .map((city) {
-          return DropdownMenuItem(value: city, child: Text(city));
-        }),
+            .map((city) => DropdownMenuItem(value: city, child: Text(city))),
       ],
       onChanged: onChanged,
     );
@@ -406,7 +411,6 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         prefixIcon: const Icon(Icons.medical_services),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      hint: Text("Select Specialty".tr()),
       items: [
         DropdownMenuItem(
           value: null,
@@ -415,11 +419,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         ...ClinicSearchProvider.specialtiesList.map((specialty) {
           return DropdownMenuItem(
             value: specialty,
-            child: Text(
-              specialty.tr(),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
+            child: Text(specialty.tr(), overflow: TextOverflow.ellipsis),
           );
         }),
       ],
@@ -492,7 +492,7 @@ class _ClinicCard extends StatelessWidget {
   }
 
   String _getAvatarPath(Map<String, dynamic> clinic) {
-    final uid = clinic["uid"] ?? "default";
+    final uid = clinic["id"] ?? "default";
     final avatarIndex = uid.hashCode % 12 + 1;
     return 'assets/avatars/$avatarIndex.png';
   }
