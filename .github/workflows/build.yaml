@@ -1,0 +1,39 @@
+name: SonarQube Flutter Analysis
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest  # ✅ Changed from windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ✅ Important: Disable shallow clones
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (if you use build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+        continue-on-error: true  # ✅ Ignore if not using build_runner
+
+      - name: Build project
+        run: |
+          flutter analyze --no-pub --fatal-infos
+          flutter build apk --release  # ✅ Replace placeholder with actual build
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -47,7 +47,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
           .collection("users")
           .doc(userId)
           .collection("appointments")
-          .where("date", isGreaterThan: Timestamp.fromDate(DateTime.now().toUtc()))
+          .where("date", isGreaterThan: Timestamp.fromDate(DateTime.now()))
           .orderBy("date", descending: true)
           .limit(_pageSize);
 
@@ -217,14 +217,14 @@ class _AppointmentCard extends StatelessWidget {
   });
 
   String _formatDate(Timestamp ts) {
-    final date = ts.toDate().toUtc();
+    final date = ts.toDate();
     final weekday = DateFormat('EEEE').format(date);
     final formatted = DateFormat('M/d/yyyy').format(date);
     return "$weekday $formatted";
   }
 
   String _formatTime(Timestamp ts) {
-    final date = ts.toDate().toUtc();
+    final date = ts.toDate();
     return DateFormat('hh:mm a').format(date);
   }
 
@@ -233,7 +233,7 @@ class _AppointmentCard extends StatelessWidget {
     final appointmentId = appointment["id"] as String;
     final clinicUid = appointment["clinicUid"] as String;
     final shopName = clinicData["name"] ?? "unknown_shop".tr();
-    final address = clinicData["adress"] ?? "unknown_address".tr();
+    final address = clinicData["address"] ?? "unknown_address".tr();
 
     return Slidable(
       key: ValueKey(appointmentId),

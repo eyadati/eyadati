@@ -2,13 +2,10 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/Appointments/booking_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ==================== PROVIDER ====================
 
-/// Manages appointment slot state for the week with manual additions
 class ManagementProvider extends ChangeNotifier {
   final String clinicUid;
   final FirebaseFirestore firestore;
@@ -54,7 +51,7 @@ class ManagementProvider extends ChangeNotifier {
 
   // Checks if the clinic is open on a specific day (using UTC)
   bool isWorkingDay(DateTime day) {
-    if (day.isUtc == false) day = day.toUtc();
+    if (day.isUtc == false) day = day;
     if (_clinicData == null) return false;
 
     final workingDays =
@@ -102,8 +99,8 @@ class ManagementProvider extends ChangeNotifier {
       final keys = prefs.getKeys().where((key) => key.startsWith(_prefsPrefix));
 
       _manualAppointments.clear();
-      final now = DateTime.now().toUtc();
-      final today = DateTime.utc(now.year, now.month, now.day);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
 
       for (String key in keys) {
         // Key format: "manual_slot_{clinicUid}_{slotKey}"
@@ -119,7 +116,7 @@ class ManagementProvider extends ChangeNotifier {
               final year = int.parse(dateComponents[0]);
               final month = int.parse(dateComponents[1]);
               final day = int.parse(dateComponents[2]);
-              final slotDate = DateTime.utc(year, month, day);
+              final slotDate = DateTime(year, month, day);
 
               // Only load if not in the past
               if (!slotDate.isBefore(today)) {
@@ -164,13 +161,13 @@ class ManagementProvider extends ChangeNotifier {
     if (_clinicData == null) return;
 
     final bookingLogic = BookingLogic(firestore: firestore);
-    final now = DateTime.now().toUtc();
+    final now = DateTime.now();
     _weekSlots.clear();
     _visibleDays.clear();
 
     // Check next 7 days, but only add working days
     for (int i = 0; i < 7; i++) {
-      final day = DateTime.utc(
+      final day = DateTime(
         now.year,
         now.month,
         now.day,
@@ -211,7 +208,7 @@ class ManagementProvider extends ChangeNotifier {
     for (var doc in snapshot.docs) {
       final appointmentTime = (doc.data()["date"] as Timestamp)
           .toDate()
-          .toUtc();
+          ;
       final slotKey = _getSlotKey(appointmentTime);
       _realAppointmentsCount[slotKey] =
           (_realAppointmentsCount[slotKey] ?? 0) + 1;
@@ -220,7 +217,7 @@ class ManagementProvider extends ChangeNotifier {
 
   String _getSlotKey(DateTime slotTime) {
     // Ensure UTC consistency
-    final utcTime = slotTime.isUtc ? slotTime : slotTime.toUtc();
+    final utcTime = slotTime.isUtc ? slotTime : slotTime;
     return "${utcTime.year}-${_twoDigits(utcTime.month)}-${_twoDigits(utcTime.day)}T${_twoDigits(utcTime.hour)}:00";
   }
 
@@ -303,73 +300,62 @@ class ManagementScreen extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => ManagementProvider(clinicUid: clinicUid),
       child: Scaffold(
-        appBar: AppBar(
-          title:  Text("Appointment Management".tr()),
-          actions: [
-            Consumer<ManagementProvider>(
-              builder: (_, provider, __) => IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: provider.isLoading
-                    ? null
-                    : () => provider.refreshData(),
-              ),
-            ),
-          ],
-        ),
-        body: Consumer<ManagementProvider>(
-          builder: (_, provider, __) {
-            if (provider.isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (provider.errorMessage != null) {
-              return _buildErrorState(context, provider);
-            }
-
-            if (provider.visibleDays.isEmpty) {
-              return _buildNoWorkingDaysState();
-            }
-
-            return PageView.builder(
-              itemCount: provider.visibleDays.length,
-              itemBuilder: (context, dayIndex) {
-                final day = provider.visibleDays[dayIndex];
-                final slots = provider.weekSlots[dayIndex];
-
-                return Column(
-                  children: [
-                    // Day header
-                    Container(
-                      padding: const EdgeInsets.all(16.0),
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      child: Center(
-                        child: Text(
-                          DateFormat('EEEE, MMM d, yyyy').format(day.toLocal()),
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
+        body: SafeArea(
+          child: Consumer<ManagementProvider>(
+            builder: (_, provider, __) {
+              if (provider.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
+          
+              if (provider.errorMessage != null) {
+                return _buildErrorState(context, provider);
+              }
+          
+              if (provider.visibleDays.isEmpty) {
+                return _buildNoWorkingDaysState();
+              }
+          
+              return PageView.builder(
+                itemCount: provider.visibleDays.length,
+                itemBuilder: (context, dayIndex) {
+                  final day = provider.visibleDays[dayIndex];
+                  final slots = provider.weekSlots[dayIndex];
+          
+                  return Column(
+                    children: [
+                      // Day header
+                      Container(
+                        padding: const EdgeInsets.all(16.0),
+                        color: Theme.of(context).colorScheme.primary,
+                        child: Center(
+                          child: Text(
+                            DateFormat('EEEE, MMM d, yyyy').format(day.toLocal()),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: slots.isEmpty
-                          ? _buildEmptyState(day, provider)
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: slots.length,
-                              itemBuilder: (context, slotIndex) {
-                                return _buildSlotCard(
-                                  context,
-                                  provider,
-                                  slots[slotIndex],
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
+                      Expanded(
+                        child: slots.isEmpty
+                            ? _buildEmptyState(day, provider)
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                itemCount: slots.length,
+                                itemBuilder: (context, slotIndex) {
+                                  return _buildSlotCard(
+                                    context,
+                                    provider,
+                                    slots[slotIndex],
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -445,7 +431,6 @@ class ManagementScreen extends StatelessWidget {
     ManagementProvider provider,
     DateTime slot,
   ) {
-    final realCount = provider.getRealAppointmentsForSlot(slot);
     final manualCount = provider.getManualAppointmentsForSlot(slot);
     final totalCount = provider.getTotalAppointmentsForSlot(slot);
     final staffCount = provider.getStaffCount();
@@ -533,13 +518,7 @@ class ManagementScreen extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Text(
-                            "Database: $realCount",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
+                        
                           if (manualCount > 0) ...[
                             const SizedBox(width: 8),
                             Text(

@@ -26,7 +26,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
   final emailController = TextEditingController();
   final clinicNameController = TextEditingController();
   final specialtyController = TextEditingController();
-  final staffController = TextEditingController();
+  final durationController = TextEditingController();
   final addressController = TextEditingController();
   final phoneController = TextEditingController();
   final mapsLinkController = TextEditingController();
@@ -108,14 +108,14 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         emailController.text = data['email'] ?? '';
         clinicNameController.text = data['clinicName'] ?? '';
         specialtyController.text = data['specialty'] ?? '';
-        staffController.text = data['staff']?.toString() ?? '';
+        durationController.text = data['staff']?.toString() ?? '';
         addressController.text = data['address'] ?? '';
         phoneController.text = data['phone'] ?? '';
         mapsLinkController.text = data['mapsLink'] ?? '';
         
         selectedCity = data['city'] != null 
           ? algerianCities.firstWhere(
-              (c) => c.toLowerCase() == data['city'].toLowerCase(),
+              (c) => c == data['city'],
               orElse: () => algerianCities[0],
             )
           : null;
@@ -155,8 +155,8 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         "name": nameController.text.trim(),
         "clinicName": clinicNameController.text.trim(),
         "specialty": specialtyController.text,
-        "staff": int.tryParse(staffController.text) ?? 1,
-        "city": selectedCity!.toLowerCase(),
+        "duration": int.tryParse(durationController.text) ?? 60,
+        "city": selectedCity,
         "address": addressController.text.trim(),
         "phone": phoneController.text.trim(),
         "mapsLink": mapsLinkController.text.trim(),
@@ -166,7 +166,6 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         "breakStart": breakStartMinutes,
         "breakEnd": breakEndMinutes,
         "avatarNumber": avatarNumber,
-        "updatedAt": FieldValue.serverTimestamp(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -222,7 +221,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
     emailController.dispose();
     clinicNameController.dispose();
     specialtyController.dispose();
-    staffController.dispose();
+    durationController.dispose();
     addressController.dispose();
     phoneController.dispose();
     mapsLinkController.dispose();
@@ -284,7 +283,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildSpecialtyDropdown(context, provider),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.staffController, "staff count".tr(), provider, inputType: TextInputType.number),
+                    _buildTextFormField(provider.durationController, "Appointmnent duration(minutes)".tr(), provider, inputType: TextInputType.number),
                     const SizedBox(height: 32),
 
                     _buildSectionTitle(context, 'owner information'.tr()),

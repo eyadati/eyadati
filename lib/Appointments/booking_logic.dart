@@ -21,7 +21,7 @@ class BookingLogic extends ChangeNotifier {
     try {
       final snapshot = await firestore
           .collection("clinics")
-          .where("city", isEqualTo: city.toLowerCase())
+          .where("city", isEqualTo: city)
           .get();
 
       return snapshot.docs
@@ -66,7 +66,7 @@ class BookingLogic extends ChangeNotifier {
       if (!workingDays.contains(day.weekday)) return [];
 
       // Use UTC for consistent timezone handling
-      final utcDay = DateTime.utc(day.year, day.month, day.day);
+      final utcDay = DateTime(day.year, day.month, day.day);
 
       // Generate time boundaries
       final openingTime = utcDay.add(Duration(minutes: openingMinutes));
@@ -95,8 +95,8 @@ class BookingLogic extends ChangeNotifier {
       for (var doc in dayAppointments.docs) {
         final appointmentTime = (doc.data()["date"] as Timestamp)
             .toDate()
-            .toUtc();
-        final slotHour = DateTime.utc(
+            ;
+        final slotHour = DateTime(
           appointmentTime.year,
           appointmentTime.month,
           appointmentTime.day,
@@ -144,7 +144,7 @@ class BookingLogic extends ChangeNotifier {
   final user = auth.currentUser;
   if (user == null) throw Exception("User not logged in".tr());
 
-  final utcSlot = slot.toUtc();
+  final utcSlot = slot;
   final appointmentId =
       "${clinicUid}_${user.uid}_${utcSlot.millisecondsSinceEpoch}";
 

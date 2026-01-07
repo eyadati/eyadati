@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/clinic/clinicAuth.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
@@ -7,10 +9,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_url_extractor/url_extractor.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 1️⃣ PROVIDER: Robust state management
-// ─────────────────────────────────────────────────────────────────────────────
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -21,7 +19,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   // Controllers
   final nameController = TextEditingController();
   final mapsLinkController = TextEditingController();
-  final stuffController = TextEditingController();
+  final durationController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final clinicNameController = TextEditingController();
@@ -300,7 +298,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
         workingDays,
         phoneController.text.trim(),
         selectedSpecialty!,
-        stuffController.text.trim(),
+        int.tryParse(durationController.text) ?? 60,
         openingMinutes!,
         closingMinutes!,
         breakStartMinutes ?? 0,
@@ -332,7 +330,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     }
     nameController.dispose();
     mapsLinkController.dispose();
-    stuffController.dispose();
+    durationController.dispose();
     emailController.dispose();
     passwordController.dispose();
     clinicNameController.dispose();
@@ -488,8 +486,8 @@ class _FormPage extends StatelessWidget {
             const SizedBox(height: 16),
             _buildTextFormField(
               context,
-              controller: provider.stuffController,
-              label: 'Doctors number'.tr(),
+              controller: provider.durationController,
+              label: 'Appointmnent duration(minutes)'.tr(),
               inputType: TextInputType.number,
               focusNode: provider.focusNodes[4],
               nextNode: provider.focusNodes[5],

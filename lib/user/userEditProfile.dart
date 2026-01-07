@@ -75,10 +75,10 @@ class UserEditProfileProvider extends ChangeNotifier {
     phoneController.text = data['phone'] ?? '';
     
     // Match city case-insensitively
-    final cityFromDb = data['city']?.toString().toLowerCase();
+    final cityFromDb = data['city']?.toString();
     if (cityFromDb != null) {
       selectedCity = algerianCities.firstWhere(
-        (c) => c.toLowerCase() == cityFromDb,
+        (c) => c == cityFromDb,
         orElse: () => algerianCities[0],
       );
     }
@@ -103,7 +103,7 @@ class UserEditProfileProvider extends ChangeNotifier {
       await firestore.collection('users').doc(user.uid).update({
         'name': nameController.text.trim(),
         'phone': phoneController.text.trim(),
-        'city': selectedCity!.toLowerCase(),
+        'city': selectedCity,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 

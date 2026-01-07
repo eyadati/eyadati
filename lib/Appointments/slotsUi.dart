@@ -1,23 +1,33 @@
-
+import 'package:eyadati/user/user_appointments.dart';
 import 'package:flutter/material.dart';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:table_calendar/table_calendar.dart';
 
 // ================ PROVIDER ================
- class SlotInfo {
-    final DateTime time;
-    final bool isAvailable;
-    final int currentBookings;
-    
-    SlotInfo({required this.time, required this.isAvailable, required this.currentBookings});
-  }
+class SlotInfo {
+  final DateTime time;
+  final bool isAvailable;
+  final int currentBookings;
+  final int duration;
+
+  SlotInfo({
+    required this.duration,
+    required this.time,
+    required this.isAvailable,
+    required this.currentBookings,
+  });
+}
+
 class SlotsUiProvider extends ChangeNotifier {
   final Map<String, dynamic> clinic;
   final FirebaseFirestore firestore;
   final FirebaseAuth auth;
+  late final int duration;
 
   SlotsUiProvider({
     required this.clinic,
@@ -26,9 +36,13 @@ class SlotsUiProvider extends ChangeNotifier {
   }) : auth = auth ?? FirebaseAuth.instance {
     _initializeData();
   }
+ 
 
+ 
+  // Calendar state moved to provider
+  DateTime focusedDay = DateTime.now();
   // State
-  DateTime selectedDate = DateTime.now().toUtc();
+  DateTime selectedDate = DateTime.now();
   List<SlotInfo> allSlots = [];
   DateTime? selectedSlot;
   bool isLoading = false;
@@ -36,12 +50,11 @@ class SlotsUiProvider extends ChangeNotifier {
   int staffCount = 1;
 
   // Slot info with availability status
- 
 
   Future<void> _initializeData() async {
     isLoading = true;
     notifyListeners();
-    
+
     try {
       await _loadStaffCount();
       await _loadSlots();
@@ -52,137 +65,168 @@ class SlotsUiProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+ void updateSelectedDate(DateTime date) {
+    selectedDate = date;
+    focusedDay = date;
+     print(selectedDate);
+    print(focusedDay);
+    notifyListeners();
+   
+  }
 
+  /// Updates calendar focus day
+  void updateFocusedDay(DateTime day) {
+    focusedDay = day;
+    notifyListeners();
+  }
   Future<void> _loadStaffCount() async {
-    final clinicDoc = await firestore.collection('clinics').doc(clinic['uid']).get();
+    final clinicDoc = await firestore
+        .collection('clinics')
+        .doc(clinic['uid'])
+        .get();
     if (clinicDoc.exists) {
       staffCount = clinicDoc.data()?['staff'] ?? 1;
     }
+    print('Clinic doc: ${clinicDoc}');
   }
 
-  Future<void> _loadSlots() async {
-    // Get all appointments for selected date
-    final startOfDay = DateTime.utc(selectedDate.year, selectedDate.month, selectedDate.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
+ Future<void> _loadSlots() async {
+  allSlots = []; // Clear first
+  
+  // Get appointments for the day
+  final startOfDay = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+  );
+  final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    final snapshot = await firestore
-        .collection('clinics')
-        .doc(clinic['uid'])
-        .collection('appointments')
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-        .where('date', isLessThan: Timestamp.fromDate(endOfDay))
-        .get();
+  final snapshot = await firestore
+      .collection('clinics')
+      .doc(clinic['uid'])
+      .collection('appointments')
+      .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+      .where('date', isLessThan: Timestamp.fromDate(endOfDay))
+      .get();
 
-    // Count bookings per slot
-    final bookingCounts = <DateTime, int>{};
-    for (var doc in snapshot.docs) {
-      final appointmentTime = (doc.data()['date'] as Timestamp).toDate().toUtc();
-      final slotHour = DateTime.utc(
-        appointmentTime.year,
-        appointmentTime.month,
-        appointmentTime.day,
-        appointmentTime.hour,
-      );
-      bookingCounts[slotHour] = (bookingCounts[slotHour] ?? 0) + 1;
-    }
-
-    // Generate all slots based on clinic hours
-    allSlots = [];
-    final clinicData = await firestore.collection('clinics').doc(clinic['uid']).get();
-    
-    if (clinicData.exists) {
-      final data = clinicData.data()!;
-      final opening = data['openingAt'] ?? 480; // 8:00 AM default
-      final closing = data['closingAt'] ?? 1080; // 6:00 PM default
-      final breakStart = data['breakStart'];
-      final breakEnd = data['breakEnd'];
-      final workingDays = List<int>.from(data['workingDays'] ?? []);
-
-      // Check if clinic is open on selected day
-      if (!workingDays.contains(selectedDate.weekday)) {
-        allSlots = []; // No slots on closed days
-        return;
-      }
-
-      DateTime slotTime = DateTime.utc(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        opening ~/ 60,
-        opening % 60,
-      );
-
-      final closingTime = DateTime.utc(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        closing ~/ 60,
-        closing % 60,
-      );
-
-      while (slotTime.isBefore(closingTime)) {
-        final slotEnd = slotTime.add(const Duration(hours: 1));
-        
-        // Skip if slot overlaps with break
-        if (breakStart != null && breakEnd != null) {
-          final breakStartTime = DateTime.utc(
-            selectedDate.year,
-            selectedDate.month,
-            selectedDate.day,
-            breakStart ~/ 60,
-            breakStart % 60,
-          );
-          final breakEndTime = DateTime.utc(
-            selectedDate.year,
-            selectedDate.month,
-            selectedDate.day,
-            breakEnd ~/ 60,
-            breakEnd % 60,
-          );
-          
-          if (slotTime.isBefore(breakEndTime) && slotEnd.isAfter(breakStartTime)) {
-            slotTime = slotEnd;
-            continue;
-          }
-        }
-
-        final bookings = bookingCounts[slotTime] ?? 0;
-        final isAvailable = bookings < staffCount;
-        
-        allSlots.add(SlotInfo(
-          time: slotTime,
-          isAvailable: isAvailable,
-          currentBookings: bookings,
-        ));
-
-        slotTime = slotEnd;
-      }
-    }
-  }
-
-  Future<void> changeDate(BuildContext context) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
+  // Count bookings per EXACT slot start time
+  final bookingCounts = <DateTime, int>{};
+  for (var doc in snapshot.docs) {
+    final appointmentTime = (doc.data()['date'] as Timestamp).toDate();
+    // ✅ Use the exact appointment time as key
+    final slotKey = DateTime(
+      appointmentTime.year,
+      appointmentTime.month,
+      appointmentTime.day,
+      appointmentTime.hour,
+      appointmentTime.minute,
     );
+    bookingCounts[slotKey] = (bookingCounts[slotKey] ?? 0) + 1;
+  }
 
-    if (picked != null && picked != selectedDate) {
-      selectedDate = picked.toUtc();
-      selectedSlot = null;
-      await _loadSlots();
-      notifyListeners();
+  // Fetch clinic configuration
+  final clinicData = await firestore.collection('clinics').doc(clinic['uid']).get();
+  if (!clinicData.exists) return;
+
+  final data = clinicData.data()!;
+  final opening = data['openingAt'] as int;
+  final closing = data['closingAt'] as int;
+  final breakStart = data['breakStart'] as int?;
+  final breakEnd = data['breakEnd'] as int?;
+  final duration = data['duration'] as int?;
+  final workingDays = List<int>.from(data['workingDays'] ?? []);
+
+  // Check if clinic is open
+  if (!workingDays.contains(selectedDate.weekday)) {
+    return;
+  }
+
+  DateTime currentSlot = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+    opening ~/ 60,
+    opening % 60,
+  );
+
+  final closingTime = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+    closing ~/ 60,
+    closing % 60,
+  );
+
+  final slotDuration = duration ?? 60;
+
+  // ✅ Efficient generation loop
+  while (currentSlot.isBefore(closingTime)) {
+    final slotEnd = currentSlot.add(Duration(minutes: slotDuration));
+
+    // ✅ Correct break overlap check (ANY overlap)
+    if (breakStart != null && breakEnd != null) {
+      final breakStartTime = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        breakStart ~/ 60,
+        breakStart % 60,
+      );
+      final breakEndTime = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        breakEnd ~/ 60,
+        breakEnd % 60,
+      );
+
+      // Skip if slot overlaps with break (any overlap)
+      if (currentSlot.isBefore(breakEndTime) && slotEnd.isAfter(breakStartTime)) {
+        currentSlot = slotEnd;
+        continue;
+      }
     }
+
+    // ✅ Match bookings by exact slot time
+    final bookings = bookingCounts[currentSlot] ?? 0;
+    final isAvailable = bookings < (data['staff'] as int? ?? 1);
+
+    allSlots.add(SlotInfo(
+      time: currentSlot,
+      duration: slotDuration,
+      isAvailable: isAvailable,
+      currentBookings: bookings,
+    ));
+
+    currentSlot = slotEnd;
+  }
+}
+
+  Future<void> changeDate(BuildContext context,DateTime picked) async {
+    
+
+    
+      selectedDate = DateTime(picked.year, picked.month, picked.day);
+      selectedSlot = null;
+      focusedDay=DateTime(picked.year, picked.month, picked.day);
+      allSlots = []; // Clear old slots
+      await _loadSlots(); // Regenerate for new date
+      notifyListeners();
+    
   }
 
   void selectSlot(DateTime slot) {
     // Only allow selecting available slots
     final slotInfo = allSlots.firstWhere(
       (s) => s.time == slot,
-      orElse: () => SlotInfo(time: slot, isAvailable: false, currentBookings: 0),
+      orElse: () => SlotInfo(
+        time: slot,
+        isAvailable: false,
+        currentBookings: 0,
+        duration: duration,
+      ),
     );
-    
+
     if (slotInfo.isAvailable) {
       selectedSlot = slot;
       notifyListeners();
@@ -197,10 +241,12 @@ class SlotsUiProvider extends ChangeNotifier {
       builder: (context) => AlertDialog(
         title: Text('confirm_booking'.tr()),
         content: Text(
-          'booking_details'.tr(args: [
-            DateFormat('yyyy-MM-dd').format(selectedDate),
-            '${selectedSlot!.hour}:${selectedSlot!.minute.toString().padLeft(2, '0')}',
-          ]),
+          'booking_details'.tr(
+            args: [
+              DateFormat('yyyy-MM-dd').format(selectedDate),
+              '${selectedSlot!.hour}:${selectedSlot!.minute.toString().padLeft(2, '0')}',
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -218,75 +264,104 @@ class SlotsUiProvider extends ChangeNotifier {
     return confirmed ?? false;
   }
 
-  Future<void> bookSelectedSlot(BuildContext context) async {
-    if (selectedSlot == null) return;
+ Future<void> bookSelectedSlot(BuildContext context) async {
+  if (selectedSlot == null) return;
 
-    final confirmed = await confirmBooking(context);
-    if (!confirmed || !context.mounted) return;
+  final confirmed = await confirmBooking(context);
+  if (!confirmed || !context.mounted) return;
 
-    try {
-      await firestore.runTransaction((transaction) async {
-        // Check slot availability again
-        final startOfDay = DateTime.utc(selectedDate.year, selectedDate.month, selectedDate.day);
-        final slotStart = selectedSlot!;
-        final slotEnd = slotStart.add(const Duration(hours: 1));
+  try {
+    await firestore.runTransaction((transaction) async {
+      // Get the actual slot duration
+      final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
+      
+      // Check availability
+      final slotStart = Timestamp.fromDate(selectedSlot!);
+      final slotEnd = Timestamp.fromDate(
+        selectedSlot!.add(Duration(minutes: slotInfo.duration)),
+      );
 
-        final querySnapshot = await firestore
-            .collection('clinics')
-            .doc(clinic['uid'])
-            .collection('appointments')
-            .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(slotStart))
-            .where('date', isLessThan: Timestamp.fromDate(slotEnd))
-            .get();
+      final querySnapshot = await firestore
+          .collection('clinics')
+          .doc(clinic['uid'])
+          .collection('appointments')
+          .where('date', isGreaterThanOrEqualTo: slotStart)
+          .where('date', isLessThan: slotEnd)
+          .get();
 
-        if (querySnapshot.docs.length >= staffCount) {
-          throw Exception('slot is full'.tr());
-        }
+      if (querySnapshot.docs.length >= staffCount) {
+        throw Exception('slot is full'.tr());
+      }
 
-        // Book the slot
-        final appointmentId = "${clinic['uid']}_${auth.currentUser!.uid}_${slotStart.millisecondsSinceEpoch}";
-        final appointmentData = {
-          "clinicUid": clinic['uid'],
-          "userUid": auth.currentUser!.uid,
-          "date": Timestamp.fromDate(slotStart),
-          "createdAt": FieldValue.serverTimestamp(),
-        };
+      // Book the slot
+      final appointmentId = "${clinic['uid']}_${auth.currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}";
+      final appointmentData = {
+        "clinicUid": clinic['uid'],
+        "userUid": auth.currentUser!.uid,
+        "date": slotStart, // Already a Timestamp
+        "createdAt": FieldValue.serverTimestamp(),
+      };
 
-        transaction.set(
-          firestore.collection('clinics').doc(clinic['uid']).collection('appointments').doc(appointmentId),
-          appointmentData,
-        );
-        transaction.set(
-          firestore.collection('users').doc(auth.currentUser!.uid).collection('appointments').doc(appointmentId),
-          appointmentData,
-        );
-      });
+      transaction.set(
+        firestore.collection('clinics').doc(clinic['uid']).collection('appointments').doc(appointmentId),
+        appointmentData,
+      );
+      transaction.set(
+        firestore.collection('users').doc(auth.currentUser!.uid).collection('appointments').doc(appointmentId),
+        appointmentData,
+      );
+      
+      // ✅ Remove this from transaction - put it outside
+      // await context.read<UserAppointmentsProvider>().loadAppointments();
+    });
 
+    // ✅ Refresh data AFTER transaction completes
+    if (context.mounted) {
+      await context.read<UserAppointmentsProvider>().loadAppointments();
+      
+      // Refresh current slots view
+      await _loadSlots();
+      notifyListeners();
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('booking success'.tr())),
       );
       
-      Navigator.of(context).pop(true); // Return success
-    } catch (e) {
+      Navigator.of(context).pop(true);
+    }
+  } catch (e) {
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('booking failed'.tr(args: [e.toString()]))),
       );
     }
   }
 }
+}
 
 // ================ UI DIALOG ================
 
 class SlotsUi {
-  static Future<bool?> showSlotDialog(BuildContext context, Map<String, dynamic> clinic) {
-    return showDialog(
+  static Future<bool?> showModalSheet(
+    BuildContext context,
+    Map<String, dynamic> clinic,
+  ) {
+    return showMaterialModalBottomSheet(
+      expand: true,
+
       context: context,
       builder: (context) => ChangeNotifierProvider(
         create: (_) => SlotsUiProvider(
           clinic: clinic,
           firestore: FirebaseFirestore.instance,
         ),
-        child: const _SlotsDialog(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height,
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: const _SlotsDialog(),
+          ),
+        ),
       ),
     );
   }
@@ -299,44 +374,41 @@ class _SlotsDialog extends StatelessWidget {
     final provider = context.watch<SlotsUiProvider>();
     final clinic = provider.clinic;
 
-    return AlertDialog(
-      title: Text('book appointment'.tr()),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Clinic Info Card
-            _ClinicInfoCard(clinic: clinic),
-            const SizedBox(height: 16),
-            
-            // Date Picker Row
-            _DatePickerRow(),
-            const SizedBox(height: 16),
-            
-            // Slots Grid
-            Flexible(
-              child: _SlotsGrid(),
+    return SizedBox(
+      width: double.maxFinite,
+      
+      child: Column(
+        children: [
+          _ClinicInfoCard(clinic: clinic),
+          const SizedBox(height: 10),
+          _DatePickerRow(),
+          Flexible(child: _SlotsGrid()),
+
+          Container(
+            margin: EdgeInsets.all(12),
+            width: MediaQuery.of(context).size.width*0.7,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(12)
             ),
-          ],
-        ),
+            child: TextButton(onPressed: ()=>provider.bookSelectedSlot(context), child: Text("Book Appointment")),
+          )
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text('cancel'.tr()),
-        ),
-        ElevatedButton(
-          onPressed: provider.selectedSlot == null 
-            ? null 
-            : () => provider.bookSelectedSlot(context),
-          child: Text('book'.tr()),
-        ),
-      ],
     );
   }
 }
 
+/*TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text('cancel'.tr()),
+        ),
+        ElevatedButton(
+          onPressed: provider.selectedSlot == null
+              ? null
+              : () => provider.bookSelectedSlot(context),
+          child: Text('book'.tr()),
+        ),*/
 class _ClinicInfoCard extends StatelessWidget {
   final Map<String, dynamic> clinic;
 
@@ -357,21 +429,52 @@ class _ClinicInfoCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(15),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            SizedBox(height: 20),
+            Center(
+              child: CircleAvatar(
+                child: Image.asset("assets/avatars/${clinic["avatar"]}.png"),
+              ),
+            ),
+            SizedBox(height: 20),
             Text(
               clinic['clinicName'] ?? 'clinic unnamed'.tr(),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            Text('${'address'.tr()}: ${clinic['address'] ?? ""}'),
-            const SizedBox(height: 4),
-            Text('${'working_days'.tr()}: ${workingDays.map((d) => dayNames[d-1]).join(', ')}'),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(5.0),
+                child: Text(
+                  '  ${clinic['specialty']}  ',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text('${clinic['address'] ?? ""}'),
             const SizedBox(height: 4),
             Text(
-              '${'hours'.tr()}: ${_formatTime(clinic['openingAt'])} - ${_formatTime(clinic['closingAt'])}',
+              workingDays
+                  .where((d) => d >= 1 && d <= 7)
+                  .map((d) => dayNames[d - 1])
+                  .join(', ')
+                  .tr(),
+            ),
+
+            const SizedBox(height: 4),
+            Text(
+              '${_formatTime(clinic['openingAt'])} - ${_formatTime(clinic['closingAt'])}   ',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -392,19 +495,34 @@ class _DatePickerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<SlotsUiProvider>();
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          '${'date'.tr()}: ${DateFormat('yyyy-MM-dd').format(provider.selectedDate)}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+    return SizedBox(
+      height: 140,
+      child: TableCalendar(
+        selectedDayPredicate: (day) => isSameDay(provider.selectedDate, day),
+         onDaySelected: (selectedDay, focusedDay) {
+        if (!isSameDay(provider.selectedDate, selectedDay)) {
+          provider.changeDate(context, selectedDay);
+        
+        }
+      },
+        headerStyle: HeaderStyle(
+         titleCentered: true,
+          formatButtonVisible: false,
         ),
-        IconButton(
-          icon: const Icon(Icons.calendar_today),
-          onPressed: () => provider.changeDate(context),
-          tooltip: 'change date'.tr(),
+       calendarStyle: CalendarStyle(
+       
+        markersMaxCount: 5,
+        selectedDecoration: BoxDecoration(
+          color: Colors.blue,
+          shape: BoxShape.circle,
         ),
-      ],
+        
+      ),
+        focusedDay: provider.focusedDay,
+        firstDay: DateTime.now(),
+        lastDay: DateTime.now().add(Duration(days: 14)),
+        calendarFormat: CalendarFormat.week,
+      ),
     );
   }
 }
@@ -419,7 +537,12 @@ class _SlotsGrid extends StatelessWidget {
     }
 
     if (provider.errorMessage.isNotEmpty) {
-      return Center(child: Text(provider.errorMessage, style: const TextStyle(color: Colors.red)));
+      return Center(
+        child: Text(
+          provider.errorMessage,
+          style: const TextStyle(color: Colors.red),
+        ),
+      );
     }
 
     if (provider.allSlots.isEmpty) {
@@ -438,7 +561,7 @@ class _SlotsGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final slotInfo = provider.allSlots[index];
         final isSelected = provider.selectedSlot == slotInfo.time;
-        
+
         return _SlotTile(
           slotInfo: slotInfo,
           isSelected: isSelected,
@@ -450,11 +573,11 @@ class _SlotsGrid extends StatelessWidget {
 }
 
 class _SlotTile extends StatelessWidget {
-   SlotInfo slotInfo;
+  SlotInfo slotInfo;
   final bool isSelected;
   final VoidCallback onTap;
 
-   _SlotTile({
+  _SlotTile({
     required this.slotInfo,
     required this.isSelected,
     required this.onTap,
@@ -463,22 +586,22 @@ class _SlotTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeString = DateFormat('HH:mm').format(slotInfo.time);
+    final slotEndString = DateFormat(
+      'HH:mm',
+    ).format(slotInfo.time.add(Duration(minutes: slotInfo.duration)));
     final isFull = !slotInfo.isAvailable;
 
     return GestureDetector(
       onTap: isFull ? null : onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: isSelected 
-            ? Colors.blue.shade300
-            : isFull 
+          border: Border.all(width: 1,color: Colors.black),
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : isFull
               ? Colors.grey.shade300.withOpacity(0.5)
               : Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -487,32 +610,21 @@ class _SlotTile extends StatelessWidget {
               timeString,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: isFull ? Colors.grey.shade500 : Colors.black87,
+                color: isFull ? Colors.grey.shade300 : isSelected
+            ? Colors.white
+            : isFull
+            ? Colors.grey.shade300.withOpacity(0.5)
+            : Colors.black,
                 fontSize: 12,
               ),
             ),
             if (isFull) ...[
-              const SizedBox(height: 2),
-              Text(
-                'full'.tr(),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            ] else if (!isSelected) ...[
-              const SizedBox(height: 2),
-              Text(
-                '${slotInfo.currentBookings}/${context.read<SlotsUiProvider>().staffCount}',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-              ),
-            ],
+             
+            ] else if (!isSelected)
+              ...[],
           ],
         ),
       ),
     );
   }
 }
-
-
-

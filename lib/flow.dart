@@ -5,6 +5,7 @@ import 'package:eyadati/user/UserHome.dart';
 import 'package:eyadati/user/userRegistrationUi.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
 Future<Widget> decidePage() async {
   final currentUser = FirebaseAuth.instance.currentUser;
@@ -13,29 +14,24 @@ Future<Widget> decidePage() async {
     return intro();
   } else {
     try {
-      // Check both collections at once (faster)
-      final results = await Future.wait([
-        FirebaseFirestore.instance
-            .collection("users")
-            .doc(currentUser.uid)
-            .get(),
-        FirebaseFirestore.instance
-            .collection("clinics")
-            .doc(currentUser.uid)
-            .get(),
-      ]);
-
-      final checkUser = results[0];
-      final checkClinics = results[1];
-
-      if (checkUser.exists) return Userhome();
-      if (checkClinics.exists) return Clinichome();
+      // ✅ Cache the role check first
+      final isClinic = await _isClinicRole(currentUser.uid);
+      
+      if (isClinic) return Clinichome();
+      return Userhome();
     } catch (e) {
-      // If Firestore fails, just show intro
+      debugPrint("Role check error: $e");
       return intro();
     }
   }
-  return intro();
+}
+
+Future<bool> _isClinicRole(String uid) async {
+  final doc = await FirebaseFirestore.instance
+      .collection('clinics')
+      .doc(uid)
+      .get(GetOptions(source: Source.cache));
+  return doc.exists;
 }
 
 Widget intro() {
@@ -60,8 +56,8 @@ Widget intro() {
               child: Image.asset('assets/doctors2.png',height: containerHeight,width: containerSize,fit: BoxFit.fill,),
             ),
             GestureDetector(
-              onTap: () => showModalBottomSheet(
-                isScrollControlled: true,
+              onTap: () => showMaterialModalBottomSheet(
+             
                 context: context,
                 builder: (context) => SizedBox(
                   height: MediaQuery.of(context).size.height*0.99,

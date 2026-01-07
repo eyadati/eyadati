@@ -1,3 +1,4 @@
+import 'package:eyadati/NavBarUi/ClinicNavBar.dart';
 import 'package:eyadati/clinic/clinicSettingsPage.dart';
 import 'package:eyadati/clinic/clinic_appointments.dart';
 
@@ -16,27 +17,8 @@ class _ClinichomeState extends State<Clinichome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        title: Text("Hello Oussama!", style: TextStyle(color: Colors.white)),
-        actions: [
-          IconButton(
-            onPressed: () => showModalBottomSheet(
-              isScrollControlled: true,
-              context: context,
-              builder: (context) {
-                
-                return SizedBox(
-                  height: MediaQuery.of(context).size.height*0.9,
-                  child: Clinicsettings());
-                
-              },
-            ),
-            icon: Icon(Icons.settings,color: Theme.of(context).colorScheme.inversePrimary,),
-          ),
-        ],
-      ),
-      body: Center(child: ClinicAppointments(clinicId: clinicUid,)),
+    
+      body: FloatingBottomNavBar(),
     );
   }
 }

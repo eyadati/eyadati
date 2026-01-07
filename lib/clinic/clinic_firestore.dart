@@ -19,12 +19,13 @@ class ClinicFirestore {
     List workingDays, //3
     String phone, //1
     String specialty, //4
-    String stuff, //4
+    int sessionDuration, //4
     int openingAt, //3
     int closingAt, //3
     int breakStart, //3
     int breakTime, //3
     String adress, //2
+
   ) async {
     try {
 
@@ -50,7 +51,8 @@ class ClinicFirestore {
         'breakStart': breakStart,
         "break": breakTime,
         "specialty": specialty,
-        'staff': stuff,
+        'Duration': sessionDuration,
+        'staff': 1.toInt()
       });
     } catch (e) {
       print("Clinic creation error : $e");
@@ -67,7 +69,7 @@ class ClinicFirestore {
     List workingDays, //3
     String phone, //1
     String specialty, //4
-    String stuff, //4
+    String SessionDuration, //4
     int openingAt, //3
     int closingAt, //3
     int breakStart, //3
@@ -97,7 +99,8 @@ class ClinicFirestore {
         'breakStart': breakStart,
         "break": breakTime,
         "specialty": specialty,
-        'staff': stuff,
+        'Duration': SessionDuration,
+        'staff': 1.toInt()
       });
     } catch (e) {
       print("Clinic creation error : $e");
