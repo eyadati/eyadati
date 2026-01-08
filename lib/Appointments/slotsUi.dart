@@ -122,14 +122,8 @@ class SlotsUiProvider extends ChangeNotifier {
       bookingCounts[slotKey] = (bookingCounts[slotKey] ?? 0) + 1;
     }
 
-    // Fetch clinic configuration
-    final clinicData = await firestore
-        .collection('clinics')
-        .doc(clinic['uid'])
-        .get();
-    if (!clinicData.exists) return;
-
-    final data = clinicData.data()!;
+    // Use clinic configuration from provider's field
+    final data = clinic;
     final opening = data['openingAt'] as int;
     final closing = data['closingAt'] as int;
     final breakStart = data['breakStart'] as int?;
