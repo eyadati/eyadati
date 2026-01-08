@@ -1,11 +1,9 @@
-import 'dart:ffi';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/clinic/clinicAuth.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_url_extractor/url_extractor.dart';

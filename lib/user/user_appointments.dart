@@ -19,7 +19,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
   
   bool _isLoading = false;
   bool _hasMore = true;
-  int _pageSize = 20;
+  final int _pageSize = 20;
   DocumentSnapshot? _lastDocument;
 
   UserAppointmentsProvider({

@@ -20,7 +20,7 @@ class UserFirestore {
   Future<void> addToFavorites(String ClinicUid)async{
     final user=FirebaseAuth.instance;
     final firestore=FirebaseFirestore.instance;
-    final userCol=await firestore.collection("users").doc("${user.currentUser!.uid}").collection('favorites').get();
+    final userCol=await firestore.collection("users").doc(user.currentUser!.uid).collection('favorites').get();
     
     if(user.currentUser!=null){
     

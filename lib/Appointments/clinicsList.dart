@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/Appointments/slotsUi.dart';
-import 'package:eyadati/user/UserHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -407,7 +406,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
     ValueChanged<String?> onChanged,
   ) {
     return DropdownButtonFormField<String>(
-      value: currentValue,
+      initialValue: currentValue,
       isExpanded: true,
       decoration: InputDecoration(
         labelText: "Specialty".tr(),

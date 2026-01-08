@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eyadati/user/userSettingsPage.dart';
 import 'package:eyadati/user/user_appointments.dart';
 import 'package:eyadati/Appointments/clinicsList.dart';
 import 'package:firebase_auth/firebase_auth.dart';

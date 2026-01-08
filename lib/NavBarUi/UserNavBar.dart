@@ -1,17 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eyadati/Appointments/clinicsList.dart';
 import 'package:eyadati/Appointments/slotsUi.dart';
-import 'package:eyadati/clinic/clinicSettingsPage.dart';
-import 'package:eyadati/user/UserHome.dart';
 import 'package:eyadati/user/userAppointments.dart';
 import 'package:eyadati/user/userSettingsPage.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart'; // flutter pub add flutter_floating_bottom_bar
 import 'package:easy_localization/easy_localization.dart';
-import 'package:eyadati/NavBarUi/AppoitmentsManagment.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
-import 'package:eyadati/clinic/clinic_appointments.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
 
@@ -241,7 +236,7 @@ class FavoritScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: _ClinicCard(clinic: clinic),
+              child: _ClinicCard(clinic: clinic,showFavoriteButton: false,),
             );
           },
         );
@@ -254,8 +249,7 @@ class _ClinicCard extends StatelessWidget {
   final bool showFavoriteButton;
 
   const _ClinicCard({
-    required this.clinic,
-    this.showFavoriteButton = false,
+    required this.clinic, required this.showFavoriteButton,
   });
 
   @override

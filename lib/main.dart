@@ -4,8 +4,6 @@ import 'package:eyadati/clinic/clinicHome.dart';
 import 'package:eyadati/firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flex_color_scheme/flex_color_scheme.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:eyadati/flow.dart';
@@ -155,11 +153,8 @@ final ThemeData lightTheme = ThemeData(
     
     surface: AppColors.white,
     onSurface: AppColors.navyBlue,
-    surfaceVariant: AppColors.offWhite,
+    surfaceContainerHighest: AppColors.offWhite,
     onSurfaceVariant: AppColors.gray,
-    
-    background: AppColors.offWhite,
-    onBackground: AppColors.navyBlue,
     
     error: AppColors.error,
     onError: AppColors.white,
@@ -310,19 +305,19 @@ final ThemeData lightTheme = ThemeData(
   
   // Switch Theme
   switchTheme: SwitchThemeData(
-    thumbColor: MaterialStateProperty.all(AppColors.white),
-    trackColor: MaterialStateProperty.all(AppColors.skyBlue),
+    thumbColor: WidgetStateProperty.all(AppColors.white),
+    trackColor: WidgetStateProperty.all(AppColors.skyBlue),
   ),
   
   // Checkbox Theme
   checkboxTheme: CheckboxThemeData(
-    fillColor: MaterialStateProperty.all(AppColors.skyBlue),
-    checkColor: MaterialStateProperty.all(AppColors.navyBlue),
+    fillColor: WidgetStateProperty.all(AppColors.skyBlue),
+    checkColor: WidgetStateProperty.all(AppColors.navyBlue),
   ),
   
   // Radio Theme
   radioTheme: RadioThemeData(
-    fillColor: MaterialStateProperty.all(AppColors.skyBlue),
+    fillColor: WidgetStateProperty.all(AppColors.skyBlue),
   ),
   
   // Chip Theme
@@ -357,9 +352,6 @@ final ThemeData darkTheme = ThemeData(
     
     surface: AppColors.darkSurface,
     onSurface: AppColors.white,
-    
-    background: AppColors.darkBackground,
-    onBackground: AppColors.white,
     
     error: AppColors.error,
     onError: AppColors.white,

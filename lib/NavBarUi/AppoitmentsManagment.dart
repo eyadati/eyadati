@@ -293,7 +293,7 @@ class ManagementProvider extends ChangeNotifier {
 class ManagementScreen extends StatelessWidget {
   final String clinicUid;
 
-  const ManagementScreen({Key? key, required this.clinicUid}) : super(key: key);
+  const ManagementScreen({super.key, required this.clinicUid});
 
   @override
   Widget build(BuildContext context) {

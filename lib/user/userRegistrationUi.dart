@@ -217,7 +217,7 @@ class _UserOnboardingContent extends StatelessWidget {
 
   Widget _buildCityDropdown(BuildContext context, UserOnboardingProvider provider) {
     return DropdownButtonFormField<String>(
-      value: provider.selectedCity,
+      initialValue: provider.selectedCity,
       decoration: InputDecoration(
         labelText: "city".tr(),
         prefixIcon: const Icon(Icons.location_city),

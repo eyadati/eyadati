@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/FCM/notificationsService.dart';
-import 'package:eyadati/NavBarUi/ClinicNavBar.dart';
 import 'package:eyadati/clinic/clinicSettingsPage.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:flutter/material.dart';
@@ -387,7 +386,7 @@ class _AppointmentsPanel extends StatelessWidget {
                               width: 100,
                               child: Padding(
                                 padding: const EdgeInsets.all(8),
-                                child: Text("${timeFormatted}-${timeEndFormatter}"),
+                                child: Text("$timeFormatted-$timeEndFormatter"),
                               ),
                             ),
                             Expanded(

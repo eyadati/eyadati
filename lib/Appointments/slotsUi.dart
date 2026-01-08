@@ -4,7 +4,6 @@ import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -87,7 +86,7 @@ class SlotsUiProvider extends ChangeNotifier {
     if (clinicDoc.exists) {
       staffCount = clinicDoc.data()?['staff'] ?? 1;
     }
-    print('Clinic doc: ${clinicDoc}');
+    print('Clinic doc: $clinicDoc');
   }
 
  Future<void> _loadSlots() async {
