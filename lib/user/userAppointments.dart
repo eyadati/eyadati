@@ -4,6 +4,8 @@ import 'package:eyadati/Appointments/clinicsList.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:eyadati/FCM/notificationsService.dart';
 
 // ADD THIS: Provider using Firestore's built-in cache
 class ClinicsProvider extends ChangeNotifier {
@@ -85,7 +87,7 @@ class _UserAppointmentsState extends State<UserAppointments> {
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Hello Oussama"),
+          title: Text("Hello Oussama".tr()),
           actions: [
             IconButton(
               onPressed: () => ClinicFilterBottomSheet.show(context),

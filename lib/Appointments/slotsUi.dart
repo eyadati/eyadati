@@ -402,7 +402,7 @@ class _SlotsDialog extends StatelessWidget {
             ),
             child: TextButton(
               onPressed: () => provider.bookSelectedSlot(context),
-              child: Text("Book Appointment"),
+              child: Text("book_appointment".tr()),
             ),
           ),
         ],

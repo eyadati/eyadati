@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/chargili/secrets.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -72,15 +73,15 @@ class _SubscribeScreenState extends State<SubscribeScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Payment in Progress'),
-        content: const Text(
-          'Complete the payment in your browser.\n'
-          'Your subscription will activate once confirmed.',
+        title: Text('payment_in_progress'.tr()),
+        content: Text(
+          'complete_payment_browser'.tr() + '\n' +
+          'subscription_will_activate'.tr(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: Text('ok'.tr()),
           ),
         ],
       ),
@@ -90,14 +91,13 @@ class _SubscribeScreenState extends State<SubscribeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Subscribe – 1 Month Access')),
+      appBar: AppBar(title: Text('subscribe_1_month_access'.tr())),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             const Spacer(),
-            const Text(
-              'Fixed price: 3000 DZD',
+                        Text('fixed_price_3000_dzd'.tr(),
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 32),
@@ -112,7 +112,7 @@ class _SubscribeScreenState extends State<SubscribeScreen> {
               ),
               child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Pay & Subscribe'),
+                  : Text('pay_and_subscribe'.tr()),
             ),
             const SizedBox(height: 16),
             if (_errorMessage != null)

@@ -389,7 +389,7 @@ class _IntroPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              "Hello to Eyadati".tr(),
+              "hello_to_eyadati".tr().tr(),
               style: Theme.of(
                 context,
               ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
@@ -397,7 +397,7 @@ class _IntroPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              "Let's set up your clinic profile to get started".tr(),
+              "setup_clinic_profile".tr().tr(),
               style: Theme.of(context).textTheme.bodyLarge,
               textAlign: TextAlign.center,
             ),
@@ -517,7 +517,7 @@ class _FormPage extends StatelessWidget {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
                 icon: const Icon(Icons.location_pin),
-                label: Text("Open Google Maps".tr()),
+                label: Text("open_google_maps".tr().tr()),
               ),
             ),
             _buildTextFormField(
@@ -646,7 +646,7 @@ class _FormPage extends StatelessWidget {
         labelText: "City".tr(),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      hint: Text("Select City".tr()),
+      hint: Text("select_city".tr()),
       onChanged: provider.selectCity,
       validator: (value) {
         if (value == null || value.isEmpty) {

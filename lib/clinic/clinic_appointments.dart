@@ -29,6 +29,16 @@ class ClinicAppointmentProvider extends ChangeNotifier {
       focusedDay = (initialDate ?? DateTime.now()),
       calendarFormat = CalendarFormat.month {
     _appointmentsStream = _createAppointmentsStream();
+    _listenToAppointmentsStream();
+  }
+
+  void _listenToAppointmentsStream() {
+    _appointmentsSubscription?.cancel(); // Cancel previous subscription
+    _appointmentsSubscription = _appointmentsStream.listen((snapshot) {
+      // No specific logic needed here for now, as the StreamBuilder in the UI
+      // directly consumes the stream. This primarily ensures the subscription
+      // is active and managed by the provider for proper disposal.
+    });
   }
 
   Stream<QuerySnapshot> _createAppointmentsStream() {
@@ -92,6 +102,7 @@ class ClinicAppointmentProvider extends ChangeNotifier {
     selectedDate = date;
     focusedDay = date;
     _appointmentsStream = _createAppointmentsStream();
+    _listenToAppointmentsStream(); // Re-subscribe to the new stream
     notifyListeners();
   }
 
@@ -160,7 +171,7 @@ class _ClinicAppointmentsView extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.primary,
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
-        title: Text(" Hello!", style: TextStyle(color: Colors.white)),
+        title: Text("hello".tr(), style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(
             onPressed: () => showModalBottomSheet(
@@ -298,8 +309,7 @@ class _AppointmentsPanel extends StatelessWidget {
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
-            child: Text(
-              'No appointments for this day'.tr(),
+                        child: Text('no_appointments_for_this_day'.tr(),
               style: TextStyle(color: Theme.of(context).colorScheme.primary),
             ),
           );

@@ -581,8 +581,7 @@ class _ClinicCard extends StatelessWidget {
               onTap: () => SlotsUi.showModalSheet(context, clinic),
               titleAlignment: ListTileTitleAlignment.center,
               title: Center(
-                child: Text(
-                  "Book appointment",
+                child: Text("book_appointment".tr(),
                   style: TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),

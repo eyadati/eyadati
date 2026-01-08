@@ -29,7 +29,7 @@ class Userauth {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text("Login"),
+          title: Text("Login".tr()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -58,7 +58,7 @@ class Userauth {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text("Cancel"),
+              child: Text("Cancel".tr()),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -84,7 +84,7 @@ class Userauth {
                   ).showSnackBar(SnackBar(content: Text("Login failed".tr())));
                 }
               },
-              child: Text("Login"),
+              child: Text("Login".tr()),
             ),
           ],
         );

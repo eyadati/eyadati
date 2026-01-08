@@ -335,7 +335,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildTextFormField(
                       provider.clinicNameController,
-                      "clinic name".tr(),
+                      "clinic_name".tr(),
                       provider,
                     ),
                     const SizedBox(height: 16),
@@ -353,7 +353,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildTextFormField(
                       provider.nameController,
-                      "owner name".tr(),
+                      "owner_name".tr(),
                       provider,
                     ),
                     const SizedBox(height: 16),
@@ -377,13 +377,13 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildTextFormField(
                       provider.mapsLinkController,
-                      "maps link".tr(),
+                      "maps_link".tr(),
                       provider,
                     ),
                     const SizedBox(height: 16),
                     _buildTextFormField(
                       provider.phoneController,
-                      "phone number".tr(),
+                      "phone_number".tr(),
                       provider,
                       inputType: TextInputType.phone,
                     ),

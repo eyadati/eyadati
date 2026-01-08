@@ -76,9 +76,9 @@ class _BottomNavContent extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, Icons.settings, "Settings", "1"),
-            _buildNavItem(context, Icons.home, "Home", "2"),
-            _buildNavItem(context, Icons.calendar_month, "Managment", "3"),
+            _buildNavItem(context, Icons.settings, "settings".tr(), "1"),
+            _buildNavItem(context, Icons.home, "home".tr(), "2"),
+            _buildNavItem(context, Icons.calendar_month, "managment".tr(), "3"),
           ],
         ),
       ),

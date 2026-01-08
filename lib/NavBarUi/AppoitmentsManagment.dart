@@ -392,7 +392,7 @@ class ManagementScreen extends StatelessWidget {
           Icon(Icons.event_busy, size: 64, color: Colors.grey),
           SizedBox(height: 16),
           Text(
-            "No working days found in the next 7 days".tr(),
+            "no_working_days_found".tr(),
             style: TextStyle(color: Colors.grey, fontSize: 16),
           ),
         ],
@@ -414,9 +414,8 @@ class ManagementScreen extends StatelessWidget {
             color: Colors.grey.shade400,
           ),
           const SizedBox(height: 16),
-          Text(
-            isWorkingDay ? "No slots available today" : "Clinic is closed",
-            style: const TextStyle(color: Colors.grey, fontSize: 16),
+                      Text(
+                        isWorkingDay ? "no_slots_available_today".tr() : "clinic_is_closed".tr(),            style: const TextStyle(color: Colors.grey, fontSize: 16),
           ),
         ],
       ),
@@ -478,7 +477,7 @@ class ManagementScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      "FULL".tr(),
+                      "full".tr(),
                       style: TextStyle(
                         color: Colors.red,
                         fontSize: 12,
