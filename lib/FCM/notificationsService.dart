@@ -2,7 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationService {
   final supabase = Supabase.instance.client;
-  
+
   // FCM token now comes from your local storage (SharedPreferences, etc.)
   // which you previously saved when the token was generated
 
@@ -16,7 +16,7 @@ class NotificationService {
       final response = await supabase.functions.invoke(
         'fcm_notifications',
         body: {
-          'token': fcmToken,      // Direct token from client
+          'token': fcmToken, // Direct token from client
           'title': title,
           'body': body,
           'data': data ?? {},

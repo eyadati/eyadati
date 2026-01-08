@@ -1,0 +1,49 @@
+description = "Full code analysis & auto-fix - analyzes lib/ for errors, warnings, and applies safe fixes with summary and commit"
+
+prompt = """
+**APPOINTMENT APP - ANALYZE & FIX COMMAND**
+
+Execute these steps in order:
+
+**Step 1: Analyze & Report**
+Run: flutter analyze --no-pub
+Capture all errors, warnings, and info messages with file paths and line numbers
+Group by severity: CRITICAL ERRORS, WARNINGS, INFO
+
+**Step 2: Auto-Fix Safe Issues**
+Apply these fixes automatically:
+- Run: dart fix --apply
+- Replace all print() with debugPrint() in lib/
+- Remove unused imports
+- Add const modifiers where applicable
+- Format code: dart format lib/ test/
+
+**Step 3: Verify Fixes**
+Run flutter analyze --no-pub again
+Report remaining issues that couldn't be auto-fixed
+
+**Step 4: Generate Summary**
+Create file: gemini cli/analyze-summary-{date}.md
+Content:
+Analyze & Fix Summary - {date}
+Execution Time: [current datetime]
+Issues Found & Fixed:
+Critical Errors: [count]
+Warnings: [count]
+Auto-fixed: [count]
+Files Modified:
+list each file with changes
+Remaining Issues:
+list what needs manual fixing
+Recommendations:
+suggest next steps
+Copy
+
+**Step 5: Git Operations**
+Stage all changes: git add .
+Commit with message: git commit -m "analyze: auto-fix {date}"
+Push to origin: git push origin main
+
+**Step 6: Report**
+Display "✅ Analysis complete. Summary saved to gemini cli/analyze-summary-{date}.md. Changes committed and pushed."
+"""

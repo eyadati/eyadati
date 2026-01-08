@@ -113,7 +113,7 @@ class BookingLogic extends ChangeNotifier {
           slotStart = slotEnd;
           continue;
         }
-      
+
         // Check bookings from in-memory map
         final currentBookings = bookedSlots[slotStart] ?? 0;
         if (currentBookings < staffCount) {

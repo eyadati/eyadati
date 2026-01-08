@@ -1,4 +1,3 @@
-
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/clinic/clinicAuth.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
@@ -7,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_url_extractor/url_extractor.dart';
+
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -273,7 +273,6 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       );
       return false;
     }
-  
 
     extractCoordinates();
 
@@ -681,7 +680,7 @@ class _FormPage extends StatelessWidget {
       items: provider.specialties.map((s) {
         return DropdownMenuItem(value: s, child: Text(s));
       }).toList(),
-      menuMaxHeight: 250, 
+      menuMaxHeight: 250,
     );
   }
 
@@ -775,12 +774,11 @@ class _FormPage extends StatelessWidget {
               provider.selectAvatar(i);
             },
             child: CircleAvatar(
-              
               radius: 11,
               backgroundColor: provider.avatarNumber == i
                   ? Colors.black
                   : Colors.green,
-                  child: Image.asset("assets/avatars/${i+1}.png"),
+              child: Image.asset("assets/avatars/${i + 1}.png"),
             ),
           );
         },

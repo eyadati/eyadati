@@ -1,0 +1,10 @@
+description = "Full automated deployment: analyze, test, optimize, deploy"
+prompt = """
+Execute in sequence:
+1. /analyze
+2. /flaw
+3. /firestore
+5. Commit: git commit -m "gemini: automated deployment $(date +%Y-%m-%d)"
+6. Push: git push origin main
+7. Report: "✅ Fully automated deployment complete!"
+"""

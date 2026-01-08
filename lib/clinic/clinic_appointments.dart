@@ -15,7 +15,6 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   final String clinicId;
   DateTime selectedDate;
 
- 
   // Calendar state moved to provider
   DateTime focusedDay = DateTime.now();
   CalendarFormat calendarFormat;
@@ -23,17 +22,15 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   late Stream<QuerySnapshot> _appointmentsStream;
   StreamSubscription<QuerySnapshot>? _appointmentsSubscription;
   DocumentSnapshot<Map<String, dynamic>>? _clinicData;
-  DocumentSnapshot<Map<String, dynamic>>? get clinicData=>_clinicData;
-
+  DocumentSnapshot<Map<String, dynamic>>? get clinicData => _clinicData;
 
   ClinicAppointmentProvider({required this.clinicId, DateTime? initialDate})
     : selectedDate = (initialDate ?? DateTime.now()),
       focusedDay = (initialDate ?? DateTime.now()),
       calendarFormat = CalendarFormat.month {
     _appointmentsStream = _createAppointmentsStream();
-   
   }
-  
+
   Stream<QuerySnapshot> _createAppointmentsStream() {
     final dayStart = DateTime(
       selectedDate.year,
@@ -55,13 +52,12 @@ class ClinicAppointmentProvider extends ChangeNotifier {
 
   Future<DocumentSnapshot<Map<String, dynamic>>?> getClinicData() async {
     final firestore = FirebaseFirestore.instance;
-    final doc=await firestore
+    final doc = await firestore
         .collection('clinics')
         .doc(clinicId)
-        .get(GetOptions(source: Source.cache)); 
-        _clinicData=doc;
-    return doc; 
-        
+        .get(GetOptions(source: Source.cache));
+    _clinicData = doc;
+    return doc;
   }
 
   /// Fetches monthly appointment data for calendar markers
@@ -143,11 +139,10 @@ class ClinicAppointmentProvider extends ChangeNotifier {
 /// Main widget that provides the appointment management state
 class ClinicAppointments extends StatelessWidget {
   final String clinicId;
- 
+
   const ClinicAppointments({super.key, required this.clinicId});
 
   @override
-  
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => ClinicAppointmentProvider(clinicId: clinicId),
@@ -161,59 +156,51 @@ class _ClinicAppointmentsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    
-    
-            return Scaffold(
-              
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              appBar: AppBar(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                title: Text(
-                  " Hello!",
-                  style: TextStyle(color: Colors.white),
-                ),
-                actions: [
-                  IconButton(
-                    onPressed: () => showModalBottomSheet(
-                      isScrollControlled: true,
-                      context: context,
-                      builder: (context) {
-                        return SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.9,
-                          child: Clinicsettings(),
-                        );
-                      },
-                    ),
-                    icon: Icon(Icons.settings),
-                  ),
-                ],
-              ),
-              body: Column(
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        title: Text(" Hello!", style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            onPressed: () => showModalBottomSheet(
+              isScrollControlled: true,
+              context: context,
+              builder: (context) {
+                return SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.9,
+                  child: Clinicsettings(),
+                );
+              },
+            ),
+            icon: Icon(Icons.settings),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          const SizedBox(height: 10),
+          // Calendar takes available height
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
                 children: [
-                  const SizedBox(height: 10),
-                  // Calendar takes available height
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Card(child: const _NormalCalendar()),
-                          ),
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.02,
-                          ),
-                          // Appointments list below calendar
-                          const _AppointmentsPanel(),
-                          
-                        ],
-                      ),
-                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Card(child: const _NormalCalendar()),
                   ),
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                  // Appointments list below calendar
+                  const _AppointmentsPanel(),
                 ],
               ),
-            );
-      }}
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Normal calendar widget with appointment markers
 class _NormalCalendar extends StatelessWidget {
@@ -340,16 +327,16 @@ class _AppointmentsPanel extends StatelessWidget {
                   final doc = appointments[index];
                   final appointment = doc.data() as Map<String, dynamic>;
                   final appointmentId = doc.id;
-            
+
                   final slot = (appointment['date'] as Timestamp).toDate();
-                  final slotEnd=(appointment['date'] as Timestamp).toDate().add(Duration(minutes: appointment["duration"] ??45));
+                  final slotEnd = (appointment['date'] as Timestamp)
+                      .toDate()
+                      .add(Duration(minutes: appointment["duration"] ?? 45));
                   final timeFormatted = DateFormat('HH:mm').format(slot);
-                  final timeEndFormatter = DateFormat(
-                    'HH:mm',
-                  ).format(slotEnd);
+                  final timeEndFormatter = DateFormat('HH:mm').format(slotEnd);
                   final name = appointment['userName'] ?? 'Unknown';
                   final phone = appointment['phone'] ?? 'No phone';
-            
+
                   return Slidable(
                     key: ValueKey(appointmentId),
                     endActionPane: ActionPane(
@@ -379,7 +366,7 @@ class _AppointmentsPanel extends StatelessWidget {
                           horizontal: 12,
                           vertical: 4,
                         ),
-            
+
                         child: Row(
                           children: [
                             SizedBox(
@@ -404,7 +391,6 @@ class _AppointmentsPanel extends StatelessWidget {
                 },
               ),
             ),
-            
           ],
         );
       },

@@ -55,7 +55,7 @@ class _BottomNavContent extends StatelessWidget {
       width: MediaQuery.of(context).size.width * 0.9, // Floating effect
       barColor: Colors.white,
       barAlignment: Alignment.bottomCenter,
-      
+
       // Main content area with lazy loading
       body: (context, controller) {
         // 'controller' is for scroll-to-hide functionality
@@ -69,7 +69,7 @@ class _BottomNavContent extends StatelessWidget {
           ],
         );
       },
-      
+
       // Floating navigation bar items
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -85,7 +85,12 @@ class _BottomNavContent extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(BuildContext context, IconData icon, String label, String value) {
+  Widget _buildNavItem(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     final provider = context.watch<CliniNavBarProvider>();
     final isSelected = provider.selected == value;
     final color = isSelected ? Colors.blue : Colors.black;
@@ -100,14 +105,10 @@ class _BottomNavContent extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 26),
             const SizedBox(height: 4),
-            Text(
-              label.tr(),
-              style: TextStyle(color: color, fontSize: 11),
-            ),
+            Text(label.tr(), style: TextStyle(color: color, fontSize: 11)),
           ],
         ),
       ),
     );
   }
 }
-

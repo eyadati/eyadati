@@ -1,0 +1,74 @@
+description = "Firestore optimization & data strategy - minimizes reads/writes, optimizes queries, and enhances data accessibility"
+
+prompt = """
+**APPOINTMENT APP - FIRESTORE COMMAND**
+
+Execute in order:
+
+**Step 1: Query Optimization Audit**
+Analyze all Firestore operations in lib:
+- Identify N+1 query patterns
+- Check for missing composite indexes
+- Verify date range queries use efficient filters
+- Analyze _loadSlots() query: should use single collection read
+- Check for redundant reads when changing dates
+
+**Step 2: Read/Write Minimization**
+- Implement query result caching in providers (30-second cache)
+- Add debouncing to rapid date changes (500ms)
+- Use transactions only when necessary (booking only)
+- Batch writes where possible
+- Implement offline-first pattern with sync queue
+
+**Step 3: Data Structure Optimization**
+Review Firestore schema:
+- Appointments collection: optimize query patterns
+- Consider denormalization for frequently accessed data
+- Add server timestamps for createdAt
+- Implement soft deletes (isActive flag)
+
+**Step 5: Offline Data Accessibility**
+- Implement caching layer for clinic data
+- Cache slot availability for 5 minutes
+- Store user appointments locally
+- Add sync indicators for offline mode
+
+**Step 6: Optimize Implementation**
+Modify code:
+- Replace multiple reads with batched queries
+- Add caching decorators to provider methods
+- Implement connection state monitoring
+- Add proper error handling for offline scenarios
+
+**Step 7: Generate Summary**
+Create: gemini cli/firestore-summary-{date}.md
+```markdown
+# Firestore Optimization - {date}
+## Execution Time: [current datetime]
+
+### Optimizations Applied:
+#### Query Performance:
+- [list optimized queries]
+#### Read/Write Reduction:
+- [count of operations reduced]
+#### Caching Implementation:
+- [caching strategies added]
+#### Security Enhancements:
+- [security improvements]
+
+### Metrics:
+- Reads per booking: [before] → [after]
+- Writes per booking: [before] → [after]
+- Average query time: [before] → [after]
+
+### Firebase Configuration:
+- Composite indexes needed: [list]
+- Security rules updated: [yes/no]
+- Offline support: [enabled/disabled]
+Step 8: Git Operations
+Stage: git add .
+Commit: git commit -m "firestore: optimize queries & caching {date}"
+Push: git push origin main
+Step 9: Report
+Display "✅ Firestore optimization complete. Summary: gemini cli/firestore-summary-{date}.md. Changes committed and pushed."
+"""

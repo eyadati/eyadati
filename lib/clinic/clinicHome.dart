@@ -14,9 +14,6 @@ class _ClinichomeState extends State<Clinichome> {
   final clinicUid = FirebaseAuth.instance.currentUser!.uid;
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-    
-      body: FloatingBottomNavBar(),
-    );
+    return Scaffold(body: FloatingBottomNavBar());
   }
 }

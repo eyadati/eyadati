@@ -11,16 +11,13 @@ class ClinicEditProfileProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
 
-  ClinicEditProfileProvider({
-    required this.auth,
-    required this.firestore,
-  }) {
+  ClinicEditProfileProvider({required this.auth, required this.firestore}) {
     _loadClinicData();
   }
 
   // Form key
   final formKey = GlobalKey<FormState>();
-  
+
   // Controllers
   final nameController = TextEditingController();
   final emailController = TextEditingController();
@@ -46,19 +43,75 @@ class ClinicEditProfileProvider extends ChangeNotifier {
 
   // Dropdown data
   final List<String> algerianCities = [
-    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa',
-    'Sétif', 'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret',
-    'Béjaïa', 'Tlemcen', 'Béchar', 'Mostaganem', 'Bordj Bou Arreridj',
-    'Chlef', 'Souk Ahras', 'El Eulma', 'Médéa', 'Tizi Ouzou', 'Jijel',
-    'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila', 'Relizane', 'Saïda',
-    'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara', 'Khenchela',
-    'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
-    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
-    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
-    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh',
-    'El Guerrara', 'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa',
-    'Hassi Bahbah', 'Khemis Miliana', 'Ksar Chellala', 'Ksar Boukhari',
-    'Lakhdaria', 'Larbaâ',
+    'Algiers',
+    'Oran',
+    'Constantine',
+    'Annaba',
+    'Blida',
+    'Batna',
+    'Djelfa',
+    'Sétif',
+    'Sidi Bel Abbès',
+    'Biskra',
+    'Tébessa',
+    'Skikda',
+    'Tiaret',
+    'Béjaïa',
+    'Tlemcen',
+    'Béchar',
+    'Mostaganem',
+    'Bordj Bou Arreridj',
+    'Chlef',
+    'Souk Ahras',
+    'El Eulma',
+    'Médéa',
+    'Tizi Ouzou',
+    'Jijel',
+    'Laghouat',
+    'El Oued',
+    'Ouargla',
+    'M\'Sila',
+    'Relizane',
+    'Saïda',
+    'Bou Saâda',
+    'Guelma',
+    'Aïn Beïda',
+    'Maghnia',
+    'Mascara',
+    'Khenchela',
+    'Barika',
+    'Messaad',
+    'Aflou',
+    'Aïn Oussara',
+    'Adrar',
+    'Aïn Defla',
+    'Aïn Fakroun',
+    'Aïn Oulmene',
+    'Aïn M\'lila',
+    'Aïn Sefra',
+    'Aïn Témouchent',
+    'Aïn Touta',
+    'Akbou',
+    'Azzaba',
+    'Berrouaghia',
+    'Bir el-Ater',
+    'Boufarik',
+    'Bouira',
+    'Chelghoum Laid',
+    'Cheria',
+    'Chettia',
+    'El Bayadh',
+    'El Guerrara',
+    'El-Khroub',
+    'Frenda',
+    'Ferdjioua',
+    'Ghardaïa',
+    'Hassi Bahbah',
+    'Khemis Miliana',
+    'Ksar Chellala',
+    'Ksar Boukhari',
+    'Lakhdaria',
+    'Larbaâ',
   ];
 
   final List<String> specialties = [
@@ -87,10 +140,11 @@ class ClinicEditProfileProvider extends ChangeNotifier {
     'Laboratory Services'.tr(),
     'Nephrology'.tr(),
   ];
-  void OnSpecialtyChange(String? value){
-     specialtyController.text = value ?? '';
-        notifyListeners();
+  void OnSpecialtyChange(String? value) {
+    specialtyController.text = value ?? '';
+    notifyListeners();
   }
+
   Future<void> _loadClinicData() async {
     try {
       final user = auth.currentUser;
@@ -112,14 +166,14 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         addressController.text = data['address'] ?? '';
         phoneController.text = data['phone'] ?? '';
         mapsLinkController.text = data['mapsLink'] ?? '';
-        
-        selectedCity = data['city'] != null 
-          ? algerianCities.firstWhere(
-              (c) => c == data['city'],
-              orElse: () => algerianCities[0],
-            )
-          : null;
-        
+
+        selectedCity = data['city'] != null
+            ? algerianCities.firstWhere(
+                (c) => c == data['city'],
+                orElse: () => algerianCities[0],
+              )
+            : null;
+
         workingDays = List<int>.from(data['workingDays'] ?? []);
         openingMinutes = data['openingAt'];
         closingMinutes = data['closingAt'];
@@ -168,10 +222,10 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         "avatarNumber": avatarNumber,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('profile updated success'.tr())),
-      );
-      
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('profile updated success'.tr())));
+
       Navigator.of(context).pop();
     } catch (e) {
       error = e.toString();
@@ -279,43 +333,98 @@ class _ClinicEditProfileContent extends StatelessWidget {
                   children: [
                     _buildSectionTitle(context, 'clinic information'.tr()),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.clinicNameController, "clinic name".tr(), provider),
+                    _buildTextFormField(
+                      provider.clinicNameController,
+                      "clinic name".tr(),
+                      provider,
+                    ),
                     const SizedBox(height: 16),
                     _buildSpecialtyDropdown(context, provider),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.durationController, "Appointmnent duration(minutes)".tr(), provider, inputType: TextInputType.number),
+                    _buildTextFormField(
+                      provider.durationController,
+                      "Appointmnent duration(minutes)".tr(),
+                      provider,
+                      inputType: TextInputType.number,
+                    ),
                     const SizedBox(height: 32),
 
                     _buildSectionTitle(context, 'owner information'.tr()),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.nameController, "owner name".tr(), provider),
+                    _buildTextFormField(
+                      provider.nameController,
+                      "owner name".tr(),
+                      provider,
+                    ),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.emailController, "email".tr(), provider, readOnly: true),
+                    _buildTextFormField(
+                      provider.emailController,
+                      "email".tr(),
+                      provider,
+                      readOnly: true,
+                    ),
                     const SizedBox(height: 32),
 
                     _buildSectionTitle(context, 'contact details'.tr()),
                     const SizedBox(height: 16),
                     _buildCityDropdown(context, provider),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.addressController, "address".tr(), provider),
+                    _buildTextFormField(
+                      provider.addressController,
+                      "address".tr(),
+                      provider,
+                    ),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.mapsLinkController, "maps link".tr(), provider),
+                    _buildTextFormField(
+                      provider.mapsLinkController,
+                      "maps link".tr(),
+                      provider,
+                    ),
                     const SizedBox(height: 16),
-                    _buildTextFormField(provider.phoneController, "phone number".tr(), provider, inputType: TextInputType.phone),
+                    _buildTextFormField(
+                      provider.phoneController,
+                      "phone number".tr(),
+                      provider,
+                      inputType: TextInputType.phone,
+                    ),
                     const SizedBox(height: 32),
 
                     _buildSectionTitle(context, 'working hours'.tr()),
                     const SizedBox(height: 16),
-                    _buildTimePickerRow(context, "opening".tr(), 'opening', provider),
+                    _buildTimePickerRow(
+                      context,
+                      "opening".tr(),
+                      'opening',
+                      provider,
+                    ),
                     const SizedBox(height: 12),
-                    _buildTimePickerRow(context, "closing".tr(), 'closing', provider),
+                    _buildTimePickerRow(
+                      context,
+                      "closing".tr(),
+                      'closing',
+                      provider,
+                    ),
                     const SizedBox(height: 12),
-                    _buildTimePickerRow(context, "break_start".tr(), 'breakStart', provider),
+                    _buildTimePickerRow(
+                      context,
+                      "break_start".tr(),
+                      'breakStart',
+                      provider,
+                    ),
                     const SizedBox(height: 12),
-                    _buildTimePickerRow(context, "break_end".tr(), 'breakEnd', provider),
+                    _buildTimePickerRow(
+                      context,
+                      "break_end".tr(),
+                      'breakEnd',
+                      provider,
+                    ),
                     const SizedBox(height: 24),
 
-                    _buildSectionTitle(context, 'working days'.tr(), isSmall: true),
+                    _buildSectionTitle(
+                      context,
+                      'working days'.tr(),
+                      isSmall: true,
+                    ),
                     _buildWorkingDaysChips(context, provider),
                     const SizedBox(height: 32),
 
@@ -324,21 +433,37 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     const SizedBox(height: 32),
 
                     if (provider.error != null) ...[
-                      Text(provider.error!, style: const TextStyle(color: Colors.red)),
+                      Text(
+                        provider.error!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
                       const SizedBox(height: 8),
                     ],
 
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: provider.isSaving ? null : () => provider.saveProfile(context),
+                        onPressed: provider.isSaving
+                            ? null
+                            : () => provider.saveProfile(context),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: provider.isSaving
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text("save changes".tr(), style: const TextStyle(fontSize: 16)),
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                "save changes".tr(),
+                                style: const TextStyle(fontSize: 16),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -352,7 +477,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, ClinicEditProfileProvider provider) {
+  Widget _buildErrorState(
+    BuildContext context,
+    ClinicEditProfileProvider provider,
+  ) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -371,14 +499,20 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, String title, {bool isSmall = false}) {
+  Widget _buildSectionTitle(
+    BuildContext context,
+    String title, {
+    bool isSmall = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         title,
         style: isSmall
-          ? Theme.of(context).textTheme.titleMedium
-          : Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ? Theme.of(context).textTheme.titleMedium
+            : Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -411,7 +545,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildCityDropdown(BuildContext context, ClinicEditProfileProvider provider) {
+  Widget _buildCityDropdown(
+    BuildContext context,
+    ClinicEditProfileProvider provider,
+  ) {
     return DropdownButtonFormField<String>(
       initialValue: provider.selectedCity,
       decoration: InputDecoration(
@@ -435,11 +572,15 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildSpecialtyDropdown(BuildContext context, ClinicEditProfileProvider provider) {
+  Widget _buildSpecialtyDropdown(
+    BuildContext context,
+    ClinicEditProfileProvider provider,
+  ) {
     return DropdownButtonFormField<String>(
-      initialValue: provider.specialties.contains(provider.specialtyController.text) 
-        ? provider.specialtyController.text 
-        : null,
+      initialValue:
+          provider.specialties.contains(provider.specialtyController.text)
+          ? provider.specialtyController.text
+          : null,
       decoration: InputDecoration(
         labelText: "specialty".tr(),
         prefixIcon: const Icon(Icons.medical_services),
@@ -452,7 +593,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
         return DropdownMenuItem(value: specialty, child: Text(specialty));
       }).toList(),
       onChanged: (value) {
-       provider.OnSpecialtyChange(value);
+        provider.OnSpecialtyChange(value);
       },
       validator: (value) {
         if (value == null) {
@@ -463,10 +604,15 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildTimePickerRow(BuildContext context, String label, String type, ClinicEditProfileProvider provider) {
+  Widget _buildTimePickerRow(
+    BuildContext context,
+    String label,
+    String type,
+    ClinicEditProfileProvider provider,
+  ) {
     String? timeText;
     int? minutes;
-    
+
     switch (type) {
       case 'opening':
         minutes = provider.openingMinutes;
@@ -483,12 +629,15 @@ class _ClinicEditProfileContent extends StatelessWidget {
     }
 
     if (minutes != null) {
-      timeText = "${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}";
+      timeText =
+          "${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}";
     }
 
     return Row(
       children: [
-        Expanded(child: Text(label, style: Theme.of(context).textTheme.titleMedium)),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.titleMedium),
+        ),
         TextButton.icon(
           icon: const Icon(Icons.access_time),
           label: Text(timeText ?? "select time".tr()),
@@ -506,7 +655,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildWorkingDaysChips(BuildContext context, ClinicEditProfileProvider provider) {
+  Widget _buildWorkingDaysChips(
+    BuildContext context,
+    ClinicEditProfileProvider provider,
+  ) {
     final dayNames = [
       "monday".tr(),
       "tuesday".tr(),
@@ -529,7 +681,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatarPicker(BuildContext context, ClinicEditProfileProvider provider) {
+  Widget _buildAvatarPicker(
+    BuildContext context,
+    ClinicEditProfileProvider provider,
+  ) {
     return Center(
       child: Wrap(
         spacing: 12,
@@ -542,7 +697,9 @@ class _ClinicEditProfileContent extends StatelessWidget {
               height: 60,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: provider.avatarNumber == i + 1 ? Colors.blue : Colors.transparent,
+                  color: provider.avatarNumber == i + 1
+                      ? Colors.blue
+                      : Colors.transparent,
                   width: 3,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -565,4 +722,3 @@ class _ClinicEditProfileContent extends StatelessWidget {
     );
   }
 }
-

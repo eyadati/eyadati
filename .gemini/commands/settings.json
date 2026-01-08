@@ -1,0 +1,21 @@
+{
+  "checkpointing": true,
+  "require_confirmation": false,
+  "auto_format": true,
+  "auto_apply_fixes": true,
+  "trusted_folders": ["lib", "test", "assets"],
+  "excluded_files": ["firebase_options.dart", "*.g.dart", "*.freezed.dart", ".env"],
+  "memory_file": ".gemini/memory.md",
+  "max_context_lines": 50,
+  "parallel_commands": true,
+  "git_auto_stage": true,
+  "git_auto_commit": true,
+  "git_commit_prefix": "gemini:",
+  "git_push_after_commit": true,
+  "command_timeout": 300,
+  "retry_on_failure": 2,
+  "save_summaries": true,
+  "summary_folder": "gemini cli",
+  "verbose_logging": true,
+  "experimental_features": ["auto_refactor", "smart_imports"]
+}

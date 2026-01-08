@@ -35,58 +35,63 @@ class UserNavBarProvider extends ChangeNotifier {
   }
   // Add to UserNavBarProvider:
 
-/// Uses get() to check if clinic is favorited (saves reads vs snapshot)
-Future<bool> isFavorite(String clinicUid) async {
-  final user = auth.currentUser;
-  if (user == null) return false;
+  /// Uses get() to check if clinic is favorited (saves reads vs snapshot)
+  Future<bool> isFavorite(String clinicUid) async {
+    final user = auth.currentUser;
+    if (user == null) return false;
 
-  try {
-    final doc = await firestore
+    try {
+      final doc = await firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('favorites')
+          .doc(clinicUid)
+          .get(GetOptions(source: Source.cache));
+
+      return doc.exists;
+    } catch (e) {
+      debugPrint("Error checking favorite: $e");
+      return false;
+    }
+  }
+
+  /// Toggles favorite status and updates local list
+  Future<void> toggleFavorite(
+    String clinicUid,
+    Map<String, dynamic> clinicData,
+  ) async {
+    final user = auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+
+    final favoriteDoc = firestore
         .collection('users')
         .doc(user.uid)
         .collection('favorites')
-        .doc(clinicUid)
-        .get(GetOptions(source: Source.cache));
+        .doc(clinicUid);
 
-    return doc.exists;
-  } catch (e) {
-    debugPrint("Error checking favorite: $e");
-    return false;
-  }
-}
+    try {
+      final docSnapshot = await favoriteDoc.get(
+        GetOptions(source: Source.cache),
+      );
 
-/// Toggles favorite status and updates local list
-Future<void> toggleFavorite(String clinicUid, Map<String, dynamic> clinicData) async {
-  final user = auth.currentUser;
-  if (user == null) throw Exception('User not authenticated');
-
-  final favoriteDoc = firestore
-      .collection('users')
-      .doc(user.uid)
-      .collection('favorites')
-      .doc(clinicUid);
-
-  try {
-    final docSnapshot = await favoriteDoc.get(GetOptions(source: Source.cache));
-
-    if (docSnapshot.exists) {
-      await favoriteDoc.delete();
-      favClinics.removeWhere((clinic) => clinic['uid'] == clinicUid);
-      debugPrint("Removed clinic $clinicUid from favorites");
-    } else {
-      await favoriteDoc.set({
-        ...clinicData,
-        'addedAt': FieldValue.serverTimestamp(),
-      });
-      favClinics.add({'uid': clinicUid, ...clinicData});
-      debugPrint("Added clinic $clinicUid to favorites");
+      if (docSnapshot.exists) {
+        await favoriteDoc.delete();
+        favClinics.removeWhere((clinic) => clinic['uid'] == clinicUid);
+        debugPrint("Removed clinic $clinicUid from favorites");
+      } else {
+        await favoriteDoc.set({
+          ...clinicData,
+          'addedAt': FieldValue.serverTimestamp(),
+        });
+        favClinics.add({'uid': clinicUid, ...clinicData});
+        debugPrint("Added clinic $clinicUid to favorites");
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error toggling favorite: $e");
+      throw Exception('Failed to update favorites: $e');
     }
-    notifyListeners();
-  } catch (e) {
-    debugPrint("Error toggling favorite: $e");
-    throw Exception('Failed to update favorites: $e');
   }
-}
 
   void select(String value) {
     _selected = value;
@@ -98,7 +103,8 @@ Future<void> toggleFavorite(String clinicUid, Map<String, dynamic> clinicData) a
 class UserFloatingBottomNavBar extends StatefulWidget {
   const UserFloatingBottomNavBar({super.key});
   @override
-  State<UserFloatingBottomNavBar> createState() => _UserFloatingBottomNavBarState();
+  State<UserFloatingBottomNavBar> createState() =>
+      _UserFloatingBottomNavBarState();
 }
 
 class _UserFloatingBottomNavBarState extends State<UserFloatingBottomNavBar> {
@@ -132,7 +138,7 @@ class _BottomNavContent extends StatelessWidget {
       width: MediaQuery.of(context).size.width * 0.9, // Floating effect
       barColor: Colors.white,
       barAlignment: Alignment.bottomCenter,
-     
+
       // Main content area with lazy loading
       body: (context, controller) {
         // 'controller' is for scroll-to-hide functionality
@@ -203,17 +209,27 @@ class FavoritScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.favorite_border, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.favorite_border,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
-                  Text('No favorite clinics'.tr(), style: const TextStyle(fontSize: 18)),
+                  Text(
+                    'No favorite clinics'.tr(),
+                    style: const TextStyle(fontSize: 18),
+                  ),
                   const SizedBox(height: 8),
-                  Text('Add clinics to see them here'.tr(), style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                  Text(
+                    'Add clinics to see them here'.tr(),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
                 ],
               ),
             ),
           );
         }
-        
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 12),
           itemCount: provider.favClinics.length,
@@ -232,11 +248,15 @@ class FavoritScreen extends StatelessWidget {
                         SnackBar(content: Text('Removed from favorites'.tr())),
                       );
                     },
-                    icon: const Icon(Icons.favorite, color: Colors.red, size: 40),
+                    icon: const Icon(
+                      Icons.favorite,
+                      color: Colors.red,
+                      size: 40,
+                    ),
                   ),
                 ],
               ),
-              child: _ClinicCard(clinic: clinic,showFavoriteButton: false,),
+              child: _ClinicCard(clinic: clinic, showFavoriteButton: false),
             );
           },
         );
@@ -244,13 +264,12 @@ class FavoritScreen extends StatelessWidget {
     );
   }
 }
+
 class _ClinicCard extends StatelessWidget {
   final Map<String, dynamic> clinic;
   final bool showFavoriteButton;
 
-  const _ClinicCard({
-    required this.clinic, required this.showFavoriteButton,
-  });
+  const _ClinicCard({required this.clinic, required this.showFavoriteButton});
 
   @override
   Widget build(BuildContext context) {
@@ -269,7 +288,9 @@ class _ClinicCard extends StatelessWidget {
                 leading: CircleAvatar(
                   radius: 45,
                   backgroundImage: AssetImage(_getAvatarPath(clinic)),
-                  backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).primaryColor.withOpacity(0.1),
                 ),
                 title: Text(
                   clinic["clinicName"] ?? "Unnamed Clinic".tr(),
@@ -283,17 +304,27 @@ class _ClinicCard extends StatelessWidget {
                     children: [
                       Text(
                         clinic["specialty"] ?? "General".tr(),
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 15,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Icon(Icons.location_on, size: 16, color: Theme.of(context).colorScheme.primary),
+                          Icon(
+                            Icons.location_on,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               clinic["address"] ?? clinic["city"] ?? "",
-                              style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey.shade700,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -338,14 +369,16 @@ class _ClinicCard extends StatelessWidget {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          isFav ? 'Removed from favorites'.tr() : 'Added to favorites'.tr(),
+                          isFav
+                              ? 'Removed from favorites'.tr()
+                              : 'Added to favorites'.tr(),
                         ),
                       ),
                     );
                   } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 },
               ),
@@ -359,4 +392,3 @@ class _ClinicCard extends StatelessWidget {
     return 'assets/avatars/${clinic['avatar']}.png';
   }
 }
- 

@@ -1,0 +1,78 @@
+description = "UI & Performance perfection - optimizes widgets, state management, tests, and ensures flawless functionality"
+
+prompt = """
+**APPOINTMENT APP - FLAW COMMAND (UI/PERF/STATE/TEST)**
+
+Execute in sequence:
+
+**Step 1: Widget Performance Audit**
+Analyze all widgets in lib and lib:
+- Identify unnecessary rebuilds
+- Replace with context.select() where possible
+- Add const constructors to all stateless widgets
+- Optimize ListView/GridView builders
+- Check for missing keys in list widgets
+
+**Step 2: State Management Review**
+Review all providers in lib:
+- Verify proper dispose() methods for all StreamSubscriptions
+- Check for Provider scoping issues (shouldn't rebuild ancestors)
+- Identify state that's not properly reset on navigation
+- Ensure immutable state patterns (no direct state mutation)
+- Add ChangeNotifierProvider where missing
+
+**Step 3: UI/UX Validation**
+- Check all user-facing strings use .tr() for localization
+- Verify responsive layout on small screens
+- Ensure proper loading/error/empty states
+- Validate gesture handling (tap, scroll)
+- Check accessibility labels on all interactive elements
+
+**Step 4: Test Generation & Execution**
+- Generate unit tests for all provider methods
+- Generate widget tests for _SlotsDialog, _SlotsGrid, _SlotTile
+- Run: flutter test
+- Report coverage percentage
+
+**Step 5: Performance Profiling**
+- Analyze algorithm complexity in _loadSlots() (should be O(n))
+- Check for unnecessary Firebase reads on date changes
+- Validate image/asset caching
+- Optimize rebuild triggers
+
+**Step 6: Apply Optimizations**
+Modify code:
+- Implement all optimization suggestions
+- Add performance comments explaining changes
+- Ensure no functional changes (only performance/UI)
+
+**Step 7: Generate Summary**
+Create: gemini cli/flaw-summary-{date}.md
+UI & Performance Optimization - {date}
+Execution Time: [current datetime]
+Changes Made:
+Widget Performance:
+[list optimized widgets and changes]
+State Management:
+[list provider fixes]
+Tests Added:
+[list new test files]
+Performance Improvements:
+[describe optimizations]
+Verification:
+Tests Passing: [yes/no]
+No Functional Regressions: [yes/no]
+UI Responsive: [yes/no]
+Before/After Metrics:
+Rebuild reduction: [percentage]
+Test coverage: [percentage]
+Copy
+
+**Step 8: Git Operations**
+Stage: git add .
+Commit: git commit -m "flaw: optimize UI/perf/state/tests {date}"
+Push: git push origin main
+
+**Step 9: Report**
+Display "✅ FLAW optimization complete. Summary: gemini cli/flaw-summary-{date}.md. All tests passing. Changes committed."
+"""

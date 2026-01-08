@@ -38,25 +38,102 @@ class ClinicSearchProvider extends ChangeNotifier {
 
   // Static data
   static const List<String> specialtiesList = [
-    'General Medicine', 'Pediatrics', 'Gynecology', 'Dermatology', 'Dentistry',
-    'Orthopedics', 'Ophthalmology', 'ENT (Ear, Nose, Throat)', 'Cardiology',
-    'Psychiatry', 'Psychology', 'Physiotherapy', 'Nutrition', 'Neurology',
-    'Gastroenterology', 'Urology', 'Pulmonology', 'Endocrinology', 'Rheumatology',
-    'Oncology', 'Surgery', 'Radiology', 'Laboratory Services', 'Nephrology',
+    'General Medicine',
+    'Pediatrics',
+    'Gynecology',
+    'Dermatology',
+    'Dentistry',
+    'Orthopedics',
+    'Ophthalmology',
+    'ENT (Ear, Nose, Throat)',
+    'Cardiology',
+    'Psychiatry',
+    'Psychology',
+    'Physiotherapy',
+    'Nutrition',
+    'Neurology',
+    'Gastroenterology',
+    'Urology',
+    'Pulmonology',
+    'Endocrinology',
+    'Rheumatology',
+    'Oncology',
+    'Surgery',
+    'Radiology',
+    'Laboratory Services',
+    'Nephrology',
   ];
 
   static const List<String> algerianCitiesList = [
-    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa', 'Sétif',
-    'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret', 'Béjaïa', 'Tlemcen',
-    'Béchar', 'Mostaganem', 'Bordj Bou Arreridj', 'Chlef', 'Souk Ahras', 'El Eulma',
-    'Médéa', 'Tizi Ouzou', 'Jijel', 'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila',
-    'Relizane', 'Saïda', 'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara',
-    'Khenchela', 'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
-    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
-    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
-    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh', 'El Guerrara',
-    'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa', 'Hassi Bahbah', 'Khemis Miliana',
-    'Ksar Chellala', 'Ksar Boukhari', 'Lakhdaria', 'Larbaâ',
+    'Algiers',
+    'Oran',
+    'Constantine',
+    'Annaba',
+    'Blida',
+    'Batna',
+    'Djelfa',
+    'Sétif',
+    'Sidi Bel Abbès',
+    'Biskra',
+    'Tébessa',
+    'Skikda',
+    'Tiaret',
+    'Béjaïa',
+    'Tlemcen',
+    'Béchar',
+    'Mostaganem',
+    'Bordj Bou Arreridj',
+    'Chlef',
+    'Souk Ahras',
+    'El Eulma',
+    'Médéa',
+    'Tizi Ouzou',
+    'Jijel',
+    'Laghouat',
+    'El Oued',
+    'Ouargla',
+    'M\'Sila',
+    'Relizane',
+    'Saïda',
+    'Bou Saâda',
+    'Guelma',
+    'Aïn Beïda',
+    'Maghnia',
+    'Mascara',
+    'Khenchela',
+    'Barika',
+    'Messaad',
+    'Aflou',
+    'Aïn Oussara',
+    'Adrar',
+    'Aïn Defla',
+    'Aïn Fakroun',
+    'Aïn Oulmene',
+    'Aïn M\'lila',
+    'Aïn Sefra',
+    'Aïn Témouchent',
+    'Aïn Touta',
+    'Akbou',
+    'Azzaba',
+    'Berrouaghia',
+    'Bir el-Ater',
+    'Boufarik',
+    'Bouira',
+    'Chelghoum Laid',
+    'Cheria',
+    'Chettia',
+    'El Bayadh',
+    'El Guerrara',
+    'El-Khroub',
+    'Frenda',
+    'Ferdjioua',
+    'Ghardaïa',
+    'Hassi Bahbah',
+    'Khemis Miliana',
+    'Ksar Chellala',
+    'Ksar Boukhari',
+    'Lakhdaria',
+    'Larbaâ',
   ];
 
   Future<void> _initialize() async {
@@ -66,11 +143,10 @@ class ClinicSearchProvider extends ChangeNotifier {
 
       final doc = await firestore.collection("users").doc(user.uid).get();
       _userCity = doc.data()?["city"]?.toString();
-      
+
       if (_userCity != null) {
         await fetchClinics();
-        print(_userCity);
-
+        debugPrint(_userCity);
       }
     } catch (e) {
       debugPrint("Error initializing: $e");
@@ -79,12 +155,12 @@ class ClinicSearchProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> get filteredClinics {
     return _currentClinics.where((clinic) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          (clinic["clinicName"] ?? "").toString().contains(
-                _searchQuery,
-              );
+      final matchesSearch =
+          _searchQuery.isEmpty ||
+          (clinic["clinicName"] ?? "").toString().contains(_searchQuery);
 
-      final matchesSpecialty = _selectedSpecialty == null ||
+      final matchesSpecialty =
+          _selectedSpecialty == null ||
           (clinic["specialty"] ?? "").toString() == _selectedSpecialty;
 
       return matchesSearch && matchesSpecialty;
@@ -93,7 +169,7 @@ class ClinicSearchProvider extends ChangeNotifier {
 
   Future<void> fetchClinics() async {
     if (_isLoading) return;
-    
+
     final cityToQuery = _selectedCity ?? _userCity;
     if (cityToQuery == null) return;
 
@@ -105,13 +181,12 @@ class ClinicSearchProvider extends ChangeNotifier {
       // Use cache if querying user's own city, server otherwise
       final useServer = _selectedCity != null && _selectedCity != _userCity;
       final source = useServer ? Source.serverAndCache : Source.cache;
-      
+
       final querySnapshot = await firestore
           .collection("clinics")
           .where("city", isEqualTo: cityToQuery)
           .limit(50)
           .get(GetOptions(source: source));
-          
 
       // If cache returns empty and we're using cache, retry with server
       if (querySnapshot.docs.isEmpty && !useServer) {
@@ -120,15 +195,13 @@ class ClinicSearchProvider extends ChangeNotifier {
             .where("city", isEqualTo: cityToQuery)
             .limit(50)
             .get(GetOptions(source: Source.server));
-        _currentClinics = serverSnapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
+        _currentClinics = serverSnapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
       } else {
-        _currentClinics = querySnapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList();
+        _currentClinics = querySnapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
       }
     } catch (e) {
       _error = "Failed to load clinics. Please try again.".tr();
@@ -171,7 +244,7 @@ class ClinicFilterBottomSheet extends StatelessWidget {
   static void show(BuildContext context) {
     showMaterialModalBottomSheet(
       context: context,
-   
+
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (_) => ChangeNotifierProvider(
         create: (_) => ClinicSearchProvider(
@@ -205,9 +278,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
             return Column(
               children: [
                 _buildHeader(context, provider),
-                Expanded(
-                  child: _buildClinicList(provider, scrollController),
-                ),
+                Expanded(child: _buildClinicList(provider, scrollController)),
               ],
             );
           },
@@ -220,7 +291,9 @@ class _ClinicBottomSheetContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
       ),
       child: Row(
         children: [
@@ -250,7 +323,8 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                         onDeleted: () => provider.applyFilters(specialty: null),
                       ),
                     ),
-                  if (provider.selectedCity != null && provider.selectedCity != provider.userCity)
+                  if (provider.selectedCity != null &&
+                      provider.selectedCity != provider.userCity)
                     Chip(
                       label: Text(provider.selectedCity!),
                       onDeleted: () => provider.applyFilters(city: null),
@@ -265,7 +339,9 @@ class _ClinicBottomSheetContent extends StatelessWidget {
   }
 
   Widget _buildClinicList(
-      ClinicSearchProvider provider, ScrollController scrollController) {
+    ClinicSearchProvider provider,
+    ScrollController scrollController,
+  ) {
     if (provider.isLoading && provider.currentClinics.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -461,18 +537,24 @@ class _ClinicCard extends StatelessWidget {
                 children: [
                   Text(
                     clinic["specialty"] ?? "General".tr(),
-                    style: TextStyle(color: Colors.grey.shade700,fontSize: 15),
-                    
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
                   ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 16, color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           clinic["address"] ?? clinic["city"] ?? "",
-                          style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey.shade700,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -496,12 +578,17 @@ class _ClinicCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
             child: ListTile(
-              onTap: ()=>SlotsUi.showModalSheet(context, clinic),
+              onTap: () => SlotsUi.showModalSheet(context, clinic),
               titleAlignment: ListTileTitleAlignment.center,
-              title: Center(child: Text("Book appointment",style: TextStyle(fontWeight: FontWeight.w500),)),
+              title: Center(
+                child: Text(
+                  "Book appointment",
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
               trailing: Icon(Icons.chevron_right),
-            ) ),
-           
+            ),
+          ),
         ],
       ),
     );

@@ -10,21 +10,18 @@ class UserEditProfileProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
 
-  UserEditProfileProvider({
-    required this.auth,
-    required this.firestore,
-  }) {
+  UserEditProfileProvider({required this.auth, required this.firestore}) {
     _initializeData();
   }
 
   // Form key
   final formKey = GlobalKey<FormState>();
-  
+
   // Controllers
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
-  
+
   // State
   String? selectedCity;
   bool isLoading = true;
@@ -33,25 +30,81 @@ class UserEditProfileProvider extends ChangeNotifier {
 
   // Algerian cities list (matching registration)
   final List<String> algerianCities = [
-    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa',
-    'Sétif', 'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret',
-    'Béjaïa', 'Tlemcen', 'Béchar', 'Mostaganem', 'Bordj Bou Arreridj',
-    'Chlef', 'Souk Ahras', 'El Eulma', 'Médéa', 'Tizi Ouzou', 'Jijel',
-    'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila', 'Relizane', 'Saïda',
-    'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara', 'Khenchela',
-    'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
-    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
-    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
-    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh',
-    'El Guerrara', 'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa',
-    'Hassi Bahbah', 'Khemis Miliana', 'Ksar Chellala', 'Ksar Boukhari',
-    'Lakhdaria', 'Larbaâ',
+    'Algiers',
+    'Oran',
+    'Constantine',
+    'Annaba',
+    'Blida',
+    'Batna',
+    'Djelfa',
+    'Sétif',
+    'Sidi Bel Abbès',
+    'Biskra',
+    'Tébessa',
+    'Skikda',
+    'Tiaret',
+    'Béjaïa',
+    'Tlemcen',
+    'Béchar',
+    'Mostaganem',
+    'Bordj Bou Arreridj',
+    'Chlef',
+    'Souk Ahras',
+    'El Eulma',
+    'Médéa',
+    'Tizi Ouzou',
+    'Jijel',
+    'Laghouat',
+    'El Oued',
+    'Ouargla',
+    'M\'Sila',
+    'Relizane',
+    'Saïda',
+    'Bou Saâda',
+    'Guelma',
+    'Aïn Beïda',
+    'Maghnia',
+    'Mascara',
+    'Khenchela',
+    'Barika',
+    'Messaad',
+    'Aflou',
+    'Aïn Oussara',
+    'Adrar',
+    'Aïn Defla',
+    'Aïn Fakroun',
+    'Aïn Oulmene',
+    'Aïn M\'lila',
+    'Aïn Sefra',
+    'Aïn Témouchent',
+    'Aïn Touta',
+    'Akbou',
+    'Azzaba',
+    'Berrouaghia',
+    'Bir el-Ater',
+    'Boufarik',
+    'Bouira',
+    'Chelghoum Laid',
+    'Cheria',
+    'Chettia',
+    'El Bayadh',
+    'El Guerrara',
+    'El-Khroub',
+    'Frenda',
+    'Ferdjioua',
+    'Ghardaïa',
+    'Hassi Bahbah',
+    'Khemis Miliana',
+    'Ksar Chellala',
+    'Ksar Boukhari',
+    'Lakhdaria',
+    'Larbaâ',
   ];
 
   Future<void> _initializeData() async {
     isLoading = true;
     notifyListeners();
-    
+
     try {
       await _loadUserData();
     } catch (e) {
@@ -73,7 +126,7 @@ class UserEditProfileProvider extends ChangeNotifier {
     nameController.text = data['name'] ?? '';
     emailController.text = data['email'] ?? '';
     phoneController.text = data['phone'] ?? '';
-    
+
     // Match city case-insensitively
     final cityFromDb = data['city']?.toString();
     if (cityFromDb != null) {
@@ -108,9 +161,9 @@ class UserEditProfileProvider extends ChangeNotifier {
       });
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('profile_updated_success'.tr())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('profile_updated_success'.tr())));
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -200,7 +253,11 @@ class UserEditProfileView extends StatelessWidget {
                   children: [
                     _buildSectionTitle(context, 'personal_information'.tr()),
                     const SizedBox(height: 16),
-                    _buildTextField(provider.nameController, 'full_name'.tr(), provider.validateRequired),
+                    _buildTextField(
+                      provider.nameController,
+                      'full_name'.tr(),
+                      provider.validateRequired,
+                    ),
                     const SizedBox(height: 16),
                     _buildTextField(
                       provider.emailController,
@@ -224,21 +281,37 @@ class UserEditProfileView extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     if (provider.error != null) ...[
-                      Text(provider.error!, style: const TextStyle(color: Colors.red)),
+                      Text(
+                        provider.error!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
                       const SizedBox(height: 8),
                     ],
 
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: provider.isSaving ? null : () => provider.updateProfile(context),
+                        onPressed: provider.isSaving
+                            ? null
+                            : () => provider.updateProfile(context),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: provider.isSaving
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text('save_changes'.tr(), style: const TextStyle(fontSize: 16)),
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                'save_changes'.tr(),
+                                style: const TextStyle(fontSize: 16),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -252,14 +325,21 @@ class UserEditProfileView extends StatelessWidget {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, UserEditProfileProvider provider) {
+  Widget _buildErrorState(
+    BuildContext context,
+    UserEditProfileProvider provider,
+  ) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
           const SizedBox(height: 16),
-          Text(provider.error!, style: TextStyle(color: Colors.red.shade700), textAlign: TextAlign.center),
+          Text(
+            provider.error!,
+            style: TextStyle(color: Colors.red.shade700),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () => provider._initializeData(),
@@ -274,7 +354,9 @@ class UserEditProfileView extends StatelessWidget {
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      style: Theme.of(
+        context,
+      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
@@ -301,7 +383,10 @@ class UserEditProfileView extends StatelessWidget {
     );
   }
 
-  Widget _buildCityDropdown(BuildContext context, UserEditProfileProvider provider) {
+  Widget _buildCityDropdown(
+    BuildContext context,
+    UserEditProfileProvider provider,
+  ) {
     return DropdownButtonFormField<String>(
       initialValue: provider.selectedCity,
       decoration: InputDecoration(
@@ -323,4 +408,3 @@ class UserEditProfileView extends StatelessWidget {
     );
   }
 }
-

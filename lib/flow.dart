@@ -16,7 +16,7 @@ Future<Widget> decidePage() async {
     try {
       // ✅ Cache the role check first
       final isClinic = await _isClinicRole(currentUser.uid);
-      
+
       if (isClinic) return Clinichome();
       return Userhome();
     } catch (e) {
@@ -43,27 +43,33 @@ Widget intro() {
       return Center(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment:
-              MainAxisAlignment.spaceEvenly, // Better spacing
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Better spacing
           children: [
             GestureDetector(
               onTap: () => Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => ClinicOnboardingPages(),
-                ),
+                MaterialPageRoute(builder: (_) => ClinicOnboardingPages()),
               ),
-              child: Image.asset('assets/doctors2.png',height: containerHeight,width: containerSize,fit: BoxFit.fill,),
+              child: Image.asset(
+                'assets/doctors2.png',
+                height: containerHeight,
+                width: containerSize,
+                fit: BoxFit.fill,
+              ),
             ),
             GestureDetector(
               onTap: () => showMaterialModalBottomSheet(
-             
                 context: context,
                 builder: (context) => SizedBox(
-                  height: MediaQuery.of(context).size.height*0.99,
-                  child: UserOnboardingPages()),
+                  height: MediaQuery.of(context).size.height * 0.99,
+                  child: UserOnboardingPages(),
+                ),
               ),
-              child: Image.asset('assets/doctors2.png',height: 300,width: containerSize,),
+              child: Image.asset(
+                'assets/doctors2.png',
+                height: 300,
+                width: containerSize,
+              ),
             ),
           ],
         ),
@@ -71,5 +77,3 @@ Widget intro() {
     },
   );
 }
-
-

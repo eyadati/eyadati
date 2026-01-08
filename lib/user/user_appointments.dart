@@ -13,20 +13,18 @@ import 'package:provider/provider.dart';
 class UserAppointmentsProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
-  
+
   final List<Map<String, dynamic>> _appointments = [];
   final Map<String, Map<String, dynamic>> _clinicCache = {};
-  
+
   bool _isLoading = false;
   bool _hasMore = true;
   final int _pageSize = 20;
   DocumentSnapshot? _lastDocument;
 
-  UserAppointmentsProvider({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-  }) : auth = auth ?? FirebaseAuth.instance,
-       firestore = firestore ?? FirebaseFirestore.instance;
+  UserAppointmentsProvider({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : auth = auth ?? FirebaseAuth.instance,
+      firestore = firestore ?? FirebaseFirestore.instance;
 
   List<Map<String, dynamic>> get appointments => _appointments;
   bool get isLoading => _isLoading;
@@ -56,7 +54,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
       }
 
       final snapshot = await query.get();
-      
+
       if (snapshot.docs.isEmpty) {
         _hasMore = false;
         return;
@@ -93,9 +91,9 @@ class UserAppointmentsProvider extends ChangeNotifier {
   Future<void> _batchFetchClinics(List<String> clinicIds) async {
     if (clinicIds.isEmpty) return;
 
-    final futures = clinicIds.map((id) => 
-      firestore.collection("clinics").doc(id).get()
-    ).toList();
+    final futures = clinicIds
+        .map((id) => firestore.collection("clinics").doc(id).get())
+        .toList();
 
     final snapshots = await Future.wait(futures);
 
@@ -108,7 +106,8 @@ class UserAppointmentsProvider extends ChangeNotifier {
   }
 
   /// Gets cached clinic data
-  Map<String, dynamic>? getClinicData(String clinicId) => _clinicCache[clinicId];
+  Map<String, dynamic>? getClinicData(String clinicId) =>
+      _clinicCache[clinicId];
 
   /// Cancels appointment and removes from local list
   Future<void> cancelAppointment(
@@ -121,7 +120,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
     if (userId == null) return;
 
     await UserFirestore().cancelAppointment(appointmentId, userId, context);
-    
+
     if (clinicData['FCM'] != null) {
       await NotificationService().sendDirectNotification(
         fcmToken: clinicData['FCM'],
@@ -129,7 +128,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
         body: 'the appointment got cancelled'.tr(),
       );
     }
-    
+
     _appointments.removeWhere((a) => a["id"] == appointmentId);
     notifyListeners();
   }
@@ -172,7 +171,8 @@ class _AppointmentsListView extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: provider.refresh,
           child: ListView.builder(
-            itemCount: provider.appointments.length + (provider.hasMore ? 1 : 0),
+            itemCount:
+                provider.appointments.length + (provider.hasMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index >= provider.appointments.length) {
                 if (!provider.isLoading) {
@@ -184,12 +184,12 @@ class _AppointmentsListView extends StatelessWidget {
               final appointment = provider.appointments[index];
               final clinicUid = appointment["clinicUid"] as String? ?? "";
               final slot = appointment["date"] as Timestamp?;
-              
+
               if (slot == null) return const SizedBox();
 
               final clinicData = provider.getClinicData(clinicUid);
               if (clinicData == null) {
-                return  ListTile(title: Text("Clinic data not found".tr()));
+                return ListTile(title: Text("Clinic data not found".tr()));
               }
 
               return _AppointmentCard(
@@ -250,7 +250,11 @@ class _AppointmentCard extends StatelessWidget {
                 context,
               );
             },
-            icon: const Icon(Icons.cancel_outlined, color: Colors.red, size: 40),
+            icon: const Icon(
+              Icons.cancel_outlined,
+              color: Colors.red,
+              size: 40,
+            ),
           ),
         ],
       ),
@@ -280,7 +284,11 @@ class _AppointmentCard extends StatelessWidget {
                         Uri.parse("https://maps.app.goo.gl/rJq6C7XsEqevUUNg9"),
                       );
                     },
-                    icon: const Icon(Icons.location_on, size: 40, color: Colors.green),
+                    icon: const Icon(
+                      Icons.location_on,
+                      size: 40,
+                      color: Colors.green,
+                    ),
                   ),
                 ],
               ),

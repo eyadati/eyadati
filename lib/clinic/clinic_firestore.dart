@@ -25,12 +25,9 @@ class ClinicFirestore {
     int breakStart, //3
     int breakTime, //3
     String adress, //2
-
   ) async {
     try {
-
       final fcm = await FirebaseMessaging.instance.getToken();
-    
 
       await collection.doc(clinic?.uid).set({
         "uid": clinic!.uid,
@@ -38,8 +35,8 @@ class ClinicFirestore {
         "name": name,
         "clinicName": clinicName,
         "FCM": fcm,
-        "long":long,
-        "lat":lat,
+        "long": long,
+        "lat": lat,
         "workingDays": workingDays,
         "freeTrial": 15,
         "phone": phone,
@@ -52,10 +49,10 @@ class ClinicFirestore {
         "break": breakTime,
         "specialty": specialty,
         'Duration': sessionDuration,
-        'staff': 1.toInt()
+        'staff': 1.toInt(),
       });
     } catch (e) {
-      print("Clinic creation error : $e");
+      debugPrint("Clinic creation error : $e");
       rethrow;
     }
   }
@@ -77,9 +74,7 @@ class ClinicFirestore {
     String adress, //2
   ) async {
     try {
-
       final fcm = await FirebaseMessaging.instance.getToken();
-   
 
       await collection.doc(clinic?.uid).update({
         "uid": clinic!.uid,
@@ -100,10 +95,10 @@ class ClinicFirestore {
         "break": breakTime,
         "specialty": specialty,
         'Duration': SessionDuration,
-        'staff': 1.toInt()
+        'staff': 1.toInt(),
       });
     } catch (e) {
-      print("Clinic creation error : $e");
+      debugPrint("Clinic creation error : $e");
       rethrow;
     }
   }
@@ -175,5 +170,4 @@ class ClinicFirestore {
       ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
-  
 }

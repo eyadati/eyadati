@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class ManagementProvider extends ChangeNotifier {
   final String clinicUid;
   final FirebaseFirestore firestore;
@@ -167,11 +166,7 @@ class ManagementProvider extends ChangeNotifier {
 
     // Check next 7 days, but only add working days
     for (int i = 0; i < 7; i++) {
-      final day = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).add(Duration(days: i));
+      final day = DateTime(now.year, now.month, now.day).add(Duration(days: i));
 
       // Skip non-working days entirely
       if (!isWorkingDay(day)) {
@@ -206,9 +201,7 @@ class ManagementProvider extends ChangeNotifier {
 
     _realAppointmentsCount.clear();
     for (var doc in snapshot.docs) {
-      final appointmentTime = (doc.data()["date"] as Timestamp)
-          .toDate()
-          ;
+      final appointmentTime = (doc.data()["date"] as Timestamp).toDate();
       final slotKey = _getSlotKey(appointmentTime);
       _realAppointmentsCount[slotKey] =
           (_realAppointmentsCount[slotKey] ?? 0) + 1;
@@ -306,21 +299,21 @@ class ManagementScreen extends StatelessWidget {
               if (provider.isLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
-          
+
               if (provider.errorMessage != null) {
                 return _buildErrorState(context, provider);
               }
-          
+
               if (provider.visibleDays.isEmpty) {
                 return _buildNoWorkingDaysState();
               }
-          
+
               return PageView.builder(
                 itemCount: provider.visibleDays.length,
                 itemBuilder: (context, dayIndex) {
                   final day = provider.visibleDays[dayIndex];
                   final slots = provider.weekSlots[dayIndex];
-          
+
                   return Column(
                     children: [
                       // Day header
@@ -329,7 +322,9 @@ class ManagementScreen extends StatelessWidget {
                         color: Theme.of(context).colorScheme.primary,
                         child: Center(
                           child: Text(
-                            DateFormat('EEEE, MMM d, yyyy').format(day.toLocal()),
+                            DateFormat(
+                              'EEEE, MMM d, yyyy',
+                            ).format(day.toLocal()),
                             style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
@@ -339,7 +334,9 @@ class ManagementScreen extends StatelessWidget {
                         child: slots.isEmpty
                             ? _buildEmptyState(day, provider)
                             : ListView.builder(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
                                 itemCount: slots.length,
                                 itemBuilder: (context, slotIndex) {
                                   return _buildSlotCard(
@@ -379,7 +376,7 @@ class ManagementScreen extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: provider.refreshData,
               icon: const Icon(Icons.refresh),
-              label:  Text("Retry".tr()),
+              label: Text("Retry".tr()),
             ),
           ],
         ),
@@ -388,7 +385,7 @@ class ManagementScreen extends StatelessWidget {
   }
 
   Widget _buildNoWorkingDaysState() {
-    return  Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -480,7 +477,7 @@ class ManagementScreen extends StatelessWidget {
                       color: Colors.red.shade100,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child:  Text(
+                    child: Text(
                       "FULL".tr(),
                       style: TextStyle(
                         color: Colors.red,
@@ -502,7 +499,7 @@ class ManagementScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       Text(
+                      Text(
                         "Appointments".tr(),
                         style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
@@ -518,7 +515,6 @@ class ManagementScreen extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                        
                           if (manualCount > 0) ...[
                             const SizedBox(width: 8),
                             Text(

@@ -54,23 +54,31 @@ class Clinicsettings extends StatelessWidget {
                 title: Text("Dark mode".tr()),
                 leading: Icon(Icons.dark_mode),
               ),
-               SettingsTile.navigation(
+              SettingsTile.navigation(
                 title: Text("log out".tr()),
                 leading: Icon(Icons.language),
                 onPressed: (_) {
                   FirebaseAuth.instance.signOut();
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (ctx)=>FutureBuilder<Widget>(
-          future: decidePage(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
-            }
-            return Container(
-              child: snapshot.data ?? Text('Something went wrong'.tr()),
-            );
-          },
-        ),));
-                }
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (ctx) => FutureBuilder<Widget>(
+                        future: decidePage(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          }
+                          return Container(
+                            child:
+                                snapshot.data ??
+                                Text('Something went wrong'.tr()),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),

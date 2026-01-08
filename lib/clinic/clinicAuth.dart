@@ -52,7 +52,7 @@ class Clinicauth {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (_) => Clinichome()),
-                      (route)=>false
+                      (route) => false,
                     );
                   }
                 } catch (e) {

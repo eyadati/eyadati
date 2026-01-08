@@ -5,55 +5,52 @@ const Color seedColor = Color(0xFF1E5E3D); // Dark green anchor
 
 ThemeData darkMode = ThemeData(
   brightness: Brightness.dark,
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: seedColor,
-    brightness: Brightness.dark,
-  ).copyWith(
-    primary: seedColor,
-    secondary: const Color(0xFFA8D5BA), // Light green accent
-    surface: const Color.fromARGB(255, 0, 0, 0), // Deep gray surfaces
-    onSurface: Colors.white, // Text/icons on surfaces
-  ),
+  colorScheme:
+      ColorScheme.fromSeed(
+        seedColor: seedColor,
+        brightness: Brightness.dark,
+      ).copyWith(
+        primary: seedColor,
+        secondary: const Color(0xFFA8D5BA), // Light green accent
+        surface: const Color.fromARGB(255, 0, 0, 0), // Deep gray surfaces
+        onSurface: Colors.white, // Text/icons on surfaces
+      ),
 
   scaffoldBackgroundColor: seedColor, // Dark green background
 
-  textTheme: GoogleFonts.nunitoTextTheme(
-  ThemeData.dark().textTheme,
-).apply(
-  bodyColor: Colors.white,
-  displayColor: Colors.white,
-).copyWith(
-  // override the base fontWeight globally
-  bodyLarge: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-  bodyMedium: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-  bodySmall: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-  titleLarge: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-  titleMedium: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-  titleSmall: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-  labelLarge: GoogleFonts.nunito(
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-  ),
-),
-
+  textTheme: GoogleFonts.nunitoTextTheme(ThemeData.dark().textTheme)
+      .apply(bodyColor: Colors.white, displayColor: Colors.white)
+      .copyWith(
+        // override the base fontWeight globally
+        bodyLarge: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        bodyMedium: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        bodySmall: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        titleLarge: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        titleMedium: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        titleSmall: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        labelLarge: GoogleFonts.nunito(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
 
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(

@@ -9,7 +9,7 @@ import 'package:provider/provider.dart';
 class ClinicsProvider extends ChangeNotifier {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final FirebaseAuth auth = FirebaseAuth.instance;
-  
+
   List<Map<String, dynamic>> _clinics = [];
   bool _isLoading = true;
   String? _userCity;
@@ -28,16 +28,19 @@ class ClinicsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final userDoc = await firestore.collection('users').doc(auth.currentUser?.uid).get();
+      final userDoc = await firestore
+          .collection('users')
+          .doc(auth.currentUser?.uid)
+          .get();
       _userCity = userDoc.data()?['city'];
-      print(userCity);
-      
+      debugPrint(userCity);
+
       if (_userCity == null || _userCity!.isEmpty) {
         throw Exception('City not set');
       }
 
       final source = forceRefresh ? Source.server : Source.cache;
-      
+
       final snapshot = await firestore
           .collection('clinics')
           .where('city', isEqualTo: _userCity)
@@ -48,11 +51,9 @@ class ClinicsProvider extends ChangeNotifier {
         return fetchClinics(forceRefresh: true);
       }
 
-      _clinics = snapshot.docs.map((doc) => {
-        'id': doc.id,
-        ...doc.data(),
-      }).toList();
-      
+      _clinics = snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
     } catch (e) {
       debugPrint('Error: $e');
     } finally {
@@ -92,20 +93,17 @@ class _UserAppointmentsState extends State<UserAppointments> {
             ),
           ],
         ),
-      
+
         body: Consumer<ClinicsProvider>(
           builder: (context, provider, child) {
-            if (provider.isLoading) return const Center(child: CircularProgressIndicator());
-            
+            if (provider.isLoading)
+              return const Center(child: CircularProgressIndicator());
+
             return Center(
               child: Column(
                 children: [
                   SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                  Expanded(
-                    child: Appointmentslistview(
-
-                    ),
-                  ),
+                  Expanded(child: Appointmentslistview()),
                 ],
               ),
             );
