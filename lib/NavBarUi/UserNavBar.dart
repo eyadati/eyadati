@@ -9,6 +9,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
+import 'package:lucide_icons/lucide_icons.dart';
 
 class UserNavBarProvider extends ChangeNotifier {
   List<Map<String, dynamic>> favClinics = [];
@@ -159,9 +160,9 @@ class _BottomNavContent extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, Icons.settings, "Settings".tr(), "1"),
-            _buildNavItem(context, Icons.home, "Home".tr(), "2"),
-            _buildNavItem(context, Icons.favorite, "Favorites".tr(), "3"),
+            _buildNavItem(context, LucideIcons.settings, "Settings".tr(), "1"),
+            _buildNavItem(context, LucideIcons.home, "Home".tr(), "2"),
+            _buildNavItem(context, LucideIcons.heart, "Favorites".tr(), "3"),
           ],
         ),
       ),
@@ -176,7 +177,7 @@ class _BottomNavContent extends StatelessWidget {
   ) {
     final provider = context.watch<UserNavBarProvider>();
     final isSelected = provider.selected == value;
-    final color = isSelected ? Colors.blue : Colors.black;
+    final color = isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       onTap: () => provider.select(value),
@@ -209,10 +210,10 @@ class FavoritScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.favorite_border,
+                  Icon(
+                    LucideIcons.heart,
                     size: 64,
-                    color: Colors.grey,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -222,7 +223,7 @@ class FavoritScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Add clinics to see them here'.tr(),
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -248,9 +249,9 @@ class FavoritScreen extends StatelessWidget {
                         SnackBar(content: Text('Removed from favorites'.tr())),
                       );
                     },
-                    icon: const Icon(
-                      Icons.favorite,
-                      color: Colors.red,
+                    icon: Icon(
+                      LucideIcons.heart,
+                      color: Theme.of(context).colorScheme.error,
                       size: 40,
                     ),
                   ),
@@ -290,7 +291,7 @@ class _ClinicCard extends StatelessWidget {
                   backgroundImage: AssetImage(_getAvatarPath(clinic)),
                   backgroundColor: Theme.of(
                     context,
-                  ).primaryColor.withOpacity(0.1),
+                  ).colorScheme.primary.withOpacity(0.1),
                 ),
                 title: Text(
                   clinic["clinicName"] ?? "Unnamed Clinic".tr(),
@@ -305,7 +306,7 @@ class _ClinicCard extends StatelessWidget {
                       Text(
                         clinic["specialty"] ?? "General".tr(),
                         style: TextStyle(
-                          color: Colors.grey.shade700,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 15,
                         ),
                       ),
@@ -313,7 +314,7 @@ class _ClinicCard extends StatelessWidget {
                       Row(
                         children: [
                           Icon(
-                            Icons.location_on,
+                            LucideIcons.mapPin,
                             size: 16,
                             color: Theme.of(context).colorScheme.primary,
                           ),
@@ -323,7 +324,7 @@ class _ClinicCard extends StatelessWidget {
                               clinic["address"] ?? clinic["city"] ?? "",
                               style: TextStyle(
                                 fontSize: 15,
-                                color: Colors.grey.shade700,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -346,10 +347,10 @@ class _ClinicCard extends StatelessWidget {
                   title: Center(
                     child: Text(
                       "Book appointment".tr(),
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      style: TextStyle(fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onPrimary),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.onPrimary),
                 ),
               ),
             ],
@@ -360,8 +361,8 @@ class _ClinicCard extends StatelessWidget {
               right: 8,
               child: IconButton(
                 icon: Icon(
-                  isFav ? Icons.favorite : Icons.favorite_border,
-                  color: isFav ? Colors.red : Colors.grey,
+                  isFav ? LucideIcons.heart : LucideIcons.heart,
+                  color: isFav ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 onPressed: () async {
                   try {

@@ -4,6 +4,7 @@ import 'package:eyadati/user/userEditProfile.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:settings_ui/settings_ui.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class userSettingProvider extends ChangeNotifier {}
 
@@ -19,7 +20,7 @@ class UserSettings extends StatelessWidget {
             tiles: [
               SettingsTile.navigation(
                 title: Text("Edit Profile".tr()),
-                leading: Icon(Icons.person),
+                leading: Icon(LucideIcons.user),
                 onPressed: (_) => showModalBottomSheet(
                   context: context,
                   builder: (_) {
@@ -29,7 +30,7 @@ class UserSettings extends StatelessWidget {
               ),
               SettingsTile.navigation(
                 title: Text("Language".tr()),
-                leading: Icon(Icons.language),
+                leading: Icon(LucideIcons.globe),
                 onPressed: (_) => showDialog(
                   context: context,
                   builder: (_) {
@@ -42,11 +43,11 @@ class UserSettings extends StatelessWidget {
                 onToggle: (_) {},
                 initialValue: true,
                 title: Text("Dark mode".tr()),
-                leading: Icon(Icons.dark_mode),
+                leading: Icon(LucideIcons.moon),
               ),
               SettingsTile.navigation(
                 title: Text("log out".tr()),
-                leading: Icon(Icons.language),
+                leading: Icon(LucideIcons.globe),
                 onPressed: (_) {
                   FirebaseAuth.instance.signOut();
                   Navigator.pushReplacement(

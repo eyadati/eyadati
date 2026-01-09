@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class ManagementProvider extends ChangeNotifier {
   final String clinicUid;
@@ -84,7 +85,7 @@ class ManagementProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchClinicData() async {
-    final doc = await firestore.collection("clinics").doc(clinicUid).get();
+    final doc = await firestore.collection("clinics").doc(clinicUid).get(GetOptions(source: Source.cache));
     if (doc.exists) {
       _clinicData = doc.data();
     } else {
@@ -365,17 +366,17 @@ class ManagementScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 16),
             Text(
               provider.errorMessage!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.red.shade700, fontSize: 16),
+              style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 16),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: provider.refreshData,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(LucideIcons.refreshCcw),
               label: Text("Retry".tr()),
             ),
           ],
@@ -389,11 +390,11 @@ class ManagementScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.event_busy, size: 64, color: Colors.grey),
+          Icon(LucideIcons.calendarOff, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
           SizedBox(height: 16),
           Text(
             "no_working_days_found".tr(),
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
           ),
         ],
       ),
@@ -408,14 +409,14 @@ class ManagementScreen extends StatelessWidget {
         children: [
           Icon(
             isWorkingDay
-                ? Icons.event_busy
-                : Icons.store_mall_directory_outlined,
+                ? LucideIcons.calendarOff
+                : LucideIcons.store,
             size: 64,
-            color: Colors.grey.shade400,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 16),
                       Text(
-                        isWorkingDay ? "no_slots_available_today".tr() : "clinic_is_closed".tr(),            style: const TextStyle(color: Colors.grey, fontSize: 16),
+                        isWorkingDay ? "no_slots_available_today".tr() : "clinic_is_closed".tr(),            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
           ),
         ],
       ),
@@ -441,8 +442,8 @@ class ManagementScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: isFull
-            ? BorderSide(color: Colors.red.shade200, width: 2)
-            : BorderSide(color: Colors.grey.shade200, width: 1),
+            ? BorderSide(color: Theme.of(context).colorScheme.error, width: 2)
+            : BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -453,16 +454,16 @@ class ManagementScreen extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.access_time,
+                  LucideIcons.clock,
                   size: 20,
-                  color: isFull ? Colors.red : Colors.blue.shade700,
+                  color: isFull ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   displayText,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isFull ? Colors.red : null,
+                    color: isFull ? Theme.of(context).colorScheme.error : null,
                   ),
                 ),
                 const Spacer(),
@@ -473,13 +474,13 @@ class ManagementScreen extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade100,
+                      color: Theme.of(context).colorScheme.errorContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       "full".tr(),
                       style: TextStyle(
-                        color: Colors.red,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -500,7 +501,7 @@ class ManagementScreen extends StatelessWidget {
                     children: [
                       Text(
                         "Appointments".tr(),
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -508,7 +509,7 @@ class ManagementScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: isFull ? Colors.red : Colors.black87,
+                          color: isFull ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -520,7 +521,7 @@ class ManagementScreen extends StatelessWidget {
                               "Manual: +$manualCount",
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.blue.shade700,
+                                color: Theme.of(context).colorScheme.primary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -535,15 +536,15 @@ class ManagementScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildCounterButton(
-                      Icons.remove,
-                      Colors.red,
+                      LucideIcons.minus,
+                      Theme.of(context).colorScheme.error,
                       canDecrease,
                       () => provider.decreaseManualAppointments(slot),
                     ),
                     const SizedBox(width: 8),
                     _buildCounterButton(
-                      Icons.add,
-                      Colors.green,
+                      LucideIcons.plus,
+                      Theme.of(context).colorScheme.primary,
                       canIncrease,
                       () => provider.increaseManualAppointments(slot),
                     ),
@@ -565,17 +566,17 @@ class ManagementScreen extends StatelessWidget {
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: enabled ? color.withOpacity(0.1) : Colors.grey.shade100,
+        color: enabled ? color.withOpacity(0.1) : Theme.of(context).colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: enabled ? color.withOpacity(0.3) : Colors.grey.shade300,
+          color: enabled ? color.withOpacity(0.3) : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: IconButton(
         icon: Icon(icon),
         onPressed: onTap,
-        color: enabled ? color : Colors.grey,
-        disabledColor: Colors.grey.shade300,
+        color: enabled ? color : Theme.of(context).colorScheme.onSurfaceVariant,
+        disabledColor: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
         iconSize: 20,
         padding: const EdgeInsets.all(8),
         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),

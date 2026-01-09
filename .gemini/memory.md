@@ -33,3 +33,8 @@ The application is a medical appointment booking platform designed to connect pa
 
 1.  **Patient (User):** The end-user who books appointments.
 2.  **Clinic:** The service provider offering appointments.
+
+## UI/UX
+1.  **Themes:** https://magicui.design/blog/user-interface-themes
+2.  **flutter theming:** https://docs.flutter.dev/cookbook/design/themes
+2.  **best practices:**  https://docs.flutter.dev/perf/best-practices

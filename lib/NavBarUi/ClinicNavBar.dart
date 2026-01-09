@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:eyadati/clinic/clinic_appointments.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
+import 'package:lucide_icons/lucide_icons.dart';
 
 class CliniNavBarProvider extends ChangeNotifier {
   String _selected = "2";
@@ -76,9 +77,9 @@ class _BottomNavContent extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, Icons.settings, "settings".tr(), "1"),
-            _buildNavItem(context, Icons.home, "home".tr(), "2"),
-            _buildNavItem(context, Icons.calendar_month, "managment".tr(), "3"),
+            _buildNavItem(context, LucideIcons.settings, "settings".tr(), "1"),
+            _buildNavItem(context, LucideIcons.home, "home".tr(), "2"),
+            _buildNavItem(context, LucideIcons.calendar, "managment".tr(), "3"),
           ],
         ),
       ),
@@ -93,7 +94,7 @@ class _BottomNavContent extends StatelessWidget {
   ) {
     final provider = context.watch<CliniNavBarProvider>();
     final isSelected = provider.selected == value;
-    final color = isSelected ? Colors.blue : Colors.black;
+    final color = isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       onTap: () => provider.select(value),

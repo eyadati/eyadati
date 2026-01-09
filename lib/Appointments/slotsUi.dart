@@ -28,12 +28,26 @@ class SlotsUiProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   late final int duration;
 
+  String _userName = '';
+
   SlotsUiProvider({
     required this.clinic,
     required this.firestore,
     FirebaseAuth? auth,
   }) : auth = auth ?? FirebaseAuth.instance {
     _initializeData();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final user = auth.currentUser;
+    if (user != null) {
+      final userDoc = await firestore.collection('users').doc(user.uid).get(GetOptions(source: Source.cache));
+      if (userDoc.exists) {
+        _userName = userDoc.data()?['name'] ?? '';
+        notifyListeners();
+      }
+    }
   }
 
   // Calendar state moved to provider
@@ -81,7 +95,7 @@ class SlotsUiProvider extends ChangeNotifier {
     final clinicDoc = await firestore
         .collection('clinics')
         .doc(clinic['uid'])
-        .get();
+        .get(GetOptions(source: Source.cache));
     if (clinicDoc.exists) {
       staffCount = clinicDoc.data()?['staff'] ?? 1;
     }
@@ -234,13 +248,28 @@ class SlotsUiProvider extends ChangeNotifier {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('confirm_booking'.tr()),
-        content: Text(
-          'booking_details'.tr(
-            args: [
-              DateFormat('yyyy-MM-dd').format(selectedDate),
-              '${selectedSlot!.hour}:${selectedSlot!.minute.toString().padLeft(2, '0')}',
-            ],
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildConfirmationRow(
+                context, 'clinic'.tr(), clinic['clinicName']),
+            const SizedBox(height: 8),
+            _buildConfirmationRow(
+                context, 'specialty'.tr(), clinic['specialty']),
+            const SizedBox(height: 8),
+            _buildConfirmationRow(context, 'date'.tr(),
+                DateFormat('yyyy-MM-dd').format(selectedDate)),
+            const SizedBox(height: 8),
+            _buildConfirmationRow(
+                context,
+                'time'.tr(),
+                DateFormat('HH:mm').format(selectedSlot!)),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+            _buildConfirmationRow(context, 'user'.tr(), _userName),
+          ],
         ),
         actions: [
           TextButton(
@@ -318,18 +347,17 @@ class SlotsUiProvider extends ChangeNotifier {
         // await context.read<UserAppointmentsProvider>().loadAppointments();
       });
 
-      // ✅ Refresh data AFTER transaction completes
+      // Refresh data AFTER transaction completes
       if (context.mounted) {
-        await context.read<UserAppointmentsProvider>().loadAppointments();
-
-        // Refresh current slots view
+        // Refresh current slots view to show the slot is taken
         await _loadSlots();
         notifyListeners();
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('booking success'.tr())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('booking_success'.tr())),
+        );
 
+        // Pop with a success result
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -339,6 +367,22 @@ class SlotsUiProvider extends ChangeNotifier {
         );
       }
     }
+  }
+
+  Widget _buildConfirmationRow(
+      BuildContext context, String label, String value) {
+    return RichText(
+      text: TextSpan(
+        style: Theme.of(context).textTheme.bodyMedium,
+        children: [
+          TextSpan(
+            text: '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: value),
+        ],
+      ),
+    );
   }
 }
 
@@ -396,7 +440,10 @@ class _SlotsDialog extends StatelessWidget {
             ),
             child: TextButton(
               onPressed: () => provider.bookSelectedSlot(context),
-              child: Text("book_appointment".tr()),
+              child: Text(
+                "book_appointment".tr(),
+                style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+              ),
             ),
           ),
         ],
@@ -517,7 +564,7 @@ class _DatePickerRow extends StatelessWidget {
         calendarStyle: CalendarStyle(
           markersMaxCount: 5,
           selectedDecoration: BoxDecoration(
-            color: Colors.blue,
+            color: Theme.of(context).colorScheme.primary,
             shape: BoxShape.circle,
           ),
         ),
@@ -543,7 +590,7 @@ class _SlotsGrid extends StatelessWidget {
       return Center(
         child: Text(
           provider.errorMessage,
-          style: const TextStyle(color: Colors.red),
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
       );
     }
@@ -598,12 +645,15 @@ class _SlotTile extends StatelessWidget {
       onTap: isFull ? null : onTap,
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(width: 1, color: Colors.black),
+          border: Border.all(
+            width: 1,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          ),
           color: isSelected
               ? Theme.of(context).colorScheme.primary
               : isFull
-              ? Colors.grey.shade300.withOpacity(0.5)
-              : Colors.white,
+                  ? Theme.of(context).colorScheme.surfaceVariant
+                  : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -614,12 +664,10 @@ class _SlotTile extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: isFull
-                    ? Colors.grey.shade300
+                    ? Theme.of(context).colorScheme.onSurfaceVariant
                     : isSelected
-                    ? Colors.white
-                    : isFull
-                    ? Colors.grey.shade300.withOpacity(0.5)
-                    : Colors.black,
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : Theme.of(context).colorScheme.onSurface,
                 fontSize: 12,
               ),
             ),

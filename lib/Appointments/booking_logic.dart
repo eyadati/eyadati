@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:eyadati/utils/network_helper.dart';
 
 /// Handles appointment booking logic with optimized Firestore operations
 /// and thread-safe slot booking via transactions.
@@ -22,7 +23,7 @@ class BookingLogic extends ChangeNotifier {
       final snapshot = await firestore
           .collection("clinics")
           .where("city", isEqualTo: city)
-          .get();
+          .get(const GetOptions(source: Source.cache));
 
       return snapshot.docs
           .map((doc) => {"uid": doc.id, ...doc.data()})
@@ -132,7 +133,10 @@ class BookingLogic extends ChangeNotifier {
 
   /// Books an appointment atomically using Firestore transactions
   /// to prevent race conditions and overbooking
-  Future<void> bookAppointment(String clinicUid, DateTime slot) async {
+  Future<void> bookAppointment(String clinicUid, DateTime slot, BuildContext context) async {
+    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+      throw Exception("no_internet_connection".tr());
+    }
     final user = auth.currentUser;
     if (user == null) throw Exception("User not logged in".tr());
 

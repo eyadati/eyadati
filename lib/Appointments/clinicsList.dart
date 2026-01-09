@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class ClinicSearchProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
@@ -15,6 +16,7 @@ class ClinicSearchProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   String? _userCity;
+  Set<String> _favoriteClinics = {}; // New: Store UIDs of favorite clinics
 
   // Filter states
   String _searchQuery = '';
@@ -35,6 +37,7 @@ class ClinicSearchProvider extends ChangeNotifier {
   String? get selectedCity => _selectedCity;
   String? get selectedSpecialty => _selectedSpecialty;
   String get searchQuery => _searchQuery;
+  Set<String> get favoriteClinics => _favoriteClinics; // New getter for favorite clinics
 
   // Static data
   static const List<String> specialtiesList = [
@@ -141,15 +144,33 @@ class ClinicSearchProvider extends ChangeNotifier {
       final user = auth.currentUser;
       if (user == null) return;
 
-      final doc = await firestore.collection("users").doc(user.uid).get();
+      final doc = await firestore.collection("users").doc(user.uid).get(GetOptions(source: Source.cache));
       _userCity = doc.data()?["city"]?.toString();
 
       if (_userCity != null) {
         await fetchClinics();
         debugPrint(_userCity);
       }
+      await _loadFavoriteClinics(); // Load favorite clinics
     } catch (e) {
       debugPrint("Error initializing: $e");
+    }
+  }
+
+  Future<void> _loadFavoriteClinics() async {
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final favoriteDocs = await firestore
+          .collection("users")
+          .doc(user.uid)
+          .collection("favorites")
+          .get(GetOptions(source: Source.cache));
+      _favoriteClinics = favoriteDocs.docs.map((doc) => doc.id).toSet();
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error loading favorite clinics: $e");
     }
   }
 
@@ -233,6 +254,27 @@ class ClinicSearchProvider extends ChangeNotifier {
     fetchClinics();
   }
 
+  Future<void> toggleFavorite(String clinicUid, bool isFavorite) async {
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final userFavoritesRef =
+          firestore.collection("users").doc(user.uid).collection("favorites");
+
+      if (isFavorite) {
+        await userFavoritesRef.doc(clinicUid).delete();
+        _favoriteClinics.remove(clinicUid);
+      } else {
+        await userFavoritesRef.doc(clinicUid).set({'addedAt': FieldValue.serverTimestamp()});
+        _favoriteClinics.add(clinicUid);
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error toggling favorite: $e");
+    }
+  }
+
   @override
   void dispose() {
     _debounceTimer?.cancel();
@@ -241,8 +283,8 @@ class ClinicSearchProvider extends ChangeNotifier {
 }
 
 class ClinicFilterBottomSheet extends StatelessWidget {
-  static void show(BuildContext context) {
-    showMaterialModalBottomSheet(
+  static Future<bool?> show(BuildContext context) {
+    return showMaterialModalBottomSheet<bool>(
       context: context,
 
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -292,14 +334,14 @@ class _ClinicBottomSheetContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+          bottom: BorderSide(color: Theme.of(context).colorScheme.outline, width: 1),
         ),
       ),
       child: Row(
         children: [
           ElevatedButton.icon(
             onPressed: () => _showFilterDialog(context, provider),
-            icon: const Icon(Icons.filter_list, size: 20),
+            icon: const Icon(LucideIcons.filter, size: 20),
             label: Text('Filter'.tr()),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -319,7 +361,9 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                         label: Text(
                           provider.selectedSpecialty!.tr(),
                           overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
                         ),
+                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                         onDeleted: () => provider.applyFilters(specialty: null),
                       ),
                     ),
@@ -327,6 +371,8 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                       provider.selectedCity != provider.userCity)
                     Chip(
                       label: Text(provider.selectedCity!),
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
                       onDeleted: () => provider.applyFilters(city: null),
                     ),
                 ],
@@ -351,13 +397,13 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 16),
-            Text(provider.error!, style: TextStyle(color: Colors.red.shade700)),
+            Text(provider.error!, style: TextStyle(color: Theme.of(context).colorScheme.onError)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => provider.fetchClinics(),
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(LucideIcons.refreshCcw),
               label: Text("Retry".tr()),
             ),
           ],
@@ -372,11 +418,11 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+            Icon(LucideIcons.searchOff, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
               "No clinics found".tr(),
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
             ),
           ],
         ),
@@ -461,7 +507,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
       isExpanded: true,
       decoration: InputDecoration(
         labelText: "City".tr(),
-        prefixIcon: const Icon(Icons.location_city),
+        prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       items: [
@@ -486,7 +532,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
       isExpanded: true,
       decoration: InputDecoration(
         labelText: "Specialty".tr(),
-        prefixIcon: const Icon(Icons.medical_services),
+        prefixIcon: const Icon(LucideIcons.stethoscope),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       items: [
@@ -523,11 +569,25 @@ class _ClinicCard extends StatelessWidget {
             leading: CircleAvatar(
               radius: 45,
               backgroundImage: AssetImage(_getAvatarPath(clinic)),
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
             ),
             title: Text(
               clinic["clinicName"] ?? "Unnamed Clinic".tr(),
               style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            trailing: Consumer<ClinicSearchProvider>(
+              builder: (context, provider, child) {
+                final isFavorite = provider.favoriteClinics.contains(clinic['id']);
+                return IconButton(
+                  icon: Icon(
+                    LucideIcons.heart,
+                    color: isFavorite ? Theme.of(context).colorScheme.error : null,
+                  ),
+                  onPressed: () {
+                    provider.toggleFavorite(clinic['id'], isFavorite);
+                  },
+                );
+              },
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -537,13 +597,13 @@ class _ClinicCard extends StatelessWidget {
                 children: [
                   Text(
                     clinic["specialty"] ?? "General".tr(),
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 15),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 15),
                   ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
                       Icon(
-                        Icons.location_on,
+                        LucideIcons.mapPin,
                         size: 16,
                         color: Theme.of(context).colorScheme.primary,
                       ),
@@ -553,7 +613,7 @@ class _ClinicCard extends StatelessWidget {
                           clinic["address"] ?? clinic["city"] ?? "",
                           style: TextStyle(
                             fontSize: 15,
-                            color: Colors.grey.shade700,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -578,14 +638,19 @@ class _ClinicCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
             child: ListTile(
-              onTap: () => SlotsUi.showModalSheet(context, clinic),
+              onTap: () async {
+                final booked = await SlotsUi.showModalSheet(context, clinic);
+                if (booked == true && context.mounted) {
+                  Navigator.of(context).pop(true);
+                }
+              },
               titleAlignment: ListTileTitleAlignment.center,
               title: Center(
                 child: Text("book_appointment".tr(),
-                  style: TextStyle(fontWeight: FontWeight.w500),
+                  style: TextStyle(fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onPrimary),
                 ),
               ),
-              trailing: Icon(Icons.chevron_right),
+              trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.onPrimary),
             ),
           ),
         ],

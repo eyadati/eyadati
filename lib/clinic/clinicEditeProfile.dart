@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:eyadati/utils/network_helper.dart';
 
 // ================ PROVIDER ================
 
@@ -155,7 +157,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         return;
       }
 
-      final doc = await firestore.collection("clinics").doc(user.uid).get();
+      final doc = await firestore.collection("clinics").doc(user.uid).get(GetOptions(source: Source.cache));
       if (doc.exists) {
         final data = doc.data()!;
         nameController.text = data['name'] ?? '';
@@ -193,6 +195,12 @@ class ClinicEditProfileProvider extends ChangeNotifier {
     if (!formKey.currentState!.validate()) return;
     if (selectedCity == null) {
       error = "city_required".tr();
+      notifyListeners();
+      return;
+    }
+
+    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+      isSaving = false; // Reset saving state
       notifyListeners();
       return;
     }
@@ -309,7 +317,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
       appBar: AppBar(
         title: Text('edit_clinic_profile'.tr()),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -435,7 +443,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     if (provider.error != null) ...[
                       Text(
                         provider.error!,
-                        style: const TextStyle(color: Colors.red),
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -485,13 +493,13 @@ class _ClinicEditProfileContent extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
           const SizedBox(height: 16),
-          Text(provider.error!, style: TextStyle(color: Colors.red.shade700)),
+          Text(provider.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () => provider._loadClinicData(),
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(LucideIcons.refreshCcw),
             label: Text('retry'.tr()),
           ),
         ],
@@ -534,7 +542,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -553,10 +561,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
       initialValue: provider.selectedCity,
       decoration: InputDecoration(
         labelText: "city".tr(),
-        prefixIcon: const Icon(Icons.location_city),
+        prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       hint: Text("select city".tr()),
       items: provider.algerianCities.map((city) {
@@ -583,10 +591,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
           : null,
       decoration: InputDecoration(
         labelText: "specialty".tr(),
-        prefixIcon: const Icon(Icons.medical_services),
+        prefixIcon: const Icon(LucideIcons.stethoscope),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       hint: Text("select specialty".tr()),
       items: provider.specialties.map((specialty) {
@@ -639,7 +647,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
           child: Text(label, style: Theme.of(context).textTheme.titleMedium),
         ),
         TextButton.icon(
-          icon: const Icon(Icons.access_time),
+          icon: const Icon(LucideIcons.clock),
           label: Text(timeText ?? "select time".tr()),
           onPressed: () async {
             TimeOfDay? picked = await showTimePicker(
@@ -698,8 +706,8 @@ class _ClinicEditProfileContent extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border.all(
                   color: provider.avatarNumber == i + 1
-                      ? Colors.blue
-                      : Colors.transparent,
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
                   width: 3,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -710,8 +718,8 @@ class _ClinicEditProfileContent extends StatelessWidget {
                   'assets/avatars/${i + 1}.png',
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.shade300,
-                    child: const Icon(Icons.local_hospital),
+                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    child: const Icon(LucideIcons.hospital),
                   ),
                 ),
               ),

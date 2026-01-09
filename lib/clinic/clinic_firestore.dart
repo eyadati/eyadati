@@ -120,7 +120,9 @@ class ClinicFirestore {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Yes'.tr(), style: const TextStyle(color: Colors.red)),
+            child: Text('Yes'.tr(),
+                style:
+                    TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
@@ -135,7 +137,7 @@ class ClinicFirestore {
           .doc(clinicId)
           .collection('appointments')
           .doc(appointmentId)
-          .get();
+          .get(GetOptions(source: Source.cache));
 
       if (!appointmentDoc.exists) {
         throw Exception('Appointment not found'.tr());

@@ -8,6 +8,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:marquee/marquee.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:eyadati/utils/network_helper.dart';
 
 /// Manages user appointments with batched clinic data fetching and pagination
 class UserAppointmentsProvider extends ChangeNotifier {
@@ -92,7 +94,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
     if (clinicIds.isEmpty) return;
 
     final futures = clinicIds
-        .map((id) => firestore.collection("clinics").doc(id).get())
+        .map((id) => firestore.collection("clinics").doc(id).get(GetOptions(source: Source.cache)))
         .toList();
 
     final snapshots = await Future.wait(futures);
@@ -149,10 +151,7 @@ class Appointmentslistview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => UserAppointmentsProvider()..loadAppointments(),
-      child: const _AppointmentsListView(),
-    );
+    return const _AppointmentsListView();
   }
 }
 
@@ -251,8 +250,8 @@ class _AppointmentCard extends StatelessWidget {
               );
             },
             icon: const Icon(
-              Icons.cancel_outlined,
-              color: Colors.red,
+              LucideIcons.xCircle,
+              color: Theme.of(context).colorScheme.error,
               size: 40,
             ),
           ),
@@ -275,7 +274,7 @@ class _AppointmentCard extends StatelessWidget {
                 children: [
                   Text(
                     _formatTime(slot),
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   IconButton(
                     onPressed: () async {
@@ -285,7 +284,7 @@ class _AppointmentCard extends StatelessWidget {
                       );
                     },
                     icon: const Icon(
-                      Icons.location_on,
+                      LucideIcons.mapPin,
                       size: 40,
                       color: Colors.green,
                     ),

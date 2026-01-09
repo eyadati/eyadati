@@ -2,10 +2,15 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/user/UserHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:eyadati/utils/network_helper.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 // CREATING NEW USER
 class Userauth {
-  Future<void> createUser(String email, String password) async {
+  Future<void> createUser(String email, String password, BuildContext context) async {
+    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+      return;
+    }
     try {
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
@@ -62,6 +67,9 @@ class Userauth {
             ),
             ElevatedButton(
               onPressed: () async {
+                if (!await NetworkHelper.checkInternetConnectivity(ctx)) {
+                  return;
+                }
                 try {
                   final cred = await FirebaseAuth.instance
                       .signInWithEmailAndPassword(

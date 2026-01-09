@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:eyadati/FCM/notificationsService.dart';
+import 'package:eyadati/user/user_firestore.dart';
 
 // ADD THIS: Provider using Firestore's built-in cache
 class ClinicsProvider extends ChangeNotifier {
@@ -78,36 +78,72 @@ class _UserAppointmentsState extends State<UserAppointments> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) {
-            final provider = ClinicsProvider();
-            provider.initialize(); // Fetch on start
-            return provider;
-          },
+          create: (_) =>
+              UserAppointmentsProvider()..loadAppointments(), // Load on start
         ),
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: Text("Hello Oussama".tr()),
+          title: FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser?.uid)
+                .get(GetOptions(source: Source.cache)),
+            builder: (BuildContext context,
+                AsyncSnapshot<DocumentSnapshot> snapshot) {
+              if (snapshot.hasError) {
+                return Text("hello".tr());
+              }
+              if (snapshot.connectionState == ConnectionState.done) {
+                Map<String, dynamic> data =
+                    snapshot.data!.data() as Map<String, dynamic>;
+                return Text('hello ${data['name']}'.tr());
+              }
+              return Text("hello".tr());
+            },
+          ),
           actions: [
             IconButton(
-              onPressed: () => ClinicFilterBottomSheet.show(context),
-              icon: const Icon(Icons.add),
+              onPressed: () async {
+                final booked = await ClinicFilterBottomSheet.show(context);
+                if (booked == true && context.mounted) {
+                  context.read<UserAppointmentsProvider>().refresh();
+                }
+              },
+              icon: const Icon(LucideIcons.plus),
             ),
           ],
         ),
-
-        body: Consumer<ClinicsProvider>(
+        body: Consumer<UserAppointmentsProvider>(
           builder: (context, provider, child) {
-            if (provider.isLoading)
+            if (provider.isLoading && provider.appointments.isEmpty) {
               return const Center(child: CircularProgressIndicator());
-
-            return Center(
-              child: Column(
-                children: [
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                  Expanded(child: Appointmentslistview()),
-                ],
-              ),
+            }
+            if (provider.appointments.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      LucideIcons.calendarX,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "no_appointments".tr(),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return RefreshIndicator(
+              onRefresh: provider.refresh,
+              child: Appointmentslistview(),
             );
           },
         ),

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 /// Manages clinic appointment state with optimized Firestore queries
 /// and proper lifecycle management to prevent memory leaks.
@@ -171,7 +172,22 @@ class _ClinicAppointmentsView extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.primary,
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
-        title: Text("hello".tr(), style: TextStyle(color: Colors.white)),
+        title: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+          future: context.read<ClinicAppointmentProvider>().getClinicData(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.done &&
+                snapshot.hasData) {
+              final clinicName =
+                  snapshot.data?.data()?['name'] ?? 'hello'.tr();
+              return Text(clinicName,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary));
+            }
+            return Text('hello'.tr(),
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary));
+          },
+        ),
         actions: [
           IconButton(
             onPressed: () => showModalBottomSheet(
@@ -184,7 +200,7 @@ class _ClinicAppointmentsView extends StatelessWidget {
                 );
               },
             ),
-            icon: Icon(Icons.settings),
+            icon: Icon(LucideIcons.settings, color: Theme.of(context).colorScheme.onPrimary),
           ),
         ],
       ),
@@ -226,8 +242,8 @@ class _NormalCalendar extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           debugPrint('Calendar error: ${snapshot.error}');
-          return const Center(
-            child: Icon(Icons.error_outline, color: Colors.red),
+          return Center(
+            child: Icon(LucideIcons.alertTriangle, color: Theme.of(context).colorScheme.error),
           );
         }
 
@@ -272,12 +288,12 @@ class _CalendarContent extends StatelessWidget {
 
       calendarStyle: CalendarStyle(
         markerDecoration: BoxDecoration(
-          color: const Color(0xFF223A5E),
+          color: Theme.of(context).colorScheme.primary,
           shape: BoxShape.circle,
         ),
         markersMaxCount: 5,
         selectedDecoration: BoxDecoration(
-          color: Colors.blue,
+          color: Theme.of(context).colorScheme.primary,
           shape: BoxShape.circle,
         ),
       ),
@@ -300,7 +316,7 @@ class _AppointmentsPanel extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           debugPrint('Appointments error: ${snapshot.error}');
-          return Center(child: Text('Error loading appointments'.tr()));
+          return Center(child: Text('Error loading appointments'.tr(), style: TextStyle(color: Theme.of(context).colorScheme.error)));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -309,8 +325,23 @@ class _AppointmentsPanel extends StatelessWidget {
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
-                        child: Text('no_appointments_for_this_day'.tr(),
-              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  LucideIcons.calendarOff,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'no_appointments_for_this_day'.tr(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -361,9 +392,9 @@ class _AppointmentsPanel extends StatelessWidget {
                               context,
                             );
                           },
-                          icon: const Icon(
-                            Icons.cancel_outlined,
-                            color: Colors.red,
+                          icon: Icon(
+                            LucideIcons.xCircle,
+                            color: Theme.of(context).colorScheme.error,
                             size: 40,
                           ),
                         ),
@@ -388,7 +419,7 @@ class _AppointmentsPanel extends StatelessWidget {
                             ),
                             Expanded(
                               child: ListTile(
-                                trailing: Icon(Icons.arrow_back),
+                                trailing: Icon(LucideIcons.arrowLeft, color: Theme.of(context).colorScheme.onSurface),
                                 title: Text(name),
                                 subtitle: Text(phone),
                               ),

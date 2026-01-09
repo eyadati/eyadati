@@ -3,6 +3,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:eyadati/utils/network_helper.dart';
 
 // ================ PROVIDER ================
 
@@ -119,7 +121,7 @@ class UserEditProfileProvider extends ChangeNotifier {
     final user = auth.currentUser;
     if (user == null) throw Exception('no_user_found'.tr());
 
-    final doc = await firestore.collection('users').doc(user.uid).get();
+    final doc = await firestore.collection('users').doc(user.uid).get(GetOptions(source: Source.cache));
     if (!doc.exists) throw Exception('user_document_not_found'.tr());
 
     final data = doc.data()!;
@@ -141,6 +143,12 @@ class UserEditProfileProvider extends ChangeNotifier {
     if (!formKey.currentState!.validate()) return;
     if (selectedCity == null) {
       error = 'city_required'.tr();
+      notifyListeners();
+      return;
+    }
+
+    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+      isSaving = false; // Reset saving state
       notifyListeners();
       return;
     }
@@ -229,7 +237,7 @@ class UserEditProfileView extends StatelessWidget {
       appBar: AppBar(
         title: Text('edit_profile'.tr()),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -283,7 +291,7 @@ class UserEditProfileView extends StatelessWidget {
                     if (provider.error != null) ...[
                       Text(
                         provider.error!,
-                        style: const TextStyle(color: Colors.red),
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -333,17 +341,17 @@ class UserEditProfileView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
           const SizedBox(height: 16),
           Text(
             provider.error!,
-            style: TextStyle(color: Colors.red.shade700),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () => provider._initializeData(),
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(LucideIcons.refreshCcw),
             label: Text('retry'.tr()),
           ),
         ],
@@ -377,7 +385,7 @@ class UserEditProfileView extends StatelessWidget {
         helperText: helperText,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       validator: validator,
     );
@@ -391,10 +399,10 @@ class UserEditProfileView extends StatelessWidget {
       initialValue: provider.selectedCity,
       decoration: InputDecoration(
         labelText: 'city'.tr(),
-        prefixIcon: const Icon(Icons.location_city),
+        prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       hint: Text('select_city'.tr()),
       items: provider.algerianCities.map((city) {

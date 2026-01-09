@@ -5,6 +5,8 @@ import 'package:eyadati/user/userAuth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:eyadati/utils/network_helper.dart';
 
 // ================ PROVIDER ================
 
@@ -106,6 +108,12 @@ class UserOnboardingProvider extends ChangeNotifier {
 
     if (selectedCity == null) {
       error = "Please select a city".tr();
+      notifyListeners();
+      return;
+    }
+
+    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+      isLoading = false;
       notifyListeners();
       return;
     }
@@ -232,7 +240,7 @@ class _UserOnboardingContent extends StatelessWidget {
                   if (provider.error != null) ...[
                     Text(
                       provider.error!,
-                      style: const TextStyle(color: Colors.red),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -284,7 +292,7 @@ class _UserOnboardingContent extends StatelessWidget {
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       validator:
           validator ??
@@ -305,10 +313,10 @@ class _UserOnboardingContent extends StatelessWidget {
       initialValue: provider.selectedCity,
       decoration: InputDecoration(
         labelText: "city".tr(),
-        prefixIcon: const Icon(Icons.location_city),
+        prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        
       ),
       hint: Text("select_city".tr()),
       items: provider.algerianCities.map((city) {

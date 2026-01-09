@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_url_extractor/url_extractor.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:eyadati/utils/network_helper.dart';
 
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
@@ -238,46 +240,16 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       return false;
     }
 
+    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+      isSubmitting = false; // Ensure submitting state is reset
+      notifyListeners();
+      return false;
+    }
+
     // Validate time logic
     if (openingMinutes == null || closingMinutes == null) {
       if (!context.mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please set opening and closing times".tr())),
-      );
-      return false;
-    }
-    if (openingMinutes! >= closingMinutes!) {
-      if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Closing time must be after opening time".tr())),
-      );
-      return false;
-    }
-    if (breakStartMinutes != null && breakEndMinutes != null) {
-      if (!(openingMinutes! <= breakStartMinutes! &&
-          breakStartMinutes! < breakEndMinutes! &&
-          breakEndMinutes! <= closingMinutes!)) {
-        if (!context.mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Break time must be within working hours".tr()),
-          ),
-        );
-        return false;
-      }
-    }
-    if (workingDays.isEmpty) {
-      if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Select at least one working day".tr())),
-      );
-      return false;
-    }
-
-    extractCoordinates();
-
-    isSubmitting = true;
-    notifyListeners();
 
     try {
       await Clinicauth().clinicAccount(
@@ -290,7 +262,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
         extractedLongitude,
         extractedLatitude,
         clinicNameController.text.trim(),
-        1,
+        avatarNumber + 1,
         _selectedCity!,
         workingDays,
         phoneController.text.trim(),
@@ -383,9 +355,9 @@ class _IntroPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.local_hospital,
+              LucideIcons.hospital,
               size: 80,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 24),
             Text(
@@ -404,7 +376,7 @@ class _IntroPage extends StatelessWidget {
             const SizedBox(height: 48),
             ElevatedButton.icon(
               onPressed: context.read<ClinicOnboardingProvider>().goToFormPage,
-              icon: const Icon(Icons.arrow_forward),
+              icon: const Icon(LucideIcons.arrowRight),
               label: Text("Get Started".tr()),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
@@ -516,7 +488,7 @@ class _FormPage extends StatelessWidget {
                   final uri = Uri.parse('https://www.google.com/maps ');
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
-                icon: const Icon(Icons.location_pin),
+                icon: const Icon(LucideIcons.mapPin),
                 label: Text("open_google_maps".tr().tr()),
               ),
             ),
@@ -740,7 +712,7 @@ class _FormPage extends StatelessWidget {
           child: Text(label, style: Theme.of(context).textTheme.titleMedium),
         ),
         TextButton.icon(
-          icon: const Icon(Icons.access_time),
+          icon: const Icon(LucideIcons.clock),
           label: Text(timeText ?? "Select Time".tr()),
           onPressed: () async {
             TimeOfDay? picked = await showTimePicker(
@@ -776,8 +748,8 @@ class _FormPage extends StatelessWidget {
             child: CircleAvatar(
               radius: 11,
               backgroundColor: provider.avatarNumber == i
-                  ? Colors.black
-                  : Colors.green,
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
               child: Image.asset("assets/avatars/${i + 1}.png"),
             ),
           );

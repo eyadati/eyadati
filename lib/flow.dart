@@ -35,45 +35,92 @@ Future<bool> _isClinicRole(String uid) async {
 }
 
 Widget intro() {
-  return Builder(
-    builder: (context) {
-      // Make it fit small screens
-      final containerSize = MediaQuery.of(context).size.width * 0.5;
-      final containerHeight = MediaQuery.of(context).size.width * 0.3;
-      return Center(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Better spacing
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => ClinicOnboardingPages()),
+  return Builder(builder: (context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'welcome_to_eyadati'.tr(),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 16),
+              Text(
+                'are_you_a_clinic_or_a_user'.tr(),
+                style: const TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+              const SizedBox(height: 48),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildChoiceCard(
+                    context: context,
+                    imagePath: 'assets/doctors.png',
+                    label: 'im_a_clinic'.tr(),
+                    onTap: () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ClinicOnboardingPages()),
+                    ),
+                  ),
+                  _buildChoiceCard(
+                    context: context,
+                    imagePath: 'assets/family.png',
+                    label: 'im_a_user'.tr(),
+                    onTap: () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const UserOnboardingPages()),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  });
+}
+
+Widget _buildChoiceCard({
+  required BuildContext context,
+  required String imagePath,
+  required String label,
+  required VoidCallback onTap,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.4,
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               child: Image.asset(
-                'assets/doctors2.png',
-                height: containerHeight,
-                width: containerSize,
-                fit: BoxFit.fill,
+                imagePath,
+                height: MediaQuery.of(context).size.width * 0.4,
+                fit: BoxFit.cover,
               ),
             ),
-            GestureDetector(
-              onTap: () => showMaterialModalBottomSheet(
-                context: context,
-                builder: (context) => SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.99,
-                  child: UserOnboardingPages(),
-                ),
-              ),
-              child: Image.asset(
-                'assets/doctors2.png',
-                height: 300,
-                width: containerSize,
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
               ),
             ),
           ],
         ),
-      );
-    },
+      ),
+    ),
   );
 }
