@@ -91,6 +91,7 @@
     "Select Filters": "Sélectionner les filtres",
     "Clear All": "Tout effacer",
     "Apply": "Appliquer",
+
     "All Specialties": "Toutes les spécialités",
     "Error fetching clinics": "Erreur lors de la récupération des cliniques : {{error}}",
     "Clinic not found": "Clinique introuvable",
@@ -201,5 +202,8 @@
     "feature_4": "Fonctionnalités avancées",
     "vip": "VIP",
     "feature_5": "Support prioritaire",
-    "per_month": "par mois"
+    "per_month": "par mois",
+    "add_to_calendar": "Ajouter à mon calendrier",
+    "QR Code": "Code QR",
+    "scan_qr_code": "Scanner le code QR"
 }

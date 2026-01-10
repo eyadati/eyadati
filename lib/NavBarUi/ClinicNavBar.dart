@@ -64,9 +64,9 @@ class _BottomNavContent extends StatelessWidget {
         return DeferredIndexedStack(
           index: selectedIndex,
           children: [
-            DeferredTab(child: Clinicsettings()),
-            DeferredTab(child: ClinicAppointments(clinicId: clinicUid)),
             DeferredTab(child: ManagementScreen(clinicUid: clinicUid)),
+            DeferredTab(child: ClinicAppointments(clinicId: clinicUid)),
+            DeferredTab(child: Clinicsettings()),
           ],
         );
       },
@@ -94,7 +94,9 @@ class _BottomNavContent extends StatelessWidget {
   ) {
     final provider = context.watch<CliniNavBarProvider>();
     final isSelected = provider.selected == value;
-    final color = isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
+    final color = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurface;
 
     return InkWell(
       onTap: () => provider.select(value),

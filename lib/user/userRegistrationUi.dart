@@ -127,6 +127,7 @@ class UserOnboardingProvider extends ChangeNotifier {
       await Userauth().createUser(
         emailController.text.trim(),
         passwordController.text,
+        context,
       );
 
       // Add user data
@@ -240,7 +241,9 @@ class _UserOnboardingContent extends StatelessWidget {
                   if (provider.error != null) ...[
                     Text(
                       provider.error!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -292,7 +295,6 @@ class _UserOnboardingContent extends StatelessWidget {
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       validator:
           validator ??
@@ -316,7 +318,6 @@ class _UserOnboardingContent extends StatelessWidget {
         prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       hint: Text("select_city".tr()),
       items: provider.algerianCities.map((city) {

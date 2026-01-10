@@ -146,6 +146,22 @@ class ClinicAppointmentProvider extends ChangeNotifier {
 
   // Getter for stream access
   Stream<QuerySnapshot> get appointmentsStream => _appointmentsStream;
+
+  /// Utility to parse integers safely
+  int _parseInt(dynamic value, int defaultValue) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    return defaultValue;
+  }
+
+  /// Gets the clinic's default appointment duration
+  int getClinicDuration() {
+    return _parseInt(
+      _clinicData?.data()?['duration'],
+      60,
+    ); // Default to 60 minutes
+  }
 }
 
 /// Main widget that provides the appointment management state
@@ -169,23 +185,26 @@ class _ClinicAppointmentsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.primary,
+      backgroundColor: Theme.of(context).colorScheme.secondary,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: Theme.of(context).colorScheme.secondary,
         title: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
           future: context.read<ClinicAppointmentProvider>().getClinicData(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done &&
                 snapshot.hasData) {
-              final clinicName =
-                  snapshot.data?.data()?['name'] ?? 'hello'.tr();
-              return Text(clinicName,
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary));
-            }
-            return Text('hello'.tr(),
+              final clinicName = snapshot.data?.data()?['name'] ?? 'hello'.tr();
+              return Text(
+                clinicName,
                 style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimary));
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              );
+            }
+            return Text(
+              'hello'.tr(),
+              style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+            );
           },
         ),
         actions: [
@@ -200,21 +219,27 @@ class _ClinicAppointmentsView extends StatelessWidget {
                 );
               },
             ),
-            icon: Icon(LucideIcons.settings, color: Theme.of(context).colorScheme.onPrimary),
+            icon: Icon(
+              LucideIcons.settings,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
           ),
         ],
       ),
       body: Column(
         children: [
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
           // Calendar takes available height
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Card(child: const _NormalCalendar()),
+                    padding: const EdgeInsets.all(6.0),
+                    child: Card(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      child: const _NormalCalendar(),
+                    ),
                   ),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.02),
                   // Appointments list below calendar
@@ -243,7 +268,10 @@ class _NormalCalendar extends StatelessWidget {
         if (snapshot.hasError) {
           debugPrint('Calendar error: ${snapshot.error}');
           return Center(
-            child: Icon(LucideIcons.alertTriangle, color: Theme.of(context).colorScheme.error),
+            child: Icon(
+              LucideIcons.alertTriangle,
+              color: Theme.of(context).colorScheme.error,
+            ),
           );
         }
 
@@ -316,7 +344,12 @@ class _AppointmentsPanel extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           debugPrint('Appointments error: ${snapshot.error}');
-          return Center(child: Text('Error loading appointments'.tr(), style: TextStyle(color: Theme.of(context).colorScheme.error)));
+          return Center(
+            child: Text(
+              'Error loading appointments'.tr(),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          );
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -329,8 +362,8 @@ class _AppointmentsPanel extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  LucideIcons.calendarOff,
-                  size: 64,
+                  LucideIcons.calendar,
+                  size: 50,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(height: 16),
@@ -369,10 +402,10 @@ class _AppointmentsPanel extends StatelessWidget {
                   final appointment = doc.data() as Map<String, dynamic>;
                   final appointmentId = doc.id;
 
+                  final clinicDuration = provider
+                      .getClinicDuration(); // Get duration from provider
                   final slot = (appointment['date'] as Timestamp).toDate();
-                  final slotEnd = (appointment['date'] as Timestamp)
-                      .toDate()
-                      .add(Duration(minutes: appointment["duration"] ?? 45));
+                  final slotEnd = slot.add(Duration(minutes: clinicDuration));
                   final timeFormatted = DateFormat('HH:mm').format(slot);
                   final timeEndFormatter = DateFormat('HH:mm').format(slotEnd);
                   final name = appointment['userName'] ?? 'Unknown';
@@ -419,7 +452,12 @@ class _AppointmentsPanel extends StatelessWidget {
                             ),
                             Expanded(
                               child: ListTile(
-                                trailing: Icon(LucideIcons.arrowLeft, color: Theme.of(context).colorScheme.onSurface),
+                                trailing: Icon(
+                                  LucideIcons.arrowLeft,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
+                                ),
                                 title: Text(name),
                                 subtitle: Text(phone),
                               ),

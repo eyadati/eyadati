@@ -6,6 +6,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:settings_ui/settings_ui.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:eyadati/clinic/clinicQrCodePage.dart';
+
+import 'package:provider/provider.dart';
+import 'package:eyadati/Themes/ThemeProvider.dart';
 
 class ClinicsettingProvider extends ChangeNotifier {}
 
@@ -50,10 +54,27 @@ class Clinicsettings extends StatelessWidget {
                 ),
               ),
               SettingsTile.switchTile(
-                onToggle: (_) {},
-                initialValue: true,
+                onToggle: (value) {
+                  Provider.of<ThemeProvider>(
+                    context,
+                    listen: false,
+                  ).toggleTheme();
+                },
+                initialValue: Provider.of<ThemeProvider>(context).isDarkMode,
                 title: Text("Dark mode".tr()),
                 leading: Icon(LucideIcons.moon),
+              ),
+              SettingsTile.navigation(
+                title: Text("QR Code".tr()),
+                leading: Icon(LucideIcons.qrCode),
+                onPressed: (_) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ClinicQrCodePage(),
+                    ),
+                  );
+                },
               ),
               SettingsTile.navigation(
                 title: Text("log out".tr()),
@@ -64,7 +85,7 @@ class Clinicsettings extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (ctx) => FutureBuilder<Widget>(
-                        future: decidePage(),
+                        future: decidePage(context),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {

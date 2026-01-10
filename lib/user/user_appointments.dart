@@ -9,12 +9,13 @@ import 'package:marquee/marquee.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:eyadati/utils/network_helper.dart';
 
 /// Manages user appointments with batched clinic data fetching and pagination
 class UserAppointmentsProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
+  final UserFirestore _userFirestore;
+  final NotificationService _notificationService;
 
   final List<Map<String, dynamic>> _appointments = [];
   final Map<String, Map<String, dynamic>> _clinicCache = {};
@@ -24,9 +25,15 @@ class UserAppointmentsProvider extends ChangeNotifier {
   final int _pageSize = 20;
   DocumentSnapshot? _lastDocument;
 
-  UserAppointmentsProvider({FirebaseAuth? auth, FirebaseFirestore? firestore})
-    : auth = auth ?? FirebaseAuth.instance,
-      firestore = firestore ?? FirebaseFirestore.instance;
+  UserAppointmentsProvider({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+    UserFirestore? userFirestore,
+    NotificationService? notificationService,
+  })  : auth = auth ?? FirebaseAuth.instance,
+        firestore = firestore ?? FirebaseFirestore.instance,
+        _userFirestore = userFirestore ?? UserFirestore(),
+        _notificationService = notificationService ?? NotificationService();
 
   List<Map<String, dynamic>> get appointments => _appointments;
   bool get isLoading => _isLoading;
@@ -34,15 +41,17 @@ class UserAppointmentsProvider extends ChangeNotifier {
 
   /// Loads appointments with pagination and batch-fetches clinic data
   Future<void> loadAppointments() async {
+    final userId = auth.currentUser?.uid;
+    if (userId == null) {
+      throw Exception("User not logged in");
+    }
+
     if (_isLoading || !_hasMore) return;
 
     _isLoading = true;
     notifyListeners();
 
     try {
-      final userId = auth.currentUser?.uid;
-      if (userId == null) throw Exception("User not logged in".tr());
-
       Query query = firestore
           .collection("users")
           .doc(userId)
@@ -59,10 +68,13 @@ class UserAppointmentsProvider extends ChangeNotifier {
 
       if (snapshot.docs.isEmpty) {
         _hasMore = false;
+        _lastDocument = null; // Reset _lastDocument if no more documents
+        notifyListeners(); // Notify listeners as state changes
         return;
       }
 
       _lastDocument = snapshot.docs.last;
+      _hasMore = snapshot.docs.length == _pageSize; // Correctly set hasMore for pagination
 
       // Extract appointment data
       final newAppointments = snapshot.docs.map((doc) {
@@ -78,7 +90,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
           .where((id) => !_clinicCache.containsKey(id))
           .toList();
 
-      await _batchFetchClinics(clinicIds);
+      await batchFetchClinics(clinicIds);
 
       _appointments.addAll(newAppointments);
     } catch (e) {
@@ -90,17 +102,24 @@ class UserAppointmentsProvider extends ChangeNotifier {
   }
 
   /// Fetches multiple clinics in parallel
-  Future<void> _batchFetchClinics(List<String> clinicIds) async {
+  Future<void> batchFetchClinics(List<String> clinicIds) async {
     if (clinicIds.isEmpty) return;
 
     final futures = clinicIds
-        .map((id) => firestore.collection("clinics").doc(id).get(GetOptions(source: Source.cache)))
+        .map(
+          (id) => firestore
+              .collection("clinics")
+              .doc(id)
+              .get(GetOptions(source: Source.cache)),
+        )
         .toList();
 
     final snapshots = await Future.wait(futures);
+    debugPrint("Batch fetched snapshots length: ${snapshots.length}");
 
     for (var i = 0; i < snapshots.length; i++) {
       final doc = snapshots[i];
+      debugPrint("Processing doc ${clinicIds[i]}. RuntimeType: ${doc.runtimeType}. Exists: ${doc.exists}, Data: ${doc.data()}");
       if (doc.exists) {
         _clinicCache[clinicIds[i]] = doc.data()!;
       }
@@ -121,10 +140,10 @@ class UserAppointmentsProvider extends ChangeNotifier {
     final userId = auth.currentUser?.uid;
     if (userId == null) return;
 
-    await UserFirestore().cancelAppointment(appointmentId, userId, context);
+    await _userFirestore.cancelAppointment(appointmentId, userId, context);
 
     if (clinicData['FCM'] != null) {
-      await NotificationService().sendDirectNotification(
+      await _notificationService.sendDirectNotification(
         fcmToken: clinicData['FCM'],
         title: 'appointment cancelled'.tr(),
         body: 'the appointment got cancelled'.tr(),
@@ -249,7 +268,7 @@ class _AppointmentCard extends StatelessWidget {
                 context,
               );
             },
-            icon: const Icon(
+            icon: Icon(
               LucideIcons.xCircle,
               color: Theme.of(context).colorScheme.error,
               size: 40,

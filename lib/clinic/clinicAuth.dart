@@ -3,18 +3,21 @@ import 'package:eyadati/clinic/clinicHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:eyadati/utils/network_helper.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 class Clinicauth {
   final auth = FirebaseAuth.instance;
-  Future<void> clinicAccount(String email, String password, BuildContext context) async {
+  Future<void> clinicAccount(
+    String email,
+    String password,
+    BuildContext context,
+  ) async {
     if (!await NetworkHelper.checkInternetConnectivity(context)) {
       return;
     }
     await auth.createUserWithEmailAndPassword(email: email, password: password);
   }
 
-  Future<void> ClinicLoginIn(BuildContext context) async {
+  Future<void> clinicLoginIn(BuildContext context) async {
     final TextEditingController loginEmail = TextEditingController();
     final TextEditingController loginPassword = TextEditingController();
 
@@ -56,6 +59,7 @@ class Clinicauth {
                       );
                   if (cred.user != null) {
                     Navigator.pop(ctx); // close modal
+                    if (!context.mounted) return;
 
                     Navigator.pushAndRemoveUntil(
                       context,
@@ -65,6 +69,7 @@ class Clinicauth {
                   }
                 } catch (e) {
                   debugPrint("Login error: $e");
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(SnackBar(content: Text("Login failed".tr())));

@@ -3,6 +3,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:eyadati/utils/network_helper.dart';
+import 'package:provider/provider.dart';
+import 'package:eyadati/user/user_appointments.dart';
 
 /// Handles appointment booking logic with optimized Firestore operations
 /// and thread-safe slot booking via transactions.
@@ -133,7 +135,11 @@ class BookingLogic extends ChangeNotifier {
 
   /// Books an appointment atomically using Firestore transactions
   /// to prevent race conditions and overbooking
-  Future<void> bookAppointment(String clinicUid, DateTime slot, BuildContext context) async {
+  Future<void> bookAppointment(
+    String clinicUid,
+    DateTime slot,
+    BuildContext context,
+  ) async {
     if (!await NetworkHelper.checkInternetConnectivity(context)) {
       throw Exception("no_internet_connection".tr());
     }
@@ -209,6 +215,7 @@ class BookingLogic extends ChangeNotifier {
         appointmentData,
       );
     });
+    Provider.of<UserAppointmentsProvider>(context, listen: false).refresh();
   }
 
   /// Gets cached clinic data or fetches from Firestore if not available

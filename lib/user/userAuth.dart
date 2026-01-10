@@ -3,11 +3,14 @@ import 'package:eyadati/user/UserHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:eyadati/utils/network_helper.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 // CREATING NEW USER
 class Userauth {
-  Future<void> createUser(String email, String password, BuildContext context) async {
+  Future<void> createUser(
+    String email,
+    String password,
+    BuildContext context,
+  ) async {
     if (!await NetworkHelper.checkInternetConnectivity(context)) {
       return;
     }
@@ -17,11 +20,12 @@ class Userauth {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        debugPrint('No user found for that email.');
-      } else if (e.code == 'wrong-password') {
-        debugPrint('Wrong password provided for that user.');
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: ${e.message}".tr())));
       }
+      rethrow;
     }
   }
 
@@ -78,6 +82,7 @@ class Userauth {
                       );
                   if (cred.user != null) {
                     Navigator.pop(ctx); // close modal
+                    if (!context.mounted) return;
 
                     Navigator.pushAndRemoveUntil(
                       context,
@@ -87,6 +92,7 @@ class Userauth {
                   }
                 } catch (e) {
                   debugPrint("Login error: $e");
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(SnackBar(content: Text("Login failed".tr())));

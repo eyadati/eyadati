@@ -1,26 +1,12 @@
-description = "Complete UI/UX improvements and fixes"
-
+description = "adding features"
 prompt = """
 Execute these tasks in order:
 
-1. Make appointment UI refresh automatically after successful booking and fix confirmation dialog details
-2. Add favorite icon to clinic list items - tapping should add/remove clinic from user favorites
-3. Remake light and dark themes using basic colors (white, black, grey, blue accent) with professional font selection
-4. Color all widgets appropriately for clean, friendly UI following best practices
-5. Replace all icons with LucideIcons
-6. Enable Firebase offline persistence with unlimited cache for both user and clinic sides
-7. Optimize Firestore queries with caching where beneficial
-8. Add internet connection checks for sensitive operations to enable offline app usage
-9. Fix intro page asset sizing and onboarding UI flow
-10. Fix registration avatar selection - ensure selected avatar is saved correctly
-11. Show dynamic user/clinic names in app bar instead of hardcoded messages
-12. Add centered icon with message when no appointments exist (different for user/clinic)
-13. Fix settings icon navigation to open settings UI
-14. Create payment screen with 3 pricing cards (Basic, Premium, VIP)
-15. Generate English translation JSON file for all tr() strings
-16. Create command execution report in .gemini folder
-17. Run verification: flutter analyze && flutter test then fix them
-18. Commit all changes with today's date
+1.add calendar package that can make appointments saved in calendar events
+2.add a checkbox in the appointment confirmation dialogue that is checked by default that asks user to add the appointment to calendar if they confirm and the box is checked trigger a proper function that adds it
+3.add a scanner package that has to side one for clinc which generate a special QR code for them which can be accessed in clinic settings
+4.users will have a scanner icon in favorite page which can scan a clinic QR code and add them to favorite list
+5.run a review of the project and create file which will contains firebase rules that suits the project specially that i have permission issues when trying to add clincs to favorite
 
 
 """

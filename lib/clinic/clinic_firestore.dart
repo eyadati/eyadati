@@ -66,7 +66,7 @@ class ClinicFirestore {
     List workingDays, //3
     String phone, //1
     String specialty, //4
-    String SessionDuration, //4
+    String sessionDuration, //4
     int openingAt, //3
     int closingAt, //3
     int breakStart, //3
@@ -94,7 +94,7 @@ class ClinicFirestore {
         'breakStart': breakStart,
         "break": breakTime,
         "specialty": specialty,
-        'Duration': SessionDuration,
+        'Duration': sessionDuration,
         'staff': 1.toInt(),
       });
     } catch (e) {
@@ -120,9 +120,10 @@ class ClinicFirestore {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Yes'.tr(),
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(
+              'Yes'.tr(),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -167,6 +168,7 @@ class ClinicFirestore {
 
       await batch.commit();
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error: $e')));

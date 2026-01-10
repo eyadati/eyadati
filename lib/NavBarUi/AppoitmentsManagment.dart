@@ -85,7 +85,10 @@ class ManagementProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchClinicData() async {
-    final doc = await firestore.collection("clinics").doc(clinicUid).get(GetOptions(source: Source.cache));
+    final doc = await firestore
+        .collection("clinics")
+        .doc(clinicUid)
+        .get(GetOptions(source: Source.cache));
     if (doc.exists) {
       _clinicData = doc.data();
     } else {
@@ -272,7 +275,8 @@ class ManagementProvider extends ChangeNotifier {
 
   String getSlotDisplayText(DateTime slot) {
     final localSlot = slot.toLocal(); // Display in local time for user
-    final endTime = localSlot.add(const Duration(hours: 1));
+    final slotDurationMinutes = _parseInt(_clinicData!["duration"], 60);
+    final endTime = localSlot.add(Duration(minutes: slotDurationMinutes));
     return "${_twoDigits(localSlot.hour)}:${_twoDigits(localSlot.minute)} - ${_twoDigits(endTime.hour)}:${_twoDigits(endTime.minute)}";
   }
 
@@ -306,7 +310,7 @@ class ManagementScreen extends StatelessWidget {
               }
 
               if (provider.visibleDays.isEmpty) {
-                return _buildNoWorkingDaysState();
+                return _buildNoWorkingDaysState(context);
               }
 
               return PageView.builder(
@@ -333,7 +337,7 @@ class ManagementScreen extends StatelessWidget {
                       ),
                       Expanded(
                         child: slots.isEmpty
-                            ? _buildEmptyState(day, provider)
+                            ? _buildEmptyState(context, day, provider)
                             : ListView.builder(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 8,
@@ -366,12 +370,19 @@ class ManagementScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
+            Icon(
+              LucideIcons.alertTriangle,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 16),
             Text(
               provider.errorMessage!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 16),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onError,
+                fontSize: 16,
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -385,38 +396,53 @@ class ManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNoWorkingDaysState() {
+  Widget _buildNoWorkingDaysState(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.calendarOff, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(
+            LucideIcons.calendarOff,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           SizedBox(height: 16),
           Text(
             "no_working_days_found".tr(),
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 16,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState(DateTime day, ManagementProvider provider) {
+  Widget _buildEmptyState(
+    BuildContext context,
+    DateTime day,
+    ManagementProvider provider,
+  ) {
     final isWorkingDay = provider.isWorkingDay(day);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            isWorkingDay
-                ? LucideIcons.calendarOff
-                : LucideIcons.store,
+            isWorkingDay ? LucideIcons.calendarOff : LucideIcons.store,
             size: 64,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 16),
-                      Text(
-                        isWorkingDay ? "no_slots_available_today".tr() : "clinic_is_closed".tr(),            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
+          Text(
+            isWorkingDay
+                ? "no_slots_available_today".tr()
+                : "clinic_is_closed".tr(),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 16,
+            ),
           ),
         ],
       ),
@@ -443,7 +469,10 @@ class ManagementScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         side: isFull
             ? BorderSide(color: Theme.of(context).colorScheme.error, width: 2)
-            : BorderSide(color: Theme.of(context).colorScheme.outlineVariant, width: 1),
+            : BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 1,
+              ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -456,7 +485,9 @@ class ManagementScreen extends StatelessWidget {
                 Icon(
                   LucideIcons.clock,
                   size: 20,
-                  color: isFull ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
+                  color: isFull
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -501,7 +532,10 @@ class ManagementScreen extends StatelessWidget {
                     children: [
                       Text(
                         "Appointments".tr(),
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -509,7 +543,9 @@ class ManagementScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: isFull ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface,
+                          color: isFull
+                              ? Theme.of(context).colorScheme.error
+                              : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -540,6 +576,7 @@ class ManagementScreen extends StatelessWidget {
                       Theme.of(context).colorScheme.error,
                       canDecrease,
                       () => provider.decreaseManualAppointments(slot),
+                      context,
                     ),
                     const SizedBox(width: 8),
                     _buildCounterButton(
@@ -547,6 +584,7 @@ class ManagementScreen extends StatelessWidget {
                       Theme.of(context).colorScheme.primary,
                       canIncrease,
                       () => provider.increaseManualAppointments(slot),
+                      context,
                     ),
                   ],
                 ),
@@ -563,20 +601,27 @@ class ManagementScreen extends StatelessWidget {
     Color color,
     bool enabled,
     VoidCallback? onTap,
+    BuildContext context,
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: enabled ? color.withOpacity(0.1) : Theme.of(context).colorScheme.surfaceVariant,
+        color: enabled
+            ? color.withAlpha((255 * 0.1).round())
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: enabled ? color.withOpacity(0.3) : Theme.of(context).colorScheme.outlineVariant,
+          color: enabled
+              ? color.withAlpha((255 * 0.3).round())
+              : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: IconButton(
         icon: Icon(icon),
         onPressed: onTap,
         color: enabled ? color : Theme.of(context).colorScheme.onSurfaceVariant,
-        disabledColor: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+        disabledColor: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withAlpha((255 * 0.5).round()),
         iconSize: 20,
         padding: const EdgeInsets.all(8),
         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),

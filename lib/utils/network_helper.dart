@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class NetworkHelper {
   static Future<bool> checkInternetConnectivity(BuildContext context) async {
     final connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult == ConnectivityResult.none) {
+    if (connectivityResult.contains(ConnectivityResult.none)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

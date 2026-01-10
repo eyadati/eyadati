@@ -3,7 +3,7 @@ import 'darkMode.dart';
 import 'lightMode.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  ThemeData _themeData = lightMode;
+  ThemeData _themeData = clinicLightTheme;
   ThemeData get themeData => _themeData;
   bool get isDarkMode => _themeData == darkMode;
   set themeData(ThemeData themeData) {
@@ -12,10 +12,10 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   void toggleTheme() {
-    if (_themeData == lightMode) {
+    if (_themeData == clinicLightTheme) {
       themeData = darkMode;
     } else {
-      themeData = lightMode;
+      themeData = clinicLightTheme;
     }
   }
 }

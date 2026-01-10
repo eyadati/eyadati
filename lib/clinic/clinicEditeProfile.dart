@@ -142,7 +142,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
     'Laboratory Services'.tr(),
     'Nephrology'.tr(),
   ];
-  void OnSpecialtyChange(String? value) {
+  void onSpecialtyChange(String? value) {
     specialtyController.text = value ?? '';
     notifyListeners();
   }
@@ -157,7 +157,10 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         return;
       }
 
-      final doc = await firestore.collection("clinics").doc(user.uid).get(GetOptions(source: Source.cache));
+      final doc = await firestore
+          .collection("clinics")
+          .doc(user.uid)
+          .get(GetOptions(source: Source.cache));
       if (doc.exists) {
         final data = doc.data()!;
         nameController.text = data['name'] ?? '';
@@ -229,10 +232,12 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         "breakEnd": breakEndMinutes,
         "avatarNumber": avatarNumber,
       });
+      if (!context.mounted) return;
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('profile updated success'.tr())));
+      if (!context.mounted) return;
 
       Navigator.of(context).pop();
     } catch (e) {
@@ -443,7 +448,9 @@ class _ClinicEditProfileContent extends StatelessWidget {
                     if (provider.error != null) ...[
                       Text(
                         provider.error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -493,9 +500,16 @@ class _ClinicEditProfileContent extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
+          Icon(
+            LucideIcons.alertTriangle,
+            size: 64,
+            color: Theme.of(context).colorScheme.error,
+          ),
           const SizedBox(height: 16),
-          Text(provider.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          Text(
+            provider.error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () => provider._loadClinicData(),
@@ -542,7 +556,6 @@ class _ClinicEditProfileContent extends StatelessWidget {
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -564,7 +577,6 @@ class _ClinicEditProfileContent extends StatelessWidget {
         prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       hint: Text("select city".tr()),
       items: provider.algerianCities.map((city) {
@@ -594,14 +606,13 @@ class _ClinicEditProfileContent extends StatelessWidget {
         prefixIcon: const Icon(LucideIcons.stethoscope),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       hint: Text("select specialty".tr()),
       items: provider.specialties.map((specialty) {
         return DropdownMenuItem(value: specialty, child: Text(specialty));
       }).toList(),
       onChanged: (value) {
-        provider.OnSpecialtyChange(value);
+        provider.onSpecialtyChange(value);
       },
       validator: (value) {
         if (value == null) {
@@ -707,7 +718,9 @@ class _ClinicEditProfileContent extends StatelessWidget {
                 border: Border.all(
                   color: provider.avatarNumber == i + 1
                       ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant.withAlpha((255 * 0.5).round()),
                   width: 3,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -718,8 +731,10 @@ class _ClinicEditProfileContent extends StatelessWidget {
                   'assets/avatars/${i + 1}.png',
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
-                    child: const Icon(LucideIcons.hospital),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    child: Icon(LucideIcons.personStanding),
                   ),
                 ),
               ),

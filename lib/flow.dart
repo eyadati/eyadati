@@ -1,17 +1,18 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
-import 'package:eyadati/clinic/clinicRegisterUi.dart';
+import 'package:eyadati/clinic/clinicRegisterUi_widgets.dart';
 import 'package:eyadati/user/UserHome.dart';
 import 'package:eyadati/user/userRegistrationUi.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 
-Future<Widget> decidePage() async {
+Future<Widget> decidePage(BuildContext context) async {
   final currentUser = FirebaseAuth.instance.currentUser;
 
   if (currentUser == null) {
-    return intro();
+    if (!context.mounted) return const SizedBox.shrink();
+    return intro(context);
   } else {
     try {
       // ✅ Cache the role check first
@@ -21,7 +22,8 @@ Future<Widget> decidePage() async {
       return Userhome();
     } catch (e) {
       debugPrint("Role check error: $e");
-      return intro();
+      if (!context.mounted) return const SizedBox.shrink();
+      return intro(context);
     }
   }
 }
@@ -34,55 +36,63 @@ Future<bool> _isClinicRole(String uid) async {
   return doc.exists;
 }
 
-Widget intro() {
-  return Builder(builder: (context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'welcome_to_eyadati'.tr(),
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'are_you_a_clinic_or_a_user'.tr(),
-                style: const TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-              const SizedBox(height: 48),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildChoiceCard(
-                    context: context,
-                    imagePath: 'assets/doctors.png',
-                    label: 'im_a_clinic'.tr(),
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const ClinicOnboardingPages()),
-                    ),
+Widget intro(BuildContext context) {
+  return Builder(
+    builder: (BuildContext builderContext) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'welcome_to_eyadati'.tr(),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
                   ),
-                  _buildChoiceCard(
-                    context: context,
-                    imagePath: 'assets/family.png',
-                    label: 'im_a_user'.tr(),
-                    onTap: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const UserOnboardingPages()),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'are_you_a_clinic_or_a_user'.tr(),
+                  style: const TextStyle(fontSize: 18, color: Colors.grey),
+                ),
+                const SizedBox(height: 48),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildChoiceCard(
+                      context: builderContext, // Use builderContext
+                      imagePath: 'assets/doctors.png',
+                      label: 'im_a_clinic'.tr(),
+                      onTap: () => Navigator.pushAndRemoveUntil(
+                        builderContext, // Use builderContext
+                        MaterialPageRoute(
+                          builder: (_) => const ClinicOnboardingPages(),
+                        ),
+                        (route) => false,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    _buildChoiceCard(
+                      context: builderContext, // Use builderContext
+                      imagePath: 'assets/family.png',
+                      label: 'im_a_user'.tr(),
+                      onTap: () => Navigator.pushReplacement(
+                        builderContext, // Use builderContext
+                        MaterialPageRoute(
+                          builder: (_) => const UserOnboardingPages(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 }
 
 Widget _buildChoiceCard({
@@ -101,8 +111,9 @@ Widget _buildChoiceCard({
         child: Column(
           children: [
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               child: Image.asset(
                 imagePath,
                 height: MediaQuery.of(context).size.width * 0.4,
@@ -114,7 +125,9 @@ Widget _buildChoiceCard({
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),

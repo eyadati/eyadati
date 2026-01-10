@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   final supabase = Supabase.instance.client;
@@ -22,9 +23,9 @@ class NotificationService {
           'data': data ?? {},
         },
       );
-      print('✅ Notification sent: ${response.data}');
+      debugPrint('✅ Notification sent: ${response.data}');
     } catch (e) {
-      print('❌ Error sending notification: $e');
+      debugPrint('❌ Error sending notification: $e');
     }
   }
 }

@@ -35,7 +35,7 @@ class _SubscribeScreenState extends State<SubscribeScreen> {
         ),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $AnonKey',
+          'Authorization': 'Bearer $anonKey',
         },
       );
 
@@ -98,9 +98,9 @@ class _SubscribeScreenState extends State<SubscribeScreen> {
           children: [
             Text(
               'choose_your_plan'.tr(),
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
@@ -113,11 +113,7 @@ class _SubscribeScreenState extends State<SubscribeScreen> {
             _PricingCard(
               planName: 'basic'.tr(),
               price: '1000 DZD',
-              features: [
-                'feature_1'.tr(),
-                'feature_2'.tr(),
-                'feature_3'.tr(),
-              ],
+              features: ['feature_1'.tr(), 'feature_2'.tr(), 'feature_3'.tr()],
               onPressed: _startSubscription,
               isLoading: _isLoading,
               isRecommended: false,
@@ -189,8 +185,7 @@ class _PricingCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: isRecommended
-            ? BorderSide(
-                color: Theme.of(context).colorScheme.primary, width: 2)
+            ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
             : BorderSide.none,
       ),
       child: Padding(
@@ -200,17 +195,17 @@ class _PricingCard extends StatelessWidget {
           children: [
             Text(
               planName,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Text(
               price,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             Text(
               'per_month'.tr(),
@@ -228,7 +223,8 @@ class _PricingCard extends StatelessWidget {
               ),
               child: isLoading
                   ? CircularProgressIndicator(
-                      color: Theme.of(context).colorScheme.onPrimary)
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    )
                   : Text('subscribe'.tr()),
             ),
           ],

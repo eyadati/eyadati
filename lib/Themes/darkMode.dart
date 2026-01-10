@@ -1,117 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Simplified color palette for Dark Mode
-const Color _darkPrimaryColor = Color(0xFF0A84FF); // A vibrant blue for dark mode
-const Color _darkOnPrimaryColor = Colors.white;
-const Color _darkSecondaryColor = Color(0xFF1C1C1E); // Dark grey for secondary elements
-const Color _darkOnSecondaryColor = Colors.white;
-const Color _darkBackgroundColor = Colors.black;
-const Color _darkSurfaceColor = Color(0xFF121212); // A slightly lighter black for surfaces
-const Color _darkOnSurfaceColor = Colors.white;
-const Color _darkErrorColor = Color(0xFFFF453A);
-const Color _darkOnErrorColor = Colors.white;
-
 ThemeData darkMode = ThemeData(
   brightness: Brightness.dark,
-  colorScheme: const ColorScheme(
-    brightness: Brightness.dark,
-    primary: _darkPrimaryColor,
-    onPrimary: _darkOnPrimaryColor,
-    secondary: _darkSecondaryColor,
-    onSecondary: _darkOnSecondaryColor,
-    error: _darkErrorColor,
-    onError: _darkOnErrorColor,
-    background: _darkBackgroundColor,
-    onBackground: _darkOnSurfaceColor,
-    surface: _darkSurfaceColor,
-    onSurface: _darkOnSurfaceColor,
+  colorScheme: ColorScheme.dark(
+    // Professional clinic blue for interactive elements
+    primary: HSLColor.fromAHSL(1.0, 210, 0.75, 0.55).toColor(),
+    onPrimary: HSLColor.fromAHSL(1.0, 0, 0, 1.0).toColor(), // white
+    
+    // Secondary for less prominent actions
+    secondary: HSLColor.fromAHSL(1.0, 210, 0.60, 0.70).toColor(),
+    onSecondary: HSLColor.fromAHSL(1.0, 0, 0, 1.0).toColor(),
+    
+    // Error state
+    error: HSLColor.fromAHSL(1.0, 0, 0.8, 0.55).toColor(),
+    onError: HSLColor.fromAHSL(1.0, 0, 0, 1.0).toColor(),
+    
+    // Dark surface colors
+    surface: HSLColor.fromAHSL(1.0, 0, 0, 0.05).toColor(), // Very dark grey
+    onSurface: HSLColor.fromAHSL(1.0, 0, 0, 0.95).toColor(), // Almost white
   ),
-  scaffoldBackgroundColor: _darkBackgroundColor,
-
-  // Typography - Using Inter
-  textTheme: GoogleFonts.interTextTheme(
-    ThemeData.dark().textTheme.copyWith(
-          bodyLarge: const TextStyle(color: _darkOnSurfaceColor),
-          bodyMedium: const TextStyle(color: _darkOnSurfaceColor),
-          titleLarge: const TextStyle(fontWeight: FontWeight.w600, color: _darkOnSurfaceColor),
-          headlineSmall: const TextStyle(fontWeight: FontWeight.w500, color: _darkOnSurfaceColor),
-        ),
-  ),
-
-  // Inputs
-  inputDecorationTheme: InputDecorationTheme(
-    filled: true,
-    fillColor: _darkSurfaceColor,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    enabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: Colors.grey.shade800),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderSide: const BorderSide(color: _darkPrimaryColor, width: 2),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderSide: const BorderSide(color: _darkErrorColor),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    focusedErrorBorder: OutlineInputBorder(
-      borderSide: const BorderSide(color: _darkErrorColor, width: 2),
-      borderRadius: BorderRadius.circular(12),
-    ),
-  ),
-
-  // Buttons
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: _darkPrimaryColor,
-      foregroundColor: _darkOnPrimaryColor,
-      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      elevation: 0,
-    ),
-  ),
-
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: _darkPrimaryColor,
-      side: const BorderSide(color: _darkPrimaryColor),
-      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-    ),
-  ),
-
-  textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(
-      foregroundColor: _darkPrimaryColor,
-      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
-    ),
-  ),
-
-  // AppBar
+  
+  // App bar styling
   appBarTheme: AppBarTheme(
-    backgroundColor: _darkBackgroundColor,
-    foregroundColor: _darkOnSurfaceColor,
+    backgroundColor: HSLColor.fromAHSL(1.0, 0, 0, 0.05).toColor(),
+    foregroundColor: HSLColor.fromAHSL(1.0, 0, 0, 0.95).toColor(),
     elevation: 0,
-    centerTitle: true,
-    titleTextStyle: GoogleFonts.inter(
-      color: _darkOnSurfaceColor,
-      fontSize: 20,
-      fontWeight: FontWeight.w500,
-    ),
   ),
-
-  cardTheme: CardTheme(
-    color: _darkSurfaceColor,
-    surfaceTintColor: Colors.transparent,
-    elevation: 0,
+  
+  // Scaffold background
+  scaffoldBackgroundColor: HSLColor.fromAHSL(1.0, 0, 0, 0.02).toColor(),
+  
+  // Card styling
+  cardTheme: CardThemeData(
+    color: HSLColor.fromAHSL(1.0, 0, 0, 0.10).toColor(),
+    elevation: 1,
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: Colors.grey.shade800, width: 1),
     ),
-    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+  ),
+  
+  // Button styling
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: HSLColor.fromAHSL(1.0, 210, 0.75, 0.55).toColor(),
+      foregroundColor: HSLColor.fromAHSL(1.0, 0, 0, 1.0).toColor(),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+  ),
+  
+  // Input fields
+  inputDecorationTheme: InputDecorationTheme(
+    filled: true,
+    fillColor: HSLColor.fromAHSL(1.0, 0, 0, 0.10).toColor(),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: HSLColor.fromAHSL(1.0, 0, 0, 0.20).toColor(),
+      ),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: HSLColor.fromAHSL(1.0, 210, 0.75, 0.55).toColor(),
+        width: 2,
+      ),
+    ),
+  ),
+  
+  // Text styling
+  textTheme: GoogleFonts.interTextTheme(
+    ThemeData.dark().textTheme.copyWith(
+      bodyLarge: TextStyle(
+        color: HSLColor.fromAHSL(1.0, 0, 0, 0.80).toColor(),
+        height: 1.5,
+      ),
+      bodyMedium: TextStyle(
+        color: HSLColor.fromAHSL(1.0, 0, 0, 0.80).toColor(),
+        height: 1.5,
+      ),
+      titleLarge: TextStyle(
+        color: HSLColor.fromAHSL(1.0, 0, 0, 0.95).toColor(),
+        fontWeight: FontWeight.w600,
+      ),
+    ),
   ),
 );

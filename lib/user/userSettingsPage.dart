@@ -1,20 +1,22 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:eyadati/Themes/ThemeProvider.dart'; // Import ThemeProvider
 import 'package:eyadati/flow.dart';
 import 'package:eyadati/user/userEditProfile.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:settings_ui/settings_ui.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-class userSettingProvider extends ChangeNotifier {}
+class UserSettingProvider extends ChangeNotifier {}
 
 class UserSettings extends StatelessWidget {
   const UserSettings({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SettingsList(
+    return SafeArea(
+      child: SettingsList(
         sections: [
           SettingsSection(
             tiles: [
@@ -40,8 +42,13 @@ class UserSettings extends StatelessWidget {
               ),
 
               SettingsTile.switchTile(
-                onToggle: (_) {},
-                initialValue: true,
+                onToggle: (value) {
+                  Provider.of<ThemeProvider>(
+                    context,
+                    listen: false,
+                  ).toggleTheme();
+                },
+                initialValue: Provider.of<ThemeProvider>(context).isDarkMode,
                 title: Text("Dark mode".tr()),
                 leading: Icon(LucideIcons.moon),
               ),
@@ -54,7 +61,7 @@ class UserSettings extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (ctx) => FutureBuilder<Widget>(
-                        future: decidePage(),
+                        future: decidePage(context),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {

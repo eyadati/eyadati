@@ -37,7 +37,8 @@ class ClinicSearchProvider extends ChangeNotifier {
   String? get selectedCity => _selectedCity;
   String? get selectedSpecialty => _selectedSpecialty;
   String get searchQuery => _searchQuery;
-  Set<String> get favoriteClinics => _favoriteClinics; // New getter for favorite clinics
+  Set<String> get favoriteClinics =>
+      _favoriteClinics; // New getter for favorite clinics
 
   // Static data
   static const List<String> specialtiesList = [
@@ -144,7 +145,10 @@ class ClinicSearchProvider extends ChangeNotifier {
       final user = auth.currentUser;
       if (user == null) return;
 
-      final doc = await firestore.collection("users").doc(user.uid).get(GetOptions(source: Source.cache));
+      final doc = await firestore
+          .collection("users")
+          .doc(user.uid)
+          .get(GetOptions(source: Source.cache));
       _userCity = doc.data()?["city"]?.toString();
 
       if (_userCity != null) {
@@ -259,14 +263,18 @@ class ClinicSearchProvider extends ChangeNotifier {
     if (user == null) return;
 
     try {
-      final userFavoritesRef =
-          firestore.collection("users").doc(user.uid).collection("favorites");
+      final userFavoritesRef = firestore
+          .collection("users")
+          .doc(user.uid)
+          .collection("favorites");
 
       if (isFavorite) {
         await userFavoritesRef.doc(clinicUid).delete();
         _favoriteClinics.remove(clinicUid);
       } else {
-        await userFavoritesRef.doc(clinicUid).set({'addedAt': FieldValue.serverTimestamp()});
+        await userFavoritesRef.doc(clinicUid).set({
+          'addedAt': FieldValue.serverTimestamp(),
+        });
         _favoriteClinics.add(clinicUid);
       }
       notifyListeners();
@@ -320,7 +328,9 @@ class _ClinicBottomSheetContent extends StatelessWidget {
             return Column(
               children: [
                 _buildHeader(context, provider),
-                Expanded(child: _buildClinicList(provider, scrollController)),
+                Expanded(
+                  child: _buildClinicList(context, provider, scrollController),
+                ),
               ],
             );
           },
@@ -334,7 +344,10 @@ class _ClinicBottomSheetContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Theme.of(context).colorScheme.outline, width: 1),
+          bottom: BorderSide(
+            color: Theme.of(context).colorScheme.outline,
+            width: 1,
+          ),
         ),
       ),
       child: Row(
@@ -361,9 +374,15 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                         label: Text(
                           provider.selectedSpecialty!.tr(),
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onPrimaryContainer,
+                          ),
                         ),
-                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
                         onDeleted: () => provider.applyFilters(specialty: null),
                       ),
                     ),
@@ -371,8 +390,12 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                       provider.selectedCity != provider.userCity)
                     Chip(
                       label: Text(provider.selectedCity!),
-                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                      labelStyle: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer,
+                      labelStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
                       onDeleted: () => provider.applyFilters(city: null),
                     ),
                 ],
@@ -385,6 +408,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
   }
 
   Widget _buildClinicList(
+    BuildContext context,
     ClinicSearchProvider provider,
     ScrollController scrollController,
   ) {
@@ -397,9 +421,16 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
+            Icon(
+              LucideIcons.alertTriangle,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 16),
-            Text(provider.error!, style: TextStyle(color: Theme.of(context).colorScheme.onError)),
+            Text(
+              provider.error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+            ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => provider.fetchClinics(),
@@ -418,11 +449,18 @@ class _ClinicBottomSheetContent extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.searchOff, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Icon(
+              LucideIcons.search,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 16),
             Text(
               "No clinics found".tr(),
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 16),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -569,7 +607,9 @@ class _ClinicCard extends StatelessWidget {
             leading: CircleAvatar(
               radius: 45,
               backgroundImage: AssetImage(_getAvatarPath(clinic)),
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withAlpha((255 * 0.1).round()),
             ),
             title: Text(
               clinic["clinicName"] ?? "Unnamed Clinic".tr(),
@@ -577,11 +617,15 @@ class _ClinicCard extends StatelessWidget {
             ),
             trailing: Consumer<ClinicSearchProvider>(
               builder: (context, provider, child) {
-                final isFavorite = provider.favoriteClinics.contains(clinic['id']);
+                final isFavorite = provider.favoriteClinics.contains(
+                  clinic['id'],
+                );
                 return IconButton(
                   icon: Icon(
                     LucideIcons.heart,
-                    color: isFavorite ? Theme.of(context).colorScheme.error : null,
+                    color: isFavorite
+                        ? Theme.of(context).colorScheme.error
+                        : null,
                   ),
                   onPressed: () {
                     provider.toggleFavorite(clinic['id'], isFavorite);
@@ -597,7 +641,10 @@ class _ClinicCard extends StatelessWidget {
                 children: [
                   Text(
                     clinic["specialty"] ?? "General".tr(),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 15),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 15,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Row(
@@ -613,7 +660,9 @@ class _ClinicCard extends StatelessWidget {
                           clinic["address"] ?? clinic["city"] ?? "",
                           style: TextStyle(
                             fontSize: 15,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -646,11 +695,18 @@ class _ClinicCard extends StatelessWidget {
               },
               titleAlignment: ListTileTitleAlignment.center,
               title: Center(
-                child: Text("book_appointment".tr(),
-                  style: TextStyle(fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onPrimary),
+                child: Text(
+                  "book_appointment".tr(),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
               ),
-              trailing: Icon(LucideIcons.chevronRight, color: Theme.of(context).colorScheme.onPrimary),
+              trailing: Icon(
+                LucideIcons.chevronRight,
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
             ),
           ),
         ],

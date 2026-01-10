@@ -121,7 +121,10 @@ class UserEditProfileProvider extends ChangeNotifier {
     final user = auth.currentUser;
     if (user == null) throw Exception('no_user_found'.tr());
 
-    final doc = await firestore.collection('users').doc(user.uid).get(GetOptions(source: Source.cache));
+    final doc = await firestore
+        .collection('users')
+        .doc(user.uid)
+        .get(GetOptions(source: Source.cache));
     if (!doc.exists) throw Exception('user_document_not_found'.tr());
 
     final data = doc.data()!;
@@ -180,6 +183,11 @@ class UserEditProfileProvider extends ChangeNotifier {
       isSaving = false;
       notifyListeners();
     }
+  }
+
+  void selectCity(String? city) {
+    selectedCity = city;
+    notifyListeners();
   }
 
   // Validation methods
@@ -291,7 +299,9 @@ class UserEditProfileView extends StatelessWidget {
                     if (provider.error != null) ...[
                       Text(
                         provider.error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -341,7 +351,11 @@ class UserEditProfileView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.alertTriangle, size: 64, color: Theme.of(context).colorScheme.error),
+          Icon(
+            LucideIcons.alertTriangle,
+            size: 64,
+            color: Theme.of(context).colorScheme.error,
+          ),
           const SizedBox(height: 16),
           Text(
             provider.error!,
@@ -385,7 +399,6 @@ class UserEditProfileView extends StatelessWidget {
         helperText: helperText,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       validator: validator,
     );
@@ -402,15 +415,13 @@ class UserEditProfileView extends StatelessWidget {
         prefixIcon: const Icon(LucideIcons.mapPin),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        
       ),
       hint: Text('select_city'.tr()),
       items: provider.algerianCities.map((city) {
         return DropdownMenuItem(value: city, child: Text(city));
       }).toList(),
       onChanged: (value) {
-        provider.selectedCity = value;
-        provider.notifyListeners();
+        provider.selectCity(value);
       },
       validator: (value) => value == null ? 'city_required'.tr() : null,
     );

@@ -20,7 +20,6 @@
     "Dark mode": "Dark mode",
     "log out": "Log out",
     "Something went wrong": "Something went wrong",
-    "Please select a city": "Please select a city",
     "user_registration": "User Registration",
     "full_name": "Full Name",
     "email": "Email",
@@ -201,5 +200,8 @@
     "feature_4": "Advanced features",
     "vip": "VIP",
     "feature_5": "Priority support",
-    "per_month": "per month"
+    "per_month": "per month",
+    "add_to_calendar": "Add to my calendar",
+    "QR Code": "QR Code",
+    "scan_qr_code": "Scan QR Code"
 }

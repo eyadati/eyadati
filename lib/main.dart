@@ -32,7 +32,7 @@ void main() async {
       persistenceEnabled: true,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
-    
+
     runApp(
       MultiProvider(
         providers: [
@@ -62,7 +62,11 @@ Widget _buildErrorApp(String error) {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(LucideIcons.alertTriangle, size: 80, color: Colors.red),
+              const Icon(
+                LucideIcons.alertTriangle,
+                size: 80,
+                color: Colors.red,
+              ),
               const SizedBox(height: 16),
               Text(
                 'initialization_error'.tr(),
@@ -103,7 +107,7 @@ class _EyadatiAppState extends State<EyadatiApp> {
   Future<Widget> _initializeAndDecide() async {
     try {
       // Use the optimized decidePage that checks role first
-      final Widget homePage = await decidePage();
+      final Widget homePage = await decidePage(context);
 
       // Initialize data caching ONLY for the relevant role
       final user = FirebaseAuth.instance.currentUser;
@@ -115,7 +119,8 @@ class _EyadatiAppState extends State<EyadatiApp> {
       return homePage;
     } catch (e) {
       debugPrint("Initialization error: $e");
-      return intro(); // Fallback to intro on error
+      if (!mounted) return const SizedBox.shrink();
+      return intro(context); // Fallback to intro on error
     }
   }
 

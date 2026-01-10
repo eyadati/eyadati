@@ -66,7 +66,7 @@ serve(async (req) => {
     console.error('Error sending notification:', error)
     
     // Handle invalid token
-    if (error.code === 'messaging/invalid-registration-token') {
+    if (error === 'messaging/invalid-registration-token') {
       return new Response(JSON.stringify({ error: 'Invalid FCM token' }), {
         status: 410,
         headers

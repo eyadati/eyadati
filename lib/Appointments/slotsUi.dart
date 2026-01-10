@@ -1,10 +1,10 @@
-import 'package:eyadati/user/user_appointments.dart';
 import 'package:flutter/material.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:manage_calendar_events/manage_calendar_events.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 // ================ PROVIDER ================
@@ -27,6 +27,7 @@ class SlotsUiProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
   final FirebaseAuth auth;
   late final int duration;
+  final CalendarPlugin _calendarPlugin = CalendarPlugin();
 
   String _userName = '';
 
@@ -42,7 +43,10 @@ class SlotsUiProvider extends ChangeNotifier {
   Future<void> _loadUserName() async {
     final user = auth.currentUser;
     if (user != null) {
-      final userDoc = await firestore.collection('users').doc(user.uid).get(GetOptions(source: Source.cache));
+      final userDoc = await firestore
+          .collection('users')
+          .doc(user.uid)
+          .get(GetOptions(source: Source.cache));
       if (userDoc.exists) {
         _userName = userDoc.data()?['name'] ?? '';
         notifyListeners();
@@ -88,6 +92,24 @@ class SlotsUiProvider extends ChangeNotifier {
   /// Updates calendar focus day
   void updateFocusedDay(DateTime day) {
     focusedDay = day;
+    notifyListeners();
+  }
+
+  Future<void> nextWeek(BuildContext context) async {
+    selectedDate = selectedDate.add(const Duration(days: 7));
+    focusedDay = focusedDay.add(const Duration(days: 7));
+    selectedSlot = null;
+    allSlots = [];
+    await _loadSlots();
+    notifyListeners();
+  }
+
+  Future<void> previousWeek(BuildContext context) async {
+    selectedDate = selectedDate.subtract(const Duration(days: 7));
+    focusedDay = focusedDay.subtract(const Duration(days: 7));
+    selectedSlot = null;
+    allSlots = [];
+    await _loadSlots();
     notifyListeners();
   }
 
@@ -244,47 +266,91 @@ class SlotsUiProvider extends ChangeNotifier {
   Future<bool> confirmBooking(BuildContext context) async {
     if (selectedSlot == null) return false;
 
+    bool addToCalendar = true; // Default to true
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('confirm_booking'.tr()),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildConfirmationRow(
-                context, 'clinic'.tr(), clinic['clinicName']),
-            const SizedBox(height: 8),
-            _buildConfirmationRow(
-                context, 'specialty'.tr(), clinic['specialty']),
-            const SizedBox(height: 8),
-            _buildConfirmationRow(context, 'date'.tr(),
-                DateFormat('yyyy-MM-dd').format(selectedDate)),
-            const SizedBox(height: 8),
-            _buildConfirmationRow(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('confirm_booking'.tr()),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildConfirmationRow(
+                  context, 'clinic'.tr(), clinic['clinicName']),
+              const SizedBox(height: 8),
+              _buildConfirmationRow(
+                context,
+                'specialty'.tr(),
+                clinic['specialty'],
+              ),
+              const SizedBox(height: 8),
+              _buildConfirmationRow(
+                context,
+                'date'.tr(),
+                DateFormat('yyyy-MM-dd').format(selectedDate),
+              ),
+              const SizedBox(height: 8),
+              _buildConfirmationRow(
                 context,
                 'time'.tr(),
-                DateFormat('HH:mm').format(selectedSlot!)),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 16),
-            _buildConfirmationRow(context, 'user'.tr(), _userName),
+                DateFormat('HH:mm').format(selectedSlot!),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              _buildConfirmationRow(context, 'user'.tr(), _userName),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                title: Text('add_to_calendar'.tr()),
+                value: addToCalendar,
+                onChanged: (newValue) {
+                  setState(() {
+                    addToCalendar = newValue!;
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('cancel'.tr()),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (addToCalendar) {
+                  _addAppointmentToCalendar();
+                }
+                Navigator.of(context).pop(true);
+              },
+              child: Text('confirm'.tr()),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('cancel'.tr()),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('confirm'.tr()),
-          ),
-        ],
       ),
     );
 
+    if (!context.mounted) return false;
+
     return confirmed ?? false;
+  }
+
+  void _addAppointmentToCalendar() {
+    if (selectedSlot == null) return;
+
+    final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
+
+    final CalendarEvent event = CalendarEvent(
+      title: 'Appointment at ${clinic['clinicName']}',
+      startDate: selectedSlot!,
+      endDate: selectedSlot!.add(Duration(minutes: slotInfo.duration)),
+      location: clinic['address'],
+    );
+
+    _calendarPlugin.createEvent(event: event, calendarId: '1'); // calendarId might need to be dynamic
   }
 
   Future<void> bookSelectedSlot(BuildContext context) async {
@@ -353,9 +419,9 @@ class SlotsUiProvider extends ChangeNotifier {
         await _loadSlots();
         notifyListeners();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('booking_success'.tr())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('booking_success'.tr())));
 
         // Pop with a success result
         Navigator.of(context).pop(true);
@@ -370,7 +436,10 @@ class SlotsUiProvider extends ChangeNotifier {
   }
 
   Widget _buildConfirmationRow(
-      BuildContext context, String label, String value) {
+    BuildContext context,
+    String label,
+    String value,
+  ) {
     return RichText(
       text: TextSpan(
         style: Theme.of(context).textTheme.bodyMedium,
@@ -442,7 +511,9 @@ class _SlotsDialog extends StatelessWidget {
               onPressed: () => provider.bookSelectedSlot(context),
               child: Text(
                 "book_appointment".tr(),
-                style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
               ),
             ),
           ),
@@ -548,31 +619,55 @@ class _DatePickerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<SlotsUiProvider>();
 
-    return SizedBox(
-      height: 140,
-      child: TableCalendar(
-        selectedDayPredicate: (day) => isSameDay(provider.selectedDate, day),
-        onDaySelected: (selectedDay, focusedDay) {
-          if (!isSameDay(provider.selectedDate, selectedDay)) {
-            provider.changeDate(context, selectedDay);
-          }
-        },
-        headerStyle: HeaderStyle(
-          titleCentered: true,
-          formatButtonVisible: false,
-        ),
-        calendarStyle: CalendarStyle(
-          markersMaxCount: 5,
-          selectedDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            shape: BoxShape.circle,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios),
+                onPressed: () => provider.previousWeek(context),
+              ),
+              Text(
+                DateFormat('MMM d, yyyy').format(provider.focusedDay),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward_ios),
+                onPressed: () => provider.nextWeek(context),
+              ),
+            ],
           ),
         ),
-        focusedDay: provider.focusedDay,
-        firstDay: DateTime.now(),
-        lastDay: DateTime.now().add(Duration(days: 14)),
-        calendarFormat: CalendarFormat.week,
-      ),
+        SizedBox(
+          height: 90, // Adjusted height to accommodate new header and calendar
+          child: TableCalendar(
+            selectedDayPredicate: (day) =>
+                isSameDay(provider.selectedDate, day),
+            onDaySelected: (selectedDay, focusedDay) {
+              if (!isSameDay(provider.selectedDate, selectedDay)) {
+                provider.changeDate(context, selectedDay);
+              }
+            },
+            headerVisible: false, // Hide default header as we have a custom one
+            calendarStyle: CalendarStyle(
+              markersMaxCount: 5,
+              selectedDecoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            focusedDay: provider.focusedDay,
+            firstDay: DateTime.now(),
+            lastDay: DateTime.now().add(
+              Duration(days: 90),
+            ), // Extend last day to allow further navigation
+            calendarFormat: CalendarFormat.week,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -623,11 +718,11 @@ class _SlotsGrid extends StatelessWidget {
 }
 
 class _SlotTile extends StatelessWidget {
-  SlotInfo slotInfo;
+  final SlotInfo slotInfo;
   final bool isSelected;
   final VoidCallback onTap;
 
-  _SlotTile({
+  const _SlotTile({
     required this.slotInfo,
     required this.isSelected,
     required this.onTap,
@@ -636,9 +731,6 @@ class _SlotTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeString = DateFormat('HH:mm').format(slotInfo.time);
-    final slotEndString = DateFormat(
-      'HH:mm',
-    ).format(slotInfo.time.add(Duration(minutes: slotInfo.duration)));
     final isFull = !slotInfo.isAvailable;
 
     return GestureDetector(
@@ -647,13 +739,13 @@ class _SlotTile extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border.all(
             width: 1,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.onSurface.withAlpha((255 * 0.5).round()),
           ),
           color: isSelected
               ? Theme.of(context).colorScheme.primary
               : isFull
-                  ? Theme.of(context).colorScheme.surfaceVariant
-                  : Theme.of(context).colorScheme.surface,
+              ? Theme.of(context).colorScheme.surfaceContainerHighest
+              : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -666,8 +758,8 @@ class _SlotTile extends StatelessWidget {
                 color: isFull
                     ? Theme.of(context).colorScheme.onSurfaceVariant
                     : isSelected
-                        ? Theme.of(context).colorScheme.onPrimary
-                        : Theme.of(context).colorScheme.onSurface,
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurface,
                 fontSize: 12,
               ),
             ),

@@ -18,14 +18,8 @@ class UserFirestore {
     });
   }
 
-  Future<void> addToFavorites(String ClinicUid) async {
+  Future<void> addToFavorites(String clinicUid) async {
     final user = FirebaseAuth.instance;
-    final firestore = FirebaseFirestore.instance;
-    final userCol = await firestore
-        .collection("users")
-        .doc(user.currentUser!.uid)
-        .collection('favorites')
-        .get();
 
     if (user.currentUser != null) {}
   }
@@ -58,9 +52,10 @@ class UserFirestore {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Yes'.tr(),
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(
+              'Yes'.tr(),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -105,6 +100,7 @@ class UserFirestore {
 
       await batch.commit();
     } catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error: $e')));
