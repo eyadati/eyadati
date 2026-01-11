@@ -11,10 +11,9 @@ class ClinicFirestore {
   final collection = FirebaseFirestore.instance.collection("clinics");
   Future<void> addClinic(
     String name, //1
-    double? long,
-    double? lat,
+    String mapsLink,
     String clinicName, //1
-    int avatar, //5
+    String picUrl, //5
     String city, //2
     List workingDays, //3
     String phone, //1
@@ -35,14 +34,13 @@ class ClinicFirestore {
         "name": name,
         "clinicName": clinicName,
         "FCM": fcm,
-        "long": long,
-        "lat": lat,
+        "mapsLink": mapsLink,
         "workingDays": workingDays,
         "freeTrial": 15,
         "phone": phone,
         "address": adress,
         "city": city,
-        'avatar': avatar,
+        'picUrl': picUrl,
         "openingAt": openingAt,
         'closingAt': closingAt,
         'breakStart': breakStart,
@@ -61,7 +59,7 @@ class ClinicFirestore {
     String name, //1
     String clinicName, //1
     String mapsLink, //2
-    int avatar, //5
+    String picUrl, //5
     String city, //2
     List workingDays, //3
     String phone, //1
@@ -88,7 +86,7 @@ class ClinicFirestore {
         "phone": phone,
         "address": adress,
         "city": city,
-        'avatar': avatar,
+        'picUrl': picUrl,
         "openingAt": openingAt,
         'closingAt': closingAt,
         'breakStart': breakStart,

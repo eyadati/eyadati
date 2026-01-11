@@ -437,28 +437,47 @@ Widget _buildAvatarPicker(
   ClinicOnboardingProvider provider,
 ) {
   return SizedBox(
-    height: 200,
+    height: 100,
     width: MediaQuery.of(context).size.width * 0.9,
     child: GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 3,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
-      itemCount: 10,
+      itemCount: 3,
       itemBuilder: (cntx, i) {
-        return GestureDetector(
-          onTap: () {
-            provider.selectAvatar(i);
-          },
-          child: CircleAvatar(
-            radius: 11,
-            backgroundColor: provider.avatarNumber == i
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-            child: Image.asset("assets/avatars/${i + 1}.png"),
-          ),
-        );
+        if (i < 2) {
+          // The first two are default avatars
+          return GestureDetector(
+            onTap: () {
+              provider.selectAvatar(i);
+            },
+            child: CircleAvatar(
+              radius: 11,
+              backgroundColor: provider.avatarNumber == i
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+              child: Image.asset("assets/avatars/${i + 1}.png"),
+            ),
+          );
+        } else {
+          // The third one is for uploading
+          return GestureDetector(
+            onTap: () {
+              provider.pickImage();
+            },
+            child: CircleAvatar(
+              radius: 11,
+              backgroundColor: provider.pickedImage != null
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+              child: provider.pickedImage == null
+                  ? const Icon(Icons.add_a_photo, size: 30)
+                  : Image.file(provider.pickedImage!),
+            ),
+          );
+        }
       },
     ),
   );

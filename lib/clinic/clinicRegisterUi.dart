@@ -1,12 +1,12 @@
+import 'dart:io';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/clinic/clinicAuth.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_url_extractor/url_extractor.dart';
-// Added missing import
-// Added missing import
 import 'package:eyadati/utils/network_helper.dart';
-// Import the new widgets file
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
@@ -22,11 +22,12 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final clinicNameController = TextEditingController();
-
   final addressController = TextEditingController();
   final phoneController = TextEditingController();
 
   // State
+  File? pickedImage;
+  String? picUrl;
   double? extractedLatitude;
   int avatarNumber = 1;
   double? extractedLongitude;
@@ -43,31 +44,31 @@ class ClinicOnboardingProvider extends ChangeNotifier {
 
   // Specialties as getter for locale updates
   List<String> get specialties => [
-    'General Medicine'.tr(),
-    'Pediatrics'.tr(),
-    'Gynecology'.tr(),
-    'Dermatology'.tr(),
-    'Dentistry'.tr(),
-    'Orthopedics'.tr(),
-    'Ophthalmology'.tr(),
-    'ENT (Ear, Nose, Throat)'.tr(),
-    'Cardiology'.tr(),
-    'Psychiatry'.tr(),
-    'Psychology'.tr(),
-    'Physiotherapy'.tr(),
-    'Nutrition'.tr(),
-    'Neurology'.tr(),
-    'Gastroenterology'.tr(),
-    'Urology'.tr(),
-    'Pulmonology'.tr(),
-    'Endocrinology'.tr(),
-    'Rheumatology'.tr(),
-    'Oncology'.tr(),
-    'Surgery'.tr(),
-    'Radiology'.tr(),
-    'Laboratory Services'.tr(),
-    'Nephrology'.tr(),
-  ];
+        'General Medicine'.tr(),
+        'Pediatrics'.tr(),
+        'Gynecology'.tr(),
+        'Dermatology'.tr(),
+        'Dentistry'.tr(),
+        'Orthopedics'.tr(),
+        'Ophthalmology'.tr(),
+        'ENT (Ear, Nose, Throat)'.tr(),
+        'Cardiology'.tr(),
+        'Psychiatry'.tr(),
+        'Psychology'.tr(),
+        'Physiotherapy'.tr(),
+        'Nutrition'.tr(),
+        'Neurology'.tr(),
+        'Gastroenterology'.tr(),
+        'Urology'.tr(),
+        'Pulmonology'.tr(),
+        'Endocrinology'.tr(),
+        'Rheumatology'.tr(),
+        'Oncology'.tr(),
+        'Surgery'.tr(),
+        'Radiology'.tr(),
+        'Laboratory Services'.tr(),
+        'Nephrology'.tr(),
+      ];
   final List<String> algerianCities = [
     'Algiers',
     'Oran',
@@ -143,8 +144,19 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   // ──────────────────────────────────────────────────────────────────────────
   // Public methods
   // ──────────────────────────────────────────────────────────────────────────
+  Future<void> pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      pickedImage = File(image.path);
+      avatarNumber = -1; // Deselect default avatars
+      notifyListeners();
+    }
+  }
+
   void selectAvatar(int i) {
     avatarNumber = i;
+    pickedImage = null; // Deselect picked image
     notifyListeners();
   }
 
@@ -230,6 +242,24 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   // ──────────────────────────────────────────────────────────────────────────
   // Submission with safety checks - Returns success/failure
   // ──────────────────────────────────────────────────────────────────────────
+  Future<String?> _uploadImage() async {
+    if (pickedImage == null) return null;
+
+    final file = pickedImage!;
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
+    try {
+      await Supabase.instance.client.storage
+          .from('eyadati')
+          .upload(fileName, file);
+      final urlResponse = Supabase.instance.client.storage
+          .from('eyadati')
+          .getPublicUrl(fileName);
+      return urlResponse;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<bool> validateAndSubmit(BuildContext context) async {
     if (!formKey.currentState!.validate()) {
       if (!context.mounted) return false;
@@ -238,13 +268,11 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       );
       return false;
     }
-
     if (!await NetworkHelper.checkInternetConnectivity(context)) {
       isSubmitting = false; // Ensure submitting state is reset
       notifyListeners();
       return false;
     }
-
     // Validate time logic
     if (openingMinutes == null || closingMinutes == null) {
       if (!context.mounted) return false;
@@ -253,7 +281,6 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       );
       return false;
     }
-
     if (_selectedCity == null) {
       if (!context.mounted) return false;
       ScaffoldMessenger.of(
@@ -261,7 +288,6 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       ).showSnackBar(SnackBar(content: Text("Please select a city".tr())));
       return false;
     }
-
     if (selectedSpecialty == null) {
       if (!context.mounted) return false;
       ScaffoldMessenger.of(
@@ -269,8 +295,21 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       ).showSnackBar(SnackBar(content: Text("Please select a specialty".tr())));
       return false;
     }
-
     try {
+      isSubmitting = true;
+      notifyListeners();
+
+      String? imageUrl;
+      if (pickedImage != null) {
+        imageUrl = await _uploadImage();
+      } else {
+        imageUrl = 'assets/avatars/${avatarNumber + 1}.png';
+      }
+
+      if (imageUrl == null) {
+        throw Exception("Image upload failed or no image selected.");
+      }
+
       await Clinicauth().clinicAccount(
         emailController.text.trim(),
         passwordController.text,
@@ -279,10 +318,9 @@ class ClinicOnboardingProvider extends ChangeNotifier {
 
       await ClinicFirestore().addClinic(
         nameController.text.trim(),
-        extractedLongitude,
-        extractedLatitude,
+        mapsLinkController.text.trim(),
         clinicNameController.text.trim(),
-        avatarNumber + 1,
+        imageUrl,
         _selectedCity!,
         workingDays,
         phoneController.text.trim(),
