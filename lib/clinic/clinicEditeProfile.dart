@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:eyadati/utils/network_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ================ PROVIDER ================
 
@@ -37,114 +40,49 @@ class ClinicEditProfileProvider extends ChangeNotifier {
   int? closingMinutes;
   int? breakStartMinutes;
   int? breakEndMinutes;
-  int avatarNumber = 1;
-  XFile? profileImage;
+  File? pickedImage;
+  String? picUrl;
   bool isLoading = true;
   bool isSaving = false;
   String? error;
 
   // Dropdown data
   final List<String> algerianCities = [
-    'Algiers',
-    'Oran',
-    'Constantine',
-    'Annaba',
-    'Blida',
-    'Batna',
-    'Djelfa',
-    'Sétif',
-    'Sidi Bel Abbès',
-    'Biskra',
-    'Tébessa',
-    'Skikda',
-    'Tiaret',
-    'Béjaïa',
-    'Tlemcen',
-    'Béchar',
-    'Mostaganem',
-    'Bordj Bou Arreridj',
-    'Chlef',
-    'Souk Ahras',
-    'El Eulma',
-    'Médéa',
-    'Tizi Ouzou',
-    'Jijel',
-    'Laghouat',
-    'El Oued',
-    'Ouargla',
-    'M\'Sila',
-    'Relizane',
-    'Saïda',
-    'Bou Saâda',
-    'Guelma',
-    'Aïn Beïda',
-    'Maghnia',
-    'Mascara',
-    'Khenchela',
-    'Barika',
-    'Messaad',
-    'Aflou',
-    'Aïn Oussara',
-    'Adrar',
-    'Aïn Defla',
-    'Aïn Fakroun',
-    'Aïn Oulmene',
-    'Aïn M\'lila',
-    'Aïn Sefra',
-    'Aïn Témouchent',
-    'Aïn Touta',
-    'Akbou',
-    'Azzaba',
-    'Berrouaghia',
-    'Bir el-Ater',
-    'Boufarik',
-    'Bouira',
-    'Chelghoum Laid',
-    'Cheria',
-    'Chettia',
-    'El Bayadh',
-    'El Guerrara',
-    'El-Khroub',
-    'Frenda',
-    'Ferdjioua',
-    'Ghardaïa',
-    'Hassi Bahbah',
-    'Khemis Miliana',
-    'Ksar Chellala',
-    'Ksar Boukhari',
-    'Lakhdaria',
-    'Larbaâ',
+    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa', 'Sétif',
+    'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret', 'Béjaïa', 'Tlemcen',
+    'Béchar', 'Mostaganem', 'Bordj Bou Arreridj', 'Chlef', 'Souk Ahras', 'El Eulma',
+    'Médéa', 'Tizi Ouzou', 'Jijel', 'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila',
+    'Relizane', 'Saïda', 'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara',
+    'Khenchela', 'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
+
+    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
+    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
+    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh', 'El Guerrara',
+    'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa', 'Hassi Bahbah', 'Khemis Miliana',
+    'Ksar Chellala', 'Ksar Boukhari', 'Lakhdaria', 'Larbaâ',
   ];
 
   final List<String> specialties = [
-    'General Medicine'.tr(),
-    'Pediatrics'.tr(),
-    'Gynecology'.tr(),
-    'Dermatology'.tr(),
-    'Dentistry'.tr(),
-    'Orthopedics'.tr(),
-    'Ophthalmology'.tr(),
-    'ENT (Ear, Nose, Throat)'.tr(),
-    'Cardiology'.tr(),
-    'Psychiatry'.tr(),
-    'Psychology'.tr(),
-    'Physiotherapy'.tr(),
-    'Nutrition'.tr(),
-    'Neurology'.tr(),
-    'Gastroenterology'.tr(),
-    'Urology'.tr(),
-    'Pulmonology'.tr(),
-    'Endocrinology'.tr(),
-    'Rheumatology'.tr(),
-    'Oncology'.tr(),
-    'Surgery'.tr(),
-    'Radiology'.tr(),
-    'Laboratory Services'.tr(),
-    'Nephrology'.tr(),
+    'General Medicine'.tr(), 'Pediatrics'.tr(), 'Gynecology'.tr(), 'Dermatology'.tr(),
+    'Dentistry'.tr(), 'Orthopedics'.tr(), 'Ophthalmology'.tr(), 'ENT (Ear, Nose, Throat)'.tr(),
+    'Cardiology'.tr(), 'Psychiatry'.tr(), 'Psychology'.tr(), 'Physiotherapy'.tr(),
+    'Nutrition'.tr(), 'Neurology'.tr(), 'Gastroenterology'.tr(), 'Urology'.tr(),
+    'Pulmonology'.tr(), 'Endocrinology'.tr(), 'Rheumatology'.tr(), 'Oncology'.tr(),
+    'Surgery'.tr(), 'Radiology'.tr(), 'Laboratory Services'.tr(), 'Nephrology'.tr(),
   ];
+
   void onSpecialtyChange(String? value) {
     specialtyController.text = value ?? '';
     notifyListeners();
+  }
+
+  Future<void> pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      pickedImage = File(image.path);
+      notifyListeners();
+    }
   }
 
   Future<void> _loadClinicData() async {
@@ -157,26 +95,21 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         return;
       }
 
-      final doc = await firestore
-          .collection("clinics")
-          .doc(user.uid)
-          .get(GetOptions(source: Source.cache));
+      final doc = await firestore.collection("clinics").doc(user.uid).get(GetOptions(source: Source.cache));
       if (doc.exists) {
         final data = doc.data()!;
         nameController.text = data['name'] ?? '';
         emailController.text = data['email'] ?? '';
         clinicNameController.text = data['clinicName'] ?? '';
         specialtyController.text = data['specialty'] ?? '';
-        durationController.text = data['staff']?.toString() ?? '';
+        durationController.text = data['Duration']?.toString() ?? '';
         addressController.text = data['address'] ?? '';
         phoneController.text = data['phone'] ?? '';
         mapsLinkController.text = data['mapsLink'] ?? '';
+        picUrl = data['picUrl'];
 
         selectedCity = data['city'] != null
-            ? algerianCities.firstWhere(
-                (c) => c == data['city'],
-                orElse: () => algerianCities[0],
-              )
+            ? algerianCities.firstWhere((c) => c == data['city'], orElse: () => algerianCities[0])
             : null;
 
         workingDays = List<int>.from(data['workingDays'] ?? []);
@@ -184,13 +117,26 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         closingMinutes = data['closingAt'];
         breakStartMinutes = data['breakStart'];
         breakEndMinutes = data['breakEnd'];
-        avatarNumber = data['avatarNumber'] ?? 1;
       }
     } catch (e) {
       error = e.toString();
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<String?> _uploadImage() async {
+    if (pickedImage == null) return null;
+
+    final file = pickedImage!;
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
+    try {
+      await Supabase.instance.client.storage.from('eyadati').upload(fileName, file);
+      final urlResponse = Supabase.instance.client.storage.from('eyadati').getPublicUrl(fileName);
+      return urlResponse;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -216,11 +162,16 @@ class ClinicEditProfileProvider extends ChangeNotifier {
       final user = auth.currentUser;
       if (user == null) throw Exception("no user found".tr());
 
+      String? newPicUrl;
+      if (pickedImage != null) {
+        newPicUrl = await _uploadImage();
+      }
+
       await firestore.collection("clinics").doc(user.uid).update({
         "name": nameController.text.trim(),
         "clinicName": clinicNameController.text.trim(),
         "specialty": specialtyController.text,
-        "duration": int.tryParse(durationController.text) ?? 60,
+        "Duration": int.tryParse(durationController.text) ?? 60,
         "city": selectedCity,
         "address": addressController.text.trim(),
         "phone": phoneController.text.trim(),
@@ -230,15 +181,12 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         "closingAt": closingMinutes,
         "breakStart": breakStartMinutes,
         "breakEnd": breakEndMinutes,
-        "avatarNumber": avatarNumber,
+        "picUrl": newPicUrl ?? picUrl,
       });
-      if (!context.mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('profile updated success'.tr())));
       if (!context.mounted) return;
-
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('profile updated success'.tr())));
+      if (!context.mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
       error = e.toString();
@@ -274,11 +222,6 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         breakEndMinutes = minutes;
         break;
     }
-    notifyListeners();
-  }
-
-  void selectAvatar(int index) {
-    avatarNumber = index;
     notifyListeners();
   }
 
@@ -705,42 +648,24 @@ class _ClinicEditProfileContent extends StatelessWidget {
     ClinicEditProfileProvider provider,
   ) {
     return Center(
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: List.generate(12, (i) {
-          return GestureDetector(
-            onTap: () => provider.selectAvatar(i + 1),
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: provider.avatarNumber == i + 1
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(
-                          context,
-                        ).colorScheme.onSurfaceVariant.withAlpha((255 * 0.5).round()),
-                  width: 3,
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  'assets/avatars/${i + 1}.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    child: Icon(LucideIcons.personStanding),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
+      child: GestureDetector(
+        onTap: () {
+          provider.pickImage();
+        },
+        child: CircleAvatar(
+          radius: 60,
+          backgroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+          backgroundImage: provider.pickedImage != null
+              ? FileImage(provider.pickedImage!)
+              : (provider.picUrl != null && provider.picUrl!.startsWith('http')
+                  ? NetworkImage(provider.picUrl!)
+                  : (provider.picUrl != null
+                      ? AssetImage(provider.picUrl!)
+                      : null)) as ImageProvider?,
+          child: provider.pickedImage == null && provider.picUrl == null
+              ? const Icon(Icons.add_a_photo, size: 50)
+              : null,
+        ),
       ),
     );
   }

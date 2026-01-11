@@ -283,6 +283,16 @@ class _ClinicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<UserNavBarProvider>();
     final isFav = provider.favClinics.any((fav) => fav['uid'] == clinic['uid']);
+    final picUrl = clinic['picUrl'] as String?;
+
+    ImageProvider? backgroundImage;
+    if (picUrl != null) {
+      if (picUrl.startsWith('http')) {
+        backgroundImage = NetworkImage(picUrl);
+      } else {
+        backgroundImage = AssetImage(picUrl);
+      }
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -295,10 +305,13 @@ class _ClinicCard extends StatelessWidget {
                 contentPadding: const EdgeInsets.all(12),
                 leading: CircleAvatar(
                   radius: 45,
-                  backgroundImage: AssetImage(_getAvatarPath(clinic)),
+                  backgroundImage: backgroundImage,
                   backgroundColor: Theme.of(
                     context,
                   ).colorScheme.primary.withAlpha((255 * 0.1).round()),
+                  child: picUrl == null
+                      ? Icon(LucideIcons.home) // Placeholder icon
+                      : null,
                 ),
                 title: Text(
                   clinic["clinicName"] ?? "Unnamed Clinic".tr(),
@@ -406,9 +419,5 @@ class _ClinicCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _getAvatarPath(Map<String, dynamic> clinic) {
-    return 'assets/avatars/${clinic['avatar']}.png';
   }
 }

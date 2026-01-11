@@ -560,7 +560,15 @@ class _ClinicInfoCard extends StatelessWidget {
             SizedBox(height: 20),
             Center(
               child: CircleAvatar(
-                child: Image.asset("assets/avatars/${clinic["avatar"]}.png"),
+                radius: 45,
+                backgroundImage: (clinic['picUrl'] != null && clinic['picUrl'].startsWith('http'))
+                    ? NetworkImage(clinic['picUrl'])
+                    : (clinic['picUrl'] != null
+                        ? AssetImage(clinic['picUrl'])
+                        : null) as ImageProvider?,
+                child: clinic['picUrl'] == null
+                    ? const Icon(Icons.business) // Placeholder icon
+                    : null,
               ),
             ),
             SizedBox(height: 20),

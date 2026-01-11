@@ -252,6 +252,7 @@ class _AppointmentCard extends StatelessWidget {
     final clinicUid = appointment["clinicUid"] as String;
     final shopName = clinicData["name"] ?? "unknown_shop".tr();
     final address = clinicData["address"] ?? "unknown_address".tr();
+    final mapsLink = clinicData["mapsLink"] as String?;
 
     return Slidable(
       key: ValueKey(appointmentId),
@@ -295,19 +296,20 @@ class _AppointmentCard extends StatelessWidget {
                     _formatTime(slot),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  IconButton(
-                    onPressed: () async {
-                      await launchUrl(
-                        mode: LaunchMode.platformDefault,
-                        Uri.parse("https://maps.app.goo.gl/rJq6C7XsEqevUUNg9"),
-                      );
-                    },
-                    icon: const Icon(
-                      LucideIcons.mapPin,
-                      size: 40,
-                      color: Colors.green,
+                  if (mapsLink != null && mapsLink.isNotEmpty)
+                    IconButton(
+                      onPressed: () async {
+                        await launchUrl(
+                          mode: LaunchMode.platformDefault,
+                          Uri.parse(mapsLink),
+                        );
+                      },
+                      icon: const Icon(
+                        LucideIcons.mapPin,
+                        size: 40,
+                        color: Colors.green,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ],
