@@ -2,11 +2,12 @@ description = "adding features"
 prompt = """
 Execute these tasks in order:
 
-1.add calendar package that can make appointments saved in calendar events
-2.add a checkbox in the appointment confirmation dialogue that is checked by default that asks user to add the appointment to calendar if they confirm and the box is checked trigger a proper function that adds it
-3.add a scanner package that has to side one for clinc which generate a special QR code for them which can be accessed in clinic settings
-4.users will have a scanner icon in favorite page which can scan a clinic QR code and add them to favorite list
-5.run a review of the project and create file which will contains firebase rules that suits the project specially that i have permission issues when trying to add clincs to favorite
-
+1.change the avatar widget grid view to have 2 standard avatars and the third one will be an upload image widget in a shape of an avatar
+2.install needed packages for file picking and then create a supabase function using the bucket "eyadati"
+3.change clinic saving data so remove avatar and replace it with picUrl
+4.if clinic chooses a default avatar the url will stay the same so no need to upload it to supabase each time
+5.remove long and lat from clinic data saving and replace it with mapsLink that will contain google maps link generated using the extracted long and lat
+6.run flutter analyze but ignore test errors just detect errors from the previous tasks and solve them
+7.commit changes
 
 """

@@ -1,0 +1,28 @@
+**Patient (User) Flow:**
+
+1. Can you register a new user account? (Yes/No)
+2. Can you log in with the new account? (Yes/No)
+3. Does the app show clinics in your city by default? (Yes/No)
+4. Can you search for clinics by specialty? (Yes/No)
+5. Can you view the details of a clinic? (Yes/No)
+6. Can you see the available slots for a clinic? (Yes/No)
+7. Can you book an appointment? (Yes/No)
+8. Does the new appointment appear in your "Appointments" list? (Yes/No)
+9. Can you cancel an appointment? (Yes/No)
+10. Can you add a clinic to your favorites? (Yes/No)
+11. Can you remove a clinic from your favorites? (Yes/No)
+12. Does the Google Maps button appear on the appointment card if the clinic has a `mapsLink`? (Yes/No)
+13. Does the Google Maps button open the correct location? (Yes/No)
+14. Can you scan a clinic's QR code? (Yes/No)
+
+**Clinic Flow:**
+
+1. Can you register a new clinic account? (Yes/No)
+2. Can you log in with the new clinic account? (Yes/No)
+3. Can you edit your clinic profile? (Yes/No)
+4. Can you upload a custom avatar? (Yes/No)
+5. Can you select a default avatar? (Yes/No)
+6. Does the clinic's QR code page display a QR code? (Yes/No)
+7. Can you see appointments booked by users? (Yes/No)
+8. Can you cancel an appointment? (Yes/No)
+9. Are the working hours and days you set reflected in the available slots for patients? (Yes/No)

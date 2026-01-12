@@ -1,0 +1,22 @@
+**Patient (User) Features:**
+
+- User registration and login.
+- User profile editing.
+- Search for clinics by city and specialty.
+- View a list of clinics.
+- View clinic details.
+- Book appointments with clinics.
+- View upcoming appointments.
+- Cancel appointments.
+- Favorite clinics.
+- Scan a clinic's QR code to view their profile.
+
+**Clinic Features:**
+
+- Clinic registration and login.
+- Clinic profile editing (name, specialty, duration, city, address, working hours, etc.).
+- Custom avatar upload.
+- View their appointments.
+- View their schedule.
+- Cancel appointments.
+- Generate a QR code for their profile.
