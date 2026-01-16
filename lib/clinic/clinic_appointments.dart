@@ -130,9 +130,8 @@ class ClinicAppointmentProvider extends ChangeNotifier {
     if (appointmentData['FCM'] != null) {
       await NotificationService().sendDirectNotification(
         fcmToken: appointmentData['FCM'],
-        title: 'appointment cancelled'.tr(),
-        body: 'your appointment at ${appointmentData['date']} got cancelled'
-            .tr(),
+        title: 'appointment_cancelled'.tr(),
+        body: 'your_appointment_got_cancelled'.tr(),
       );
     }
   }
@@ -185,28 +184,10 @@ class _ClinicAppointmentsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.secondary,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.secondary,
-        title: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
-          future: context.read<ClinicAppointmentProvider>().getClinicData(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.done &&
-                snapshot.hasData) {
-              final clinicName = snapshot.data?.data()?['name'] ?? 'hello'.tr();
-              return Text(
-                clinicName,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-              );
-            }
-            return Text(
-              'hello'.tr(),
-              style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
-            );
-          },
-        ),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+
         actions: [
           IconButton(
             onPressed: () => showModalBottomSheet(
@@ -226,29 +207,31 @@ class _ClinicAppointmentsView extends StatelessWidget {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 5),
-          // Calendar takes available height
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(6.0),
-                    child: Card(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      child: const _NormalCalendar(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 5),
+            // Calendar takes available height
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: Card(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        child: const _NormalCalendar(),
+                      ),
                     ),
-                  ),
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.02),
-                  // Appointments list below calendar
-                  const _AppointmentsPanel(),
-                ],
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                    // Appointments list below calendar
+                    const _AppointmentsPanel(),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -346,7 +329,7 @@ class _AppointmentsPanel extends StatelessWidget {
           debugPrint('Appointments error: ${snapshot.error}');
           return Center(
             child: Text(
-              'Error loading appointments'.tr(),
+              'error_loading_appointments'.tr(),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           );
@@ -361,11 +344,6 @@ class _AppointmentsPanel extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  LucideIcons.calendar,
-                  size: 50,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
                 const SizedBox(height: 16),
                 Text(
                   'no_appointments_for_this_day'.tr(),

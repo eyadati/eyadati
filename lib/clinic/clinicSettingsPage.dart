@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:settings_ui/settings_ui.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:eyadati/clinic/clinicQrCodePage.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:provider/provider.dart';
 import 'package:eyadati/Themes/ThemeProvider.dart';
@@ -24,7 +24,7 @@ class Clinicsettings extends StatelessWidget {
           SettingsSection(
             tiles: [
               SettingsTile.navigation(
-                title: Text("Edit Profile".tr()),
+                title: Text("edit_profile".tr()),
                 leading: Icon(LucideIcons.user),
                 onPressed: (_) => showModalBottomSheet(
                   context: context,
@@ -34,17 +34,67 @@ class Clinicsettings extends StatelessWidget {
                 ),
               ),
               SettingsTile.navigation(
-                title: Text("Language".tr()),
+                title: Text("language".tr()),
                 leading: Icon(LucideIcons.globe),
-                onPressed: (_) => showDialog(
-                  context: context,
-                  builder: (_) {
-                    return AlertDialog(title: Text("Language".tr()));
-                  },
-                ),
+                onPressed: (_) {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text("language".tr()),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RadioListTile<Locale>(
+                              title: const Text('English'),
+                              value: const Locale('en'),
+                              groupValue: context.locale,
+                              onChanged: (Locale? value) async {
+                                if (value != null) {
+                                  await context.setLocale(value);
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                            RadioListTile<Locale>(
+                              title: const Text('Français'),
+                              value: const Locale('fr'),
+                              groupValue: context.locale,
+                              onChanged: (Locale? value) async {
+                                if (value != null) {
+                                  await context.setLocale(value);
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                            RadioListTile<Locale>(
+                              title: const Text('العربية'),
+                              value: const Locale('ar'),
+                              groupValue: context.locale,
+                              onChanged: (Locale? value) async {
+                                if (value != null) {
+                                  await context.setLocale(value);
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: Text('close'.tr()),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
               ),
               SettingsTile.navigation(
-                title: Text("Subscription".tr()),
+                title: Text("subscription".tr()),
                 leading: Icon(LucideIcons.user),
                 onPressed: (_) => showModalBottomSheet(
                   context: context,
@@ -61,44 +111,51 @@ class Clinicsettings extends StatelessWidget {
                   ).toggleTheme();
                 },
                 initialValue: Provider.of<ThemeProvider>(context).isDarkMode,
-                title: Text("Dark mode".tr()),
+                title: Text("dark_mode".tr()),
                 leading: Icon(LucideIcons.moon),
               ),
               SettingsTile.navigation(
-                title: Text("QR Code".tr()),
+                title: Text("qr_code".tr()),
                 leading: Icon(LucideIcons.qrCode),
                 onPressed: (_) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ClinicQrCodePage(),
-                    ),
-                  );
+                  final clinicUid = FirebaseAuth.instance.currentUser?.uid;
+                  if (clinicUid != null) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text("qr_code".tr()),
+                        content: SizedBox(
+                          width: 250,
+                          height: 250,
+                          child: Center(
+                            child: QrImageView(
+                              data: clinicUid,
+                              version: QrVersions.auto,
+                              size: 200.0,
+                            ),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                            child: Text('close'.tr()),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                 },
               ),
               SettingsTile.navigation(
-                title: Text("log out".tr()),
+                title: Text("log_out".tr()),
                 leading: Icon(LucideIcons.globe),
                 onPressed: (_) {
                   FirebaseAuth.instance.signOut();
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (ctx) => FutureBuilder<Widget>(
-                        future: decidePage(context),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return Center(child: CircularProgressIndicator());
-                          }
-                          return Container(
-                            child:
-                                snapshot.data ??
-                                Text('Something went wrong'.tr()),
-                          );
-                        },
-                      ),
-                    ),
+                    MaterialPageRoute(builder: (ctx) => intro(ctx)),
                   );
                 },
               ),

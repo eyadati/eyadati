@@ -19,11 +19,11 @@ class Userauth {
         email: email,
         password: password,
       );
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Error: ${e.message}".tr())));
+        ).showSnackBar(SnackBar(content: Text("error_generic".tr())));
       }
       rethrow;
     }
@@ -38,14 +38,14 @@ class Userauth {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text("Login".tr()),
+          title: Text("login".tr()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: loginEmail,
                 decoration: InputDecoration(
-                  labelText: "Email".tr(),
+                  labelText: "email".tr(),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -56,7 +56,7 @@ class Userauth {
                 controller: loginPassword,
                 obscureText: true,
                 decoration: InputDecoration(
-                  labelText: "Password".tr(),
+                  labelText: "password".tr(),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -67,7 +67,7 @@ class Userauth {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text("Cancel".tr()),
+              child: Text("cancel".tr()),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -95,10 +95,10 @@ class Userauth {
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(
                     context,
-                  ).showSnackBar(SnackBar(content: Text("Login failed".tr())));
+                  ).showSnackBar(SnackBar(content: Text("login_failed".tr())));
                 }
               },
-              child: Text("Login".tr()),
+              child: Text("login".tr()),
             ),
           ],
         );

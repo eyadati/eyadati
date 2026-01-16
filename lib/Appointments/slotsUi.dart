@@ -4,8 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:manage_calendar_events/manage_calendar_events.dart';
+import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:eyadati/user/user_appointments.dart';
 
 // ================ PROVIDER ================
 class SlotInfo {
@@ -27,7 +28,6 @@ class SlotsUiProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
   final FirebaseAuth auth;
   late final int duration;
-  final CalendarPlugin _calendarPlugin = CalendarPlugin();
 
   String _userName = '';
 
@@ -190,40 +190,13 @@ class SlotsUiProvider extends ChangeNotifier {
 
     final slotDuration = duration ?? 60;
 
-    // ✅ Efficient generation loop
+    // Generate all possible slots
+    List<SlotInfo> generatedSlots = [];
     while (currentSlot.isBefore(closingTime)) {
-      final slotEnd = currentSlot.add(Duration(minutes: slotDuration));
-
-      // ✅ Correct break overlap check (ANY overlap)
-      if (breakStart != null && breakEnd != null) {
-        final breakStartTime = DateTime(
-          selectedDate.year,
-          selectedDate.month,
-          selectedDate.day,
-          breakStart ~/ 60,
-          breakStart % 60,
-        );
-        final breakEndTime = DateTime(
-          selectedDate.year,
-          selectedDate.month,
-          selectedDate.day,
-          breakEnd ~/ 60,
-          breakEnd % 60,
-        );
-
-        // Skip if slot overlaps with break (any overlap)
-        if (currentSlot.isBefore(breakEndTime) &&
-            slotEnd.isAfter(breakStartTime)) {
-          currentSlot = slotEnd;
-          continue;
-        }
-      }
-
-      // ✅ Match bookings by exact slot time
       final bookings = bookingCounts[currentSlot] ?? 0;
       final isAvailable = bookings < (data['staff'] as int? ?? 1);
 
-      allSlots.add(
+      generatedSlots.add(
         SlotInfo(
           time: currentSlot,
           duration: slotDuration,
@@ -231,8 +204,34 @@ class SlotsUiProvider extends ChangeNotifier {
           currentBookings: bookings,
         ),
       );
+      currentSlot = currentSlot.add(Duration(minutes: slotDuration));
+    }
 
-      currentSlot = slotEnd;
+    // Filter out slots that overlap with breaks
+    if (breakStart != null && breakEnd != null) {
+      final breakStartTime = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        breakStart ~/ 60,
+        breakStart % 60,
+      );
+      final breakEndTime = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        breakEnd ~/ 60,
+        breakEnd % 60,
+      );
+
+      allSlots = generatedSlots.where((slot) {
+        final slotEnd = slot.time.add(Duration(minutes: slot.duration));
+        // Keep slot if it does NOT overlap with the break
+        return !(slot.time.isBefore(breakEndTime) &&
+            slotEnd.isAfter(breakStartTime));
+      }).toList();
+    } else {
+      allSlots = generatedSlots;
     }
   }
 
@@ -272,13 +271,15 @@ class SlotsUiProvider extends ChangeNotifier {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text('confirm_booking'.tr()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildConfirmationRow(
-                  context, 'clinic'.tr(), clinic['clinicName']),
+                context,
+                'clinic'.tr(),
+                clinic['clinicName'],
+              ),
               const SizedBox(height: 8),
               _buildConfirmationRow(
                 context,
@@ -343,14 +344,14 @@ class SlotsUiProvider extends ChangeNotifier {
 
     final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
 
-    final CalendarEvent event = CalendarEvent(
+    final Event event = Event(
       title: 'Appointment at ${clinic['clinicName']}',
       startDate: selectedSlot!,
       endDate: selectedSlot!.add(Duration(minutes: slotInfo.duration)),
       location: clinic['address'],
     );
 
-    _calendarPlugin.createEvent(event: event, calendarId: '1'); // calendarId might need to be dynamic
+    Add2Calendar.addEvent2Cal(event);
   }
 
   Future<void> bookSelectedSlot(BuildContext context) async {
@@ -408,15 +409,13 @@ class SlotsUiProvider extends ChangeNotifier {
               .doc(appointmentId),
           appointmentData,
         );
-
-        // ✅ Remove this from transaction - put it outside
-        // await context.read<UserAppointmentsProvider>().loadAppointments();
       });
 
       // Refresh data AFTER transaction completes
       if (context.mounted) {
         // Refresh current slots view to show the slot is taken
         await _loadSlots();
+        await context.read<UserAppointmentsProvider>().loadAppointments();
         notifyListeners();
 
         ScaffoldMessenger.of(
@@ -490,34 +489,36 @@ class _SlotsDialog extends StatelessWidget {
     final provider = context.watch<SlotsUiProvider>();
     final clinic = provider.clinic;
 
-    return SizedBox(
-      width: double.maxFinite,
+    return SafeArea(
+      child: SizedBox(
+        width: double.maxFinite,
 
-      child: Column(
-        children: [
-          _ClinicInfoCard(clinic: clinic),
-          const SizedBox(height: 10),
-          _DatePickerRow(),
-          Flexible(child: _SlotsGrid()),
+        child: Column(
+          children: [
+            _ClinicInfoCard(clinic: clinic),
+            const SizedBox(height: 10),
+            _DatePickerRow(),
+            Flexible(child: _SlotsGrid()),
 
-          Container(
-            margin: EdgeInsets.all(12),
-            width: MediaQuery.of(context).size.width * 0.7,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TextButton(
-              onPressed: () => provider.bookSelectedSlot(context),
-              child: Text(
-                "book_appointment".tr(),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onPrimary,
+            Container(
+              margin: EdgeInsets.all(12),
+              width: MediaQuery.of(context).size.width * 0.7,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextButton(
+                onPressed: () => provider.bookSelectedSlot(context),
+                child: Text(
+                  "book_appointment".tr(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -561,11 +562,14 @@ class _ClinicInfoCard extends StatelessWidget {
             Center(
               child: CircleAvatar(
                 radius: 45,
-                backgroundImage: (clinic['picUrl'] != null && clinic['picUrl'].startsWith('http'))
+                backgroundImage:
+                    (clinic['picUrl'] != null &&
+                        clinic['picUrl'].startsWith('http'))
                     ? NetworkImage(clinic['picUrl'])
                     : (clinic['picUrl'] != null
-                        ? AssetImage(clinic['picUrl'])
-                        : null) as ImageProvider?,
+                              ? AssetImage(clinic['picUrl'])
+                              : null)
+                          as ImageProvider?,
                 child: clinic['picUrl'] == null
                     ? const Icon(Icons.business) // Placeholder icon
                     : null,
@@ -747,7 +751,9 @@ class _SlotTile extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border.all(
             width: 1,
-            color: Theme.of(context).colorScheme.onSurface.withAlpha((255 * 0.5).round()),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withAlpha((255 * 0.5).round()),
           ),
           color: isSelected
               ? Theme.of(context).colorScheme.primary

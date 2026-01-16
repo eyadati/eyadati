@@ -110,7 +110,7 @@ class UserEditProfileProvider extends ChangeNotifier {
     try {
       await _loadUserData();
     } catch (e) {
-      error = 'fetch_user_data_error'.tr(args: [e.toString()]);
+      error = 'fetch_user_data_error'.tr();
     } finally {
       isLoading = false;
       notifyListeners();
@@ -194,7 +194,7 @@ class UserEditProfileProvider extends ChangeNotifier {
   String? validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return 'required_field'.tr();
     final pattern = RegExp(r'^\S+@\S+\.\S+$');
-    if (!pattern.hasMatch(value.trim())) return 'invalid_email'.tr();
+    if (!pattern.hasMatch(value.trim())) return 'invalid_email_format'.tr();
     return null;
   }
 

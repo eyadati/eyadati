@@ -32,7 +32,7 @@ Future<bool> _isClinicRole(String uid) async {
   final doc = await FirebaseFirestore.instance
       .collection('clinics')
       .doc(uid)
-      .get(GetOptions(source: Source.cache));
+      .get(GetOptions(source: Source.serverAndCache));
   return doc.exists;
 }
 
@@ -40,24 +40,81 @@ Widget intro(BuildContext context) {
   return Builder(
     builder: (BuildContext builderContext) {
       return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Theme.of(builderContext).scaffoldBackgroundColor,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.language, size: 30),
+              onPressed: () {
+                showDialog(
+                  context: builderContext,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: Text("language".tr()),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          RadioListTile<Locale>(
+                            title: const Text('English'),
+                            value: const Locale('en'),
+                            groupValue: context.locale,
+                            onChanged: (Locale? value) async {
+                              if (value != null) {
+                                await context.setLocale(value);
+                                Navigator.pop(context);
+                              }
+                            },
+                          ),
+                          RadioListTile<Locale>(
+                            title: const Text('Français'),
+                            value: const Locale('fr'),
+                            groupValue: context.locale,
+                            onChanged: (Locale? value) async {
+                              if (value != null) {
+                                await context.setLocale(value);
+                                Navigator.pop(context);
+                              }
+                            },
+                          ),
+                          RadioListTile<Locale>(
+                            title: const Text('العربية'),
+                            value: const Locale('ar'),
+                            groupValue: context.locale,
+                            onChanged: (Locale? value) async {
+                              if (value != null) {
+                                await context.setLocale(value);
+                                Navigator.pop(context);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: Text('close'.tr()),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
         body: SafeArea(
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'welcome_to_eyadati'.tr(),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Image.asset(
+                  'assets/logo.png',
+                  height: 150, // Adjust height as needed
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'are_you_a_clinic_or_a_user'.tr(),
-                  style: const TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 30),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -116,7 +173,9 @@ Widget _buildChoiceCard({
               ),
               child: Image.asset(
                 imagePath,
-                height: MediaQuery.of(context).size.width * 0.4,
+                height:
+                    MediaQuery.of(context).size.width *
+                    0.6, // Increased from 0.4
                 fit: BoxFit.cover,
               ),
             ),

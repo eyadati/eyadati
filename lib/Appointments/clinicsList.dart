@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:geolocator/geolocator.dart'; // Import geolocator
+import 'package:google_maps_url_extractor/url_extractor.dart'; // Import GoogleMapsUrlExtractor
+import 'package:eyadati/utils/location_helper.dart'; // Import LocationHelper
 
 class ClinicSearchProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
@@ -17,6 +20,7 @@ class ClinicSearchProvider extends ChangeNotifier {
   String? _error;
   String? _userCity;
   Set<String> _favoriteClinics = {}; // New: Store UIDs of favorite clinics
+  Position? _currentLocation; // New: Store user's current location
 
   // Filter states
   String _searchQuery = '';
@@ -42,30 +46,30 @@ class ClinicSearchProvider extends ChangeNotifier {
 
   // Static data
   static const List<String> specialtiesList = [
-    'General Medicine',
-    'Pediatrics',
-    'Gynecology',
-    'Dermatology',
-    'Dentistry',
-    'Orthopedics',
-    'Ophthalmology',
-    'ENT (Ear, Nose, Throat)',
-    'Cardiology',
-    'Psychiatry',
-    'Psychology',
-    'Physiotherapy',
-    'Nutrition',
-    'Neurology',
-    'Gastroenterology',
-    'Urology',
-    'Pulmonology',
-    'Endocrinology',
-    'Rheumatology',
-    'Oncology',
-    'Surgery',
-    'Radiology',
-    'Laboratory Services',
-    'Nephrology',
+    'general_medicine',
+    'pediatrics',
+    'gynecology',
+    'dermatology',
+    'dentistry',
+    'orthopedics',
+    'ophthalmology',
+    'ent',
+    'cardiology',
+    'psychiatry',
+    'psychology',
+    'physiotherapy',
+    'nutrition',
+    'neurology',
+    'gastroenterology',
+    'urology',
+    'pulmonology',
+    'endocrinology',
+    'rheumatology',
+    'oncology',
+    'surgery',
+    'radiology',
+    'laboratory_services',
+    'nephrology',
   ];
 
   static const List<String> algerianCitiesList = [
@@ -145,6 +149,17 @@ class ClinicSearchProvider extends ChangeNotifier {
       final user = auth.currentUser;
       if (user == null) return;
 
+      // Try to get current location
+      try {
+        _currentLocation = await LocationHelper.getCurrentLocation();
+        debugPrint(
+          "Current location: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}",
+        );
+      } catch (e) {
+        debugPrint("Error getting current location: $e");
+        // Don't block if location fails, continue without it.
+      }
+
       final doc = await firestore
           .collection("users")
           .doc(user.uid)
@@ -169,8 +184,8 @@ class ClinicSearchProvider extends ChangeNotifier {
       final favoriteDocs = await firestore
           .collection("users")
           .doc(user.uid)
-          .collection("favorites")
-          .get(GetOptions(source: Source.cache));
+          .collection("favorites") // Corrected: access subcollection "favorites"
+          .get(GetOptions(source: Source.server));
       _favoriteClinics = favoriteDocs.docs.map((doc) => doc.id).toSet();
       notifyListeners();
     } catch (e) {
@@ -182,7 +197,9 @@ class ClinicSearchProvider extends ChangeNotifier {
     return _currentClinics.where((clinic) {
       final matchesSearch =
           _searchQuery.isEmpty ||
-          (clinic["clinicName"] ?? "").toString().contains(_searchQuery);
+          (clinic["clinicName"] ?? "").toString().toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          );
 
       final matchesSpecialty =
           _selectedSpecialty == null ||
@@ -203,31 +220,77 @@ class ClinicSearchProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Use cache if querying user's own city, server otherwise
-      final useServer = _selectedCity != null && _selectedCity != _userCity;
-      final source = useServer ? Source.serverAndCache : Source.cache;
-
-      final querySnapshot = await firestore
+      Query<Map<String, dynamic>> baseQuery = firestore
           .collection("clinics")
-          .where("city", isEqualTo: cityToQuery)
-          .limit(50)
-          .get(GetOptions(source: source));
+          .withConverter<Map<String, dynamic>>(
+            fromFirestore: (snapshot, _) => snapshot.data()!,
+            toFirestore: (model, _) => model,
+          )
+          .where("city", isEqualTo: cityToQuery);
 
-      // If cache returns empty and we're using cache, retry with server
-      if (querySnapshot.docs.isEmpty && !useServer) {
-        final serverSnapshot = await firestore
-            .collection("clinics")
-            .where("city", isEqualTo: cityToQuery)
-            .limit(50)
-            .get(GetOptions(source: Source.server));
-        _currentClinics = serverSnapshot.docs
-            .map((doc) => {'id': doc.id, ...doc.data()})
-            .toList();
-      } else {
-        _currentClinics = querySnapshot.docs
-            .map((doc) => {'id': doc.id, ...doc.data()})
+      if (_selectedSpecialty != null) {
+        baseQuery = baseQuery.where("specialty", isEqualTo: _selectedSpecialty);
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        baseQuery = baseQuery
+            .orderBy("clinicName")
+            .startAt([_searchQuery])
+            .endAt(['$_searchQuery\uf8ff']);
+      }
+      baseQuery = baseQuery.limit(50);
+
+      // Always try cache first for clinic list
+      final QuerySnapshot<Map<String, dynamic>> querySnapshot =
+          await baseQuery.get(GetOptions(source: Source.cache));
+
+      List<Map<String, dynamic>> fetchedClinics = querySnapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()}) // Removed !
+          .toList();
+
+      // If cache is empty, fetch from server
+      if (fetchedClinics.isEmpty) {
+        final QuerySnapshot<Map<String, dynamic>> serverSnapshot =
+            await baseQuery.get(GetOptions(source: Source.server)); // Fetch from server
+        fetchedClinics = serverSnapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()}) // Removed !
             .toList();
       }
+
+      if (_currentLocation != null) {
+        for (var clinic in fetchedClinics) {
+          final mapsLink = clinic['mapsLink'] as String?;
+          if (mapsLink != null && mapsLink.isNotEmpty) {
+            final coordinates = GoogleMapsUrlExtractor.extractCoordinates(
+              mapsLink,
+            );
+            if (coordinates != null) {
+              final clinicLat = coordinates['latitude'];
+              final clinicLon = coordinates['longitude'];
+              if (clinicLat != null && clinicLon != null) {
+                final distance = await LocationHelper.calculateDistance(
+                  _currentLocation!.latitude,
+                  _currentLocation!.longitude,
+                  clinicLat,
+                  clinicLon,
+                );
+                clinic['distance'] = distance; // Store distance in meters
+              }
+            }
+          }
+        }
+        // Sort clinics by distance
+        fetchedClinics.sort((a, b) {
+          final distA = a['distance'] as double?;
+          final distB = b['distance'] as double?;
+          if (distA == null && distB == null) return 0;
+          if (distA == null) return 1;
+          if (distB == null) return -1;
+          return distA.compareTo(distB);
+        });
+      }
+
+      _currentClinics = fetchedClinics;
     } catch (e) {
       _error = "Failed to load clinics. Please try again.".tr();
       debugPrint("Firestore error: $e");
@@ -325,13 +388,19 @@ class _ClinicBottomSheetContent extends StatelessWidget {
           minChildSize: 0.5,
           expand: false,
           builder: (context, scrollController) {
-            return Column(
-              children: [
-                _buildHeader(context, provider),
-                Expanded(
-                  child: _buildClinicList(context, provider, scrollController),
-                ),
-              ],
+            return SafeArea(
+              child: Column(
+                children: [
+                  _buildHeader(context, provider),
+                  Expanded(
+                    child: _buildClinicList(
+                      context,
+                      provider,
+                      scrollController,
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -341,25 +410,13 @@ class _ClinicBottomSheetContent extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context, ClinicSearchProvider provider) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outline,
-            width: 1,
-          ),
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+
       child: Row(
         children: [
-          ElevatedButton.icon(
+          IconButton(
             onPressed: () => _showFilterDialog(context, provider),
-            icon: const Icon(LucideIcons.filter, size: 20),
-            label: Text('Filter'.tr()),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              textStyle: const TextStyle(fontSize: 14),
-            ),
+            icon: const Icon(LucideIcons.slidersHorizontal, size: 25),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -469,9 +526,22 @@ class _ClinicBottomSheetContent extends StatelessWidget {
 
     return ListView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      itemCount: clinics.length,
-      itemBuilder: (context, index) => _ClinicCard(clinic: clinics[index]),
+      padding: const EdgeInsets.fromLTRB(
+        0,
+        12,
+        0,
+        0,
+      ), // Remove bottom padding here
+      itemCount: clinics.length + 1, // Add 1 for the SizedBox
+      itemBuilder: (context, index) {
+        if (index == clinics.length) {
+          // This is the last item, add the SizedBox
+          return SizedBox(height: 92 + MediaQuery.of(context).padding.bottom);
+        }
+        final clinicData = clinics[index];
+        final distance = clinicData['distance'] as double?;
+        return _ClinicCard(clinic: clinicData, distance: distance);
+      },
     );
   }
 
@@ -592,8 +662,12 @@ class _ClinicBottomSheetContent extends StatelessWidget {
 
 class _ClinicCard extends StatelessWidget {
   final Map<String, dynamic> clinic;
+  final double? distance; // New: Distance parameter
 
-  const _ClinicCard({required this.clinic});
+  const _ClinicCard({
+    required this.clinic,
+    this.distance,
+  }); // Updated constructor
 
   @override
   Widget build(BuildContext context) {
@@ -635,7 +709,10 @@ class _ClinicCard extends StatelessWidget {
                 );
                 return IconButton(
                   icon: Icon(
-                    LucideIcons.heart,
+                    isFavorite
+                        ? LucideIcons.heart
+                        : LucideIcons
+                              .heart, // Changed to filled heart when favorite
                     color: isFavorite
                         ? Theme.of(context).colorScheme.error
                         : null,
@@ -682,6 +759,18 @@ class _ClinicCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (distance != null) // Display distance if available
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        '${(distance! / 1000).toStringAsFixed(1)} km', // Convert meters to km
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.secondary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

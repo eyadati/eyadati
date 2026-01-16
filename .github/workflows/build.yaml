@@ -1,41 +1,33 @@
-name: SonarQube Flutter Analysis
+name: Flutter CI
+
 on:
   push:
     branches:
       - main
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches:
+      - main
 
 jobs:
-  sonarqube:
-    name: SonarQube
-    runs-on: ubuntu-latest  # ✅ Changed from windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # ✅ Important: Disable shallow clones
+  build:
+    runs-on: ubuntu-latest
 
-      - name: Setup Flutter
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.5'
-          channel: 'stable'
-
-
-      - name: Build APK
-        run: flutter build apk --release
-        continue-on-error: false  # ✅ Build errors will still fail    
+          flutter-version: '3.22.0'
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Generate code (if you use build_runner)
-        run: dart run build_runner build --delete-conflicting-outputs
-        continue-on-error: true  # ✅ Ignore if not using build_runner
+      - name: Analyze code
+        run: flutter analyze
 
-      
+      - name: Run tests
+        run: flutter test
 
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Build APK
+        run: flutter build apk

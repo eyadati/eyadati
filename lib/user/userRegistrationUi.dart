@@ -3,7 +3,8 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/user/UserHome.dart';
 import 'package:eyadati/user/userAuth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // Added this back
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:eyadati/utils/network_helper.dart';
@@ -25,6 +26,14 @@ class UserOnboardingProvider extends ChangeNotifier {
   String? selectedCity;
   bool isLoading = false;
   String? error;
+  bool _agreeToTerms = false; // New property
+
+  bool get agreeToTerms => _agreeToTerms;
+
+  void toggleAgreeToTerms(bool? newValue) {
+    _agreeToTerms = newValue ?? false;
+    notifyListeners();
+  }
 
   final List<String> algerianCities = [
     'Algiers',
@@ -107,7 +116,14 @@ class UserOnboardingProvider extends ChangeNotifier {
     if (!formKey.currentState!.validate()) return;
 
     if (selectedCity == null) {
-      error = "Please select a city".tr();
+      error = "please_select_a_city".tr();
+      notifyListeners();
+      return;
+    }
+
+    if (!agreeToTerms) {
+      // New validation for agreeToTerms
+      error = "please_agree_to_terms".tr();
       notifyListeners();
       return;
     }
@@ -191,86 +207,131 @@ class _UserOnboardingContent extends StatelessWidget {
       appBar: AppBar(title: Text("user_registration".tr())),
       body: Consumer<UserOnboardingProvider>(
         builder: (context, provider, _) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: provider.formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 40),
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: provider.formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 40),
 
-                  // All fields in one column
-                  _buildTextFormField(
-                    provider.nameController,
-                    "full_name".tr(),
-                    provider,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildTextFormField(
-                    provider.emailController,
-                    "email".tr(),
-                    provider,
-                    validator: _validateEmail,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildTextFormField(
-                    provider.passwordController,
-                    "password".tr(),
-                    provider,
-                    obscureText: true,
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildTextFormField(
-                    provider.phoneController,
-                    "phone_number".tr(),
-                    provider,
-                    inputType: TextInputType.phone,
-                    validator: _validatePhone,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildCityDropdown(context, provider),
-                  const SizedBox(height: 24),
-
-                  // Error message
-                  if (provider.error != null) ...[
-                    Text(
-                      provider.error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      textAlign: TextAlign.center,
+                    // All fields in one column
+                    _buildTextFormField(
+                      context, // Pass context
+                      provider.nameController,
+                      "full_name".tr(),
+                      provider,
                     ),
                     const SizedBox(height: 16),
+
+                    _buildTextFormField(
+                      context, // Pass context
+                      provider.emailController,
+                      "email".tr(),
+                      provider,
+                      validator: _validateEmail,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildTextFormField(
+                      context, // Pass context
+                      provider.passwordController,
+                      "password".tr(),
+                      provider,
+                      obscureText: true,
+                      validator: _validatePassword,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildTextFormField(
+                      context, // Pass context
+                      provider.phoneController,
+                      "phone_number".tr(),
+                      provider,
+                      inputType: TextInputType.phone,
+                      validator: _validatePhone,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildCityDropdown(context, provider),
+                    const SizedBox(height: 24),
+
+                    CheckboxListTile(
+                      value: provider.agreeToTerms,
+                      onChanged: provider.toggleAgreeToTerms,
+                      title: Text.rich(
+                        TextSpan(
+                          text: 'i_agree_to'.tr(),
+                          children: [
+                            TextSpan(
+                              text: 'privacy_policy'.tr(),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  // TODO: Navigate to Privacy Policy
+                                  debugPrint('Privacy Policy tapped!');
+                                },
+                            ),
+                            TextSpan(text: 'and'.tr()),
+                            TextSpan(
+                              text: 'terms_of_service'.tr(),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                              recognizer: TapGestureRecognizer()
+                                ..onTap = () {
+                                  // TODO: Navigate to Terms of Service
+                                  debugPrint('Terms of Service tapped!');
+                                },
+                            ),
+                          ],
+                        ),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Error message
+                    if (provider.error != null) ...[
+                      Text(
+                        provider.error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Submit button
+                    ElevatedButton(
+                      onPressed: provider.isLoading || !provider.agreeToTerms
+                          ? null
+                          : () => provider.submitRegistration(context),
+                      child: provider.isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text("finish".tr()),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Login link
+                    TextButton(
+                      onPressed: () => Userauth().userLogIn(context),
+                      child: Text('already_have_account_login'.tr()),
+                    ),
                   ],
-
-                  // Submit button
-                  ElevatedButton(
-                    onPressed: provider.isLoading
-                        ? null
-                        : () => provider.submitRegistration(context),
-                    child: provider.isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text("finish".tr()),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Login link
-                  TextButton(
-                    onPressed: () => Userauth().userLogIn(context),
-                    child: Text('already have account'.tr()),
-                  ),
-                ],
+                ),
               ),
             ),
           );
@@ -278,76 +339,77 @@ class _UserOnboardingContent extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildTextFormField(
-    TextEditingController controller,
-    String label,
-    UserOnboardingProvider provider, {
-    bool obscureText = false,
-    TextInputType? inputType,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: inputType ?? TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-      ),
-      validator:
-          validator ??
-          (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'required_field'.tr();
-            }
-            return null;
-          },
-    );
-  }
+Widget _buildTextFormField(
+  BuildContext context, // Added context parameter
+  TextEditingController controller,
+  String label,
+  UserOnboardingProvider provider, {
+  bool obscureText = false,
+  TextInputType? inputType,
+  String? Function(String?)? validator,
+}) {
+  return TextFormField(
+    controller: controller,
+    obscureText: obscureText,
+    keyboardType: inputType ?? TextInputType.text,
+    decoration: InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+    ),
+    validator:
+        validator ??
+        (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'required_field'.tr();
+          }
+          return null;
+        },
+  );
+}
 
-  Widget _buildCityDropdown(
-    BuildContext context,
-    UserOnboardingProvider provider,
-  ) {
-    return DropdownButtonFormField<String>(
-      initialValue: provider.selectedCity,
-      decoration: InputDecoration(
-        labelText: "city".tr(),
-        prefixIcon: const Icon(LucideIcons.mapPin),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-      ),
-      hint: Text("select_city".tr()),
-      items: provider.algerianCities.map((city) {
-        return DropdownMenuItem(value: city, child: Text(city));
-      }).toList(),
-      onChanged: (value) => provider.selectCity(value),
-      validator: (value) {
-        if (value == null) return 'city_required'.tr();
-        return null;
-      },
-    );
-  }
+Widget _buildCityDropdown(
+  BuildContext context, // Added context parameter
+  UserOnboardingProvider provider,
+) {
+  return DropdownButtonFormField<String>(
+    initialValue: provider.selectedCity,
+    decoration: InputDecoration(
+      labelText: "city".tr(),
+      prefixIcon: const Icon(LucideIcons.mapPin),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+    ),
+    hint: Text("select_city".tr()),
+    items: provider.algerianCities.map((city) {
+      return DropdownMenuItem(value: city, child: Text(city));
+    }).toList(),
+    onChanged: (value) => provider.selectCity(value),
+    validator: (value) {
+      if (value == null) return 'city_required'.tr();
+      return null;
+    },
+  );
+}
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'required_field'.tr();
-    final pattern = RegExp(r'^\S+@\S+\.\S+$');
-    if (!pattern.hasMatch(value.trim())) return 'invalid_email'.tr();
-    return null;
-  }
+String? _validateEmail(String? value) {
+  if (value == null || value.trim().isEmpty) return 'required_field'.tr();
+  final pattern = RegExp(r'^\S+@\S+\.\S+$');
+  if (!pattern.hasMatch(value.trim())) return 'invalid_email'.tr();
+  return null;
+}
 
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'required_field'.tr();
-    if (value.length < 6) return 'password_too_short'.tr();
-    return null;
-  }
+String? _validatePassword(String? value) {
+  if (value == null || value.isEmpty) return 'required_field'.tr();
+  if (value.length < 6) return 'password_too_short'.tr();
+  return null;
+}
 
-  String? _validatePhone(String? value) {
-    if (value == null || value.trim().isEmpty) return 'required_field'.tr();
-    final pattern = RegExp(r'^[0-9]+$');
-    if (!pattern.hasMatch(value.trim())) return 'invalid_phone'.tr();
-    return null;
-  }
+String? _validatePhone(String? value) {
+  if (value == null || value.trim().isEmpty) return 'required_field'.tr();
+  final pattern = RegExp(r'^[0-9]+$');
+  if (!pattern.hasMatch(value.trim())) return 'invalid_phone'.tr();
+  return null;
 }

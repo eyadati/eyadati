@@ -48,27 +48,103 @@ class ClinicEditProfileProvider extends ChangeNotifier {
 
   // Dropdown data
   final List<String> algerianCities = [
-    'Algiers', 'Oran', 'Constantine', 'Annaba', 'Blida', 'Batna', 'Djelfa', 'Sétif',
-    'Sidi Bel Abbès', 'Biskra', 'Tébessa', 'Skikda', 'Tiaret', 'Béjaïa', 'Tlemcen',
-    'Béchar', 'Mostaganem', 'Bordj Bou Arreridj', 'Chlef', 'Souk Ahras', 'El Eulma',
-    'Médéa', 'Tizi Ouzou', 'Jijel', 'Laghouat', 'El Oued', 'Ouargla', 'M\'Sila',
-    'Relizane', 'Saïda', 'Bou Saâda', 'Guelma', 'Aïn Beïda', 'Maghnia', 'Mascara',
-    'Khenchela', 'Barika', 'Messaad', 'Aflou', 'Aïn Oussara', 'Adrar', 'Aïn Defla',
+    'Algiers',
+    'Oran',
+    'Constantine',
+    'Annaba',
+    'Blida',
+    'Batna',
+    'Djelfa',
+    'Sétif',
+    'Sidi Bel Abbès',
+    'Biskra',
+    'Tébessa',
+    'Skikda',
+    'Tiaret',
+    'Béjaïa',
+    'Tlemcen',
+    'Béchar',
+    'Mostaganem',
+    'Bordj Bou Arreridj',
+    'Chlef',
+    'Souk Ahras',
+    'El Eulma',
+    'Médéa',
+    'Tizi Ouzou',
+    'Jijel',
+    'Laghouat',
+    'El Oued',
+    'Ouargla',
+    'M\'Sila',
+    'Relizane',
+    'Saïda',
+    'Bou Saâda',
+    'Guelma',
+    'Aïn Beïda',
+    'Maghnia',
+    'Mascara',
+    'Khenchela',
+    'Barika',
+    'Messaad',
+    'Aflou',
+    'Aïn Oussara',
+    'Adrar',
+    'Aïn Defla',
 
-    'Aïn Fakroun', 'Aïn Oulmene', 'Aïn M\'lila', 'Aïn Sefra', 'Aïn Témouchent',
-    'Aïn Touta', 'Akbou', 'Azzaba', 'Berrouaghia', 'Bir el-Ater', 'Boufarik',
-    'Bouira', 'Chelghoum Laid', 'Cheria', 'Chettia', 'El Bayadh', 'El Guerrara',
-    'El-Khroub', 'Frenda', 'Ferdjioua', 'Ghardaïa', 'Hassi Bahbah', 'Khemis Miliana',
-    'Ksar Chellala', 'Ksar Boukhari', 'Lakhdaria', 'Larbaâ',
+    'Aïn Fakroun',
+    'Aïn Oulmene',
+    'Aïn M\'lila',
+    'Aïn Sefra',
+    'Aïn Témouchent',
+    'Aïn Touta',
+    'Akbou',
+    'Azzaba',
+    'Berrouaghia',
+    'Bir el-Ater',
+    'Boufarik',
+    'Bouira',
+    'Chelghoum Laid',
+    'Cheria',
+    'Chettia',
+    'El Bayadh',
+    'El Guerrara',
+    'El-Khroub',
+    'Frenda',
+    'Ferdjioua',
+    'Ghardaïa',
+    'Hassi Bahbah',
+    'Khemis Miliana',
+    'Ksar Chellala',
+    'Ksar Boukhari',
+    'Lakhdaria',
+    'Larbaâ',
   ];
 
   final List<String> specialties = [
-    'General Medicine'.tr(), 'Pediatrics'.tr(), 'Gynecology'.tr(), 'Dermatology'.tr(),
-    'Dentistry'.tr(), 'Orthopedics'.tr(), 'Ophthalmology'.tr(), 'ENT (Ear, Nose, Throat)'.tr(),
-    'Cardiology'.tr(), 'Psychiatry'.tr(), 'Psychology'.tr(), 'Physiotherapy'.tr(),
-    'Nutrition'.tr(), 'Neurology'.tr(), 'Gastroenterology'.tr(), 'Urology'.tr(),
-    'Pulmonology'.tr(), 'Endocrinology'.tr(), 'Rheumatology'.tr(), 'Oncology'.tr(),
-    'Surgery'.tr(), 'Radiology'.tr(), 'Laboratory Services'.tr(), 'Nephrology'.tr(),
+    'General Medicine'.tr(),
+    'Pediatrics'.tr(),
+    'Gynecology'.tr(),
+    'Dermatology'.tr(),
+    'Dentistry'.tr(),
+    'Orthopedics'.tr(),
+    'Ophthalmology'.tr(),
+    'ENT (Ear, Nose, Throat)'.tr(),
+    'Cardiology'.tr(),
+    'Psychiatry'.tr(),
+    'Psychology'.tr(),
+    'Physiotherapy'.tr(),
+    'Nutrition'.tr(),
+    'Neurology'.tr(),
+    'Gastroenterology'.tr(),
+    'Urology'.tr(),
+    'Pulmonology'.tr(),
+    'Endocrinology'.tr(),
+    'Rheumatology'.tr(),
+    'Oncology'.tr(),
+    'Surgery'.tr(),
+    'Radiology'.tr(),
+    'Laboratory Services'.tr(),
+    'Nephrology'.tr(),
   ];
 
   void onSpecialtyChange(String? value) {
@@ -95,7 +171,10 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         return;
       }
 
-      final doc = await firestore.collection("clinics").doc(user.uid).get(GetOptions(source: Source.cache));
+      final doc = await firestore
+          .collection("clinics")
+          .doc(user.uid)
+          .get(GetOptions(source: Source.cache));
       if (doc.exists) {
         final data = doc.data()!;
         nameController.text = data['name'] ?? '';
@@ -109,7 +188,10 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         picUrl = data['picUrl'];
 
         selectedCity = data['city'] != null
-            ? algerianCities.firstWhere((c) => c == data['city'], orElse: () => algerianCities[0])
+            ? algerianCities.firstWhere(
+                (c) => c == data['city'],
+                orElse: () => algerianCities[0],
+              )
             : null;
 
         workingDays = List<int>.from(data['workingDays'] ?? []);
@@ -132,8 +214,12 @@ class ClinicEditProfileProvider extends ChangeNotifier {
     final file = pickedImage!;
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
     try {
-      await Supabase.instance.client.storage.from('eyadati').upload(fileName, file);
-      final urlResponse = Supabase.instance.client.storage.from('eyadati').getPublicUrl(fileName);
+      await Supabase.instance.client.storage
+          .from('eyadati')
+          .upload(fileName, file);
+      final urlResponse = Supabase.instance.client.storage
+          .from('eyadati')
+          .getPublicUrl(fileName);
       return urlResponse;
     } catch (e) {
       return null;
@@ -185,7 +271,9 @@ class ClinicEditProfileProvider extends ChangeNotifier {
       });
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('profile updated success'.tr())));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('profile updated success'.tr())));
       if (!context.mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
@@ -658,10 +746,11 @@ class _ClinicEditProfileContent extends StatelessWidget {
           backgroundImage: provider.pickedImage != null
               ? FileImage(provider.pickedImage!)
               : (provider.picUrl != null && provider.picUrl!.startsWith('http')
-                  ? NetworkImage(provider.picUrl!)
-                  : (provider.picUrl != null
-                      ? AssetImage(provider.picUrl!)
-                      : null)) as ImageProvider?,
+                        ? NetworkImage(provider.picUrl!)
+                        : (provider.picUrl != null
+                              ? AssetImage(provider.picUrl!)
+                              : null))
+                    as ImageProvider?,
           child: provider.pickedImage == null && provider.picUrl == null
               ? const Icon(Icons.add_a_photo, size: 50)
               : null,

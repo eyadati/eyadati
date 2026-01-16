@@ -30,10 +30,10 @@ class UserAppointmentsProvider extends ChangeNotifier {
     FirebaseFirestore? firestore,
     UserFirestore? userFirestore,
     NotificationService? notificationService,
-  })  : auth = auth ?? FirebaseAuth.instance,
-        firestore = firestore ?? FirebaseFirestore.instance,
-        _userFirestore = userFirestore ?? UserFirestore(),
-        _notificationService = notificationService ?? NotificationService();
+  }) : auth = auth ?? FirebaseAuth.instance,
+       firestore = firestore ?? FirebaseFirestore.instance,
+       _userFirestore = userFirestore ?? UserFirestore(),
+       _notificationService = notificationService ?? NotificationService();
 
   List<Map<String, dynamic>> get appointments => _appointments;
   bool get isLoading => _isLoading;
@@ -43,7 +43,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
   Future<void> loadAppointments() async {
     final userId = auth.currentUser?.uid;
     if (userId == null) {
-      throw Exception("User not logged in");
+      throw Exception("user_not_logged_in".tr());
     }
 
     if (_isLoading || !_hasMore) return;
@@ -74,7 +74,9 @@ class UserAppointmentsProvider extends ChangeNotifier {
       }
 
       _lastDocument = snapshot.docs.last;
-      _hasMore = snapshot.docs.length == _pageSize; // Correctly set hasMore for pagination
+      _hasMore =
+          snapshot.docs.length ==
+          _pageSize; // Correctly set hasMore for pagination
 
       // Extract appointment data
       final newAppointments = snapshot.docs.map((doc) {
@@ -119,7 +121,9 @@ class UserAppointmentsProvider extends ChangeNotifier {
 
     for (var i = 0; i < snapshots.length; i++) {
       final doc = snapshots[i];
-      debugPrint("Processing doc ${clinicIds[i]}. RuntimeType: ${doc.runtimeType}. Exists: ${doc.exists}, Data: ${doc.data()}");
+      debugPrint(
+        "Processing doc ${clinicIds[i]}. RuntimeType: ${doc.runtimeType}. Exists: ${doc.exists}, Data: ${doc.data()}",
+      );
       if (doc.exists) {
         _clinicCache[clinicIds[i]] = doc.data()!;
       }
@@ -145,8 +149,8 @@ class UserAppointmentsProvider extends ChangeNotifier {
     if (clinicData['FCM'] != null) {
       await _notificationService.sendDirectNotification(
         fcmToken: clinicData['FCM'],
-        title: 'appointment cancelled'.tr(),
-        body: 'the appointment got cancelled'.tr(),
+        title: 'appointment_cancelled'.tr(),
+        body: 'the_appointment_got_cancelled'.tr(),
       );
     }
 
@@ -207,7 +211,7 @@ class _AppointmentsListView extends StatelessWidget {
 
               final clinicData = provider.getClinicData(clinicUid);
               if (clinicData == null) {
-                return ListTile(title: Text("Clinic data not found".tr()));
+                return ListTile(title: Text("clinic_data_not_found".tr()));
               }
 
               return _AppointmentCard(

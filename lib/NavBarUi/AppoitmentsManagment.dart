@@ -27,6 +27,7 @@ class ManagementProvider extends ChangeNotifier {
 
   bool _isLoading = true;
   String? _errorMessage;
+  int _currentPageIndex = 0; // New: Current page index for PageView
 
   // SharedPreferences prefix for manual appointments (scoped per clinic)
   static const String _prefsPrefix = "manual_slot_";
@@ -40,6 +41,12 @@ class ManagementProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<List<DateTime>> get weekSlots => _weekSlots;
   List<DateTime> get visibleDays => _visibleDays;
+  int get currentPageIndex => _currentPageIndex; // New getter
+
+  void setCurrentPageIndex(int index) {
+    _currentPageIndex = index;
+    notifyListeners();
+  }
 
   // Utility to parse integers safely
   int _parseInt(dynamic value, int defaultValue) {
@@ -288,15 +295,34 @@ class ManagementProvider extends ChangeNotifier {
 // ==================== UI SCREEN ====================
 
 /// Main management screen with PageView for days and ListView for slots
-class ManagementScreen extends StatelessWidget {
+class ManagementScreen extends StatefulWidget {
   final String clinicUid;
 
   const ManagementScreen({super.key, required this.clinicUid});
 
   @override
+  State<ManagementScreen> createState() => _ManagementScreenState();
+}
+
+class _ManagementScreenState extends State<ManagementScreen> {
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => ManagementProvider(clinicUid: clinicUid),
+      create: (_) => ManagementProvider(clinicUid: widget.clinicUid),
       child: Scaffold(
         body: SafeArea(
           child: Consumer<ManagementProvider>(
@@ -313,52 +339,116 @@ class ManagementScreen extends StatelessWidget {
                 return _buildNoWorkingDaysState(context);
               }
 
-              return PageView.builder(
-                itemCount: provider.visibleDays.length,
-                itemBuilder: (context, dayIndex) {
-                  final day = provider.visibleDays[dayIndex];
-                  final slots = provider.weekSlots[dayIndex];
+              return Column(
+                children: [
+                  _buildDayHeaderWithNavigation(context, provider),
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      itemCount: provider.visibleDays.length,
+                      onPageChanged: (index) {
+                        provider.setCurrentPageIndex(index);
+                      },
+                      itemBuilder: (context, dayIndex) {
+                        final day = provider.visibleDays[dayIndex];
+                        final slots = provider.weekSlots[dayIndex];
 
-                  return Column(
-                    children: [
-                      // Day header
-                      Container(
-                        padding: const EdgeInsets.all(16.0),
-                        color: Theme.of(context).colorScheme.primary,
-                        child: Center(
-                          child: Text(
-                            DateFormat(
-                              'EEEE, MMM d, yyyy',
-                            ).format(day.toLocal()),
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: slots.isEmpty
-                            ? _buildEmptyState(context, day, provider)
-                            : ListView.builder(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                itemCount: slots.length,
-                                itemBuilder: (context, slotIndex) {
-                                  return _buildSlotCard(
-                                    context,
-                                    provider,
-                                    slots[slotIndex],
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  );
-                },
+                        return Column(
+                          children: [
+                            Expanded(
+                              child: slots.isEmpty
+                                  ? _buildEmptyState(context, day, provider)
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        0,
+                                        8,
+                                        0,
+                                        0,
+                                      ), // Remove bottom padding here
+                                      itemCount:
+                                          slots.length +
+                                          1, // Add 1 for the SizedBox
+                                      itemBuilder: (context, slotIndex) {
+                                        if (slotIndex == slots.length) {
+                                          // This is the last item, add the SizedBox
+                                          return SizedBox(
+                                            height:
+                                                92 +
+                                                MediaQuery.of(
+                                                  context,
+                                                ).padding.bottom,
+                                          );
+                                        }
+                                        return _buildSlotCard(
+                                          context,
+                                          provider,
+                                          slots[slotIndex],
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDayHeaderWithNavigation(
+    BuildContext context,
+    ManagementProvider provider,
+  ) {
+    final day = provider.visibleDays[provider.currentPageIndex];
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      color: Theme.of(context).colorScheme.primary,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: Icon(
+              LucideIcons.arrowLeft,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+            onPressed: provider.currentPageIndex > 0
+                ? () {
+                    _pageController.previousPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                : null,
+          ),
+          Text(
+            DateFormat('EEEE, MMM d, yyyy').format(day.toLocal()),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              LucideIcons.arrowRight,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
+            onPressed:
+                provider.currentPageIndex < provider.visibleDays.length - 1
+                ? () {
+                    _pageController.nextPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                : null,
+          ),
+        ],
       ),
     );
   }
@@ -388,7 +478,7 @@ class ManagementScreen extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: provider.refreshData,
               icon: const Icon(LucideIcons.refreshCcw),
-              label: Text("Retry".tr()),
+              label: Text("retry".tr()),
             ),
           ],
         ),
@@ -531,7 +621,7 @@ class ManagementScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Appointments".tr(),
+                        "appointments".tr(),
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,

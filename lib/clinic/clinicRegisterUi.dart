@@ -41,34 +41,42 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   String? get selectedCity => _selectedCity;
   int currentPage = 0;
   bool isSubmitting = false;
+  bool _agreeToTerms = false; // New property
+
+  bool get agreeToTerms => _agreeToTerms;
+
+  void toggleAgreeToTerms(bool? newValue) {
+    _agreeToTerms = newValue ?? false;
+    notifyListeners();
+  }
 
   // Specialties as getter for locale updates
   List<String> get specialties => [
-        'General Medicine'.tr(),
-        'Pediatrics'.tr(),
-        'Gynecology'.tr(),
-        'Dermatology'.tr(),
-        'Dentistry'.tr(),
-        'Orthopedics'.tr(),
-        'Ophthalmology'.tr(),
-        'ENT (Ear, Nose, Throat)'.tr(),
-        'Cardiology'.tr(),
-        'Psychiatry'.tr(),
-        'Psychology'.tr(),
-        'Physiotherapy'.tr(),
-        'Nutrition'.tr(),
-        'Neurology'.tr(),
-        'Gastroenterology'.tr(),
-        'Urology'.tr(),
-        'Pulmonology'.tr(),
-        'Endocrinology'.tr(),
-        'Rheumatology'.tr(),
-        'Oncology'.tr(),
-        'Surgery'.tr(),
-        'Radiology'.tr(),
-        'Laboratory Services'.tr(),
-        'Nephrology'.tr(),
-      ];
+    'general_medicine'.tr(),
+    'pediatrics'.tr(),
+    'gynecology'.tr(),
+    'dermatology'.tr(),
+    'dentistry'.tr(),
+    'orthopedics'.tr(),
+    'ophthalmology'.tr(),
+    'ent'.tr(),
+    'cardiology'.tr(),
+    'psychiatry'.tr(),
+    'psychology'.tr(),
+    'physiotherapy'.tr(),
+    'nutrition'.tr(),
+    'Neurology'.tr(),
+    'Gastroenterology'.tr(),
+    'Urology'.tr(),
+    'Pulmonology'.tr(),
+    'Endocrinology'.tr(),
+    'Rheumatology'.tr(),
+    'Oncology'.tr(),
+    'Surgery'.tr(),
+    'Radiology'.tr(),
+    'Laboratory Services'.tr(),
+    'Nephrology'.tr(),
+  ];
   final List<String> algerianCities = [
     'Algiers',
     'Oran',
@@ -281,6 +289,51 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       );
       return false;
     }
+    if (openingMinutes! >= closingMinutes!) {
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Opening time must be before closing time".tr()),
+        ),
+      );
+      return false;
+    }
+    if (breakStartMinutes != null && breakEndMinutes != null) {
+      if (breakStartMinutes! >= breakEndMinutes!) {
+        if (!context.mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Break start time must be before break end time".tr(),
+            ),
+          ),
+        );
+        return false;
+      }
+      if (breakStartMinutes! < openingMinutes! ||
+          breakEndMinutes! > closingMinutes!) {
+        if (!context.mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Break times must be within working hours".tr()),
+          ),
+        );
+        return false;
+      }
+    }
+
+    // Validate duration
+    final duration = int.tryParse(durationController.text);
+    if (duration == null || duration <= 0) {
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Appointment duration must be a positive number".tr()),
+        ),
+      );
+      return false;
+    }
+
     if (_selectedCity == null) {
       if (!context.mounted) return false;
       ScaffoldMessenger.of(
@@ -293,6 +346,24 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Please select a specialty".tr())));
+      return false;
+    }
+    if (workingDays.isEmpty) {
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please select at least one working day".tr())),
+      );
+      return false;
+    }
+
+    if (!agreeToTerms) {
+      // New validation for agreeToTerms
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Please agree to the terms and privacy policy".tr()),
+        ),
+      );
       return false;
     }
     try {

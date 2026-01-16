@@ -31,11 +31,27 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('scan_qr_code'.tr()),
-        actions: [
-          IconButton(
+    return Stack(
+      children: [
+        MobileScanner(
+          controller: cameraController,
+          onDetect: (capture) {
+            if (!_screenOpened) {
+              _screenOpened = true;
+              final List<Barcode> barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty) {
+                final String? clinicUid = barcodes.first.rawValue;
+                if (clinicUid != null) {
+                  _foundBarcode(context, clinicUid);
+                }
+              }
+            }
+          },
+        ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: IconButton(
             color: Colors.white,
             icon: Icon(
               _isTorchOn ? Icons.flash_on : Icons.flash_off,
@@ -48,11 +64,13 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
               cameraController.toggleTorch();
             },
           ),
-          IconButton(
+        ),
+        Positioned(
+          top: 10,
+          left: 10,
+          child: IconButton(
             color: Colors.white,
-            icon: Icon(
-              _isFrontCamera ? Icons.camera_front : Icons.camera_rear,
-            ),
+            icon: Icon(_isFrontCamera ? Icons.camera_front : Icons.camera_rear),
             onPressed: () {
               setState(() {
                 _isFrontCamera = !_isFrontCamera;
@@ -60,23 +78,8 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
               cameraController.switchCamera();
             },
           ),
-        ],
-      ),
-      body: MobileScanner(
-        controller: cameraController,
-        onDetect: (capture) {
-          if (!_screenOpened) {
-            _screenOpened = true;
-            final List<Barcode> barcodes = capture.barcodes;
-            if (barcodes.isNotEmpty) {
-              final String? clinicUid = barcodes.first.rawValue;
-              if (clinicUid != null) {
-                _foundBarcode(context, clinicUid);
-              }
-            }
-          }
-        },
-      ),
+        ),
+      ],
     );
   }
 
@@ -92,35 +95,33 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
       // In a real application, you would query Firestore for the clinic's existence.
 
       // Simulate fetching clinic data from Firestore
-      final clinicDoc = await Provider.of<UserNavBarProvider>(context, listen: false)
-          .firestore
-          .collection('clinics')
-          .doc(clinicUid)
-          .get();
+      final clinicDoc = await Provider.of<UserNavBarProvider>(
+        context,
+        listen: false,
+      ).firestore.collection('clinics').doc(clinicUid).get();
 
       if (!clinicDoc.exists) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('clinic_not_found'.tr())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('clinic_not_found'.tr())));
         Navigator.of(context).pop(); // Go back to favorites screen
         return;
       }
-      
+
       final Map<String, dynamic> actualClinicData = clinicDoc.data()!;
 
-
-      await provider.toggleFavorite(clinicUid, actualClinicData);
+      await provider.toggleFavorite(clinicUid);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added to favorites'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('added_to_favorites'.tr())));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding to favorites: $e'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('error_adding_to_favorites'.tr())));
     } finally {
       if (mounted) {
         Navigator.of(context).pop(); // Go back to favorites screen

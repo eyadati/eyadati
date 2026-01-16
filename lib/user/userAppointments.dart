@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:eyadati/clinic/clinicSettingsPage.dart';
 import 'package:eyadati/user/user_appointments.dart';
 import 'package:eyadati/Appointments/clinicsList.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 
@@ -26,36 +26,26 @@ class _UserAppointmentsState extends State<UserAppointments> {
       ],
       child: Scaffold(
         appBar: AppBar(
-          title: FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance
-                .collection('users')
-                .doc(FirebaseAuth.instance.currentUser?.uid)
-                .get(GetOptions(source: Source.cache)),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<DocumentSnapshot> snapshot,
-                ) {
-                  if (snapshot.hasError) {
-                    return Text("hello".tr());
-                  }
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    Map<String, dynamic> data =
-                        snapshot.data!.data() as Map<String, dynamic>;
-                    return Text('hello ${data['name']}'.tr());
-                  }
-                  return Text("hello".tr());
-                },
+          leading: GestureDetector(
+            child: Icon(LucideIcons.settings),
+            onTap: () => showMaterialModalBottomSheet(
+              context: context,
+              builder: (context) {
+                return Clinicsettings();
+              },
+            ),
           ),
+          actionsPadding: EdgeInsets.all(15),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           actions: [
-            IconButton(
-              onPressed: () async {
+            GestureDetector(
+              onTap: () async {
                 final booked = await ClinicFilterBottomSheet.show(context);
                 if (booked == true && context.mounted) {
                   context.read<UserAppointmentsProvider>().refresh();
                 }
               },
-              icon: Icon(LucideIcons.plus),
+              child: Icon(LucideIcons.plus, size: 30),
             ),
           ],
         ),
@@ -69,11 +59,6 @@ class _UserAppointmentsState extends State<UserAppointments> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      LucideIcons.calendarX,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
                     const SizedBox(height: 16),
                     Text(
                       "no_appointments".tr(),
@@ -88,7 +73,14 @@ class _UserAppointmentsState extends State<UserAppointments> {
             }
             return RefreshIndicator(
               onRefresh: provider.refresh,
-              child: Appointmentslistview(),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    SizedBox(height: 50),
+                    Expanded(child: Appointmentslistview()),
+                  ],
+                ),
+              ),
             );
           },
         ),

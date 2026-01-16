@@ -10,16 +10,53 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:eyadati/user/userQrScannerPage.dart';
 
 class UserNavBarProvider extends ChangeNotifier {
   List<Map<String, dynamic>> favClinics = [];
-  String _selected = "2";
+  String _selected = "1";
   String get selected => _selected;
   FirebaseAuth auth = FirebaseAuth.instance;
   FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-  // Add to UserNavBarProvider:
+  UserNavBarProvider() {
+    _loadFavoriteClinics(); // Load favorites when provider is created
+  }
+
+  Future<void> _loadFavoriteClinics() async {
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. Fetch the favorite clinic UIDs from the user's favorites subcollection
+      final favoriteUidsSnapshot = await firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('favorites')
+          .get(GetOptions(source: Source.server)); // Always fetch from server
+
+      final List<String> favoriteClinicIds = favoriteUidsSnapshot.docs
+          .map((doc) => doc.id)
+          .toList();
+
+      // 2. Fetch full clinic details for each favorite clinic
+      if (favoriteClinicIds.isNotEmpty) {
+        final clinicsSnapshot = await firestore
+            .collection('clinics')
+            .where(FieldPath.documentId, whereIn: favoriteClinicIds)
+            .get(GetOptions(source: Source.server)); // Always fetch from server
+
+        favClinics = clinicsSnapshot.docs
+            .map((doc) => {'uid': doc.id, ...doc.data()})
+            .toList();
+      } else {
+        favClinics = [];
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error loading favorite clinics: $e");
+    }
+  }
 
   /// Uses get() to check if clinic is favorited (saves reads vs snapshot)
   Future<bool> isFavorite(String clinicUid) async {
@@ -44,7 +81,7 @@ class UserNavBarProvider extends ChangeNotifier {
   /// Toggles favorite status and updates local list
   Future<void> toggleFavorite(
     String clinicUid,
-    Map<String, dynamic> clinicData,
+    // Removed clinicData from parameters as we will fetch full data
   ) async {
     final user = auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
@@ -57,19 +94,35 @@ class UserNavBarProvider extends ChangeNotifier {
 
     try {
       final docSnapshot = await favoriteDoc.get(
-        GetOptions(source: Source.cache),
+        GetOptions(
+          source: Source.server,
+        ), // Always check server for favorite status
       );
 
       if (docSnapshot.exists) {
+        // If already favorited, remove it
         await favoriteDoc.delete();
         favClinics.removeWhere((clinic) => clinic['uid'] == clinicUid);
         debugPrint("Removed clinic $clinicUid from favorites");
       } else {
+        // If not favorited, fetch full clinic data and add it
+        final clinicDoc = await firestore
+            .collection('clinics')
+            .doc(clinicUid)
+            .get(
+              GetOptions(source: Source.server),
+            ); // Fetch full clinic data from server
+
+        if (!clinicDoc.exists) {
+          throw Exception('Clinic not found');
+        }
+        final fullClinicData = clinicDoc.data()!;
+
         await favoriteDoc.set({
-          ...clinicData,
+          ...fullClinicData, // Save full clinic data
           'addedAt': FieldValue.serverTimestamp(),
         });
-        favClinics.add({'uid': clinicUid, ...clinicData});
+        favClinics.add({'uid': clinicUid, ...fullClinicData});
         debugPrint("Added clinic $clinicUid to favorites");
       }
       notifyListeners();
@@ -121,7 +174,7 @@ class _BottomNavContent extends StatelessWidget {
       curve: Curves.decelerate,
       showIcon: false, // Hide center icon for cleaner nav bar
       width: MediaQuery.of(context).size.width * 0.9, // Floating effect
-      barColor: Theme.of(context).colorScheme.secondary,
+      barColor: Theme.of(context).colorScheme.onSecondary,
       barAlignment: Alignment.bottomCenter,
 
       // Main content area with lazy loading
@@ -131,9 +184,9 @@ class _BottomNavContent extends StatelessWidget {
         return DeferredIndexedStack(
           index: selectedIndex,
           children: [
-            DeferredTab(child: FavoritScreen()),
-            DeferredTab(child: UserAppointments()),
-            DeferredTab(child: UserSettings()),
+            DeferredTab(id: "1", child: UserSettings()),
+            DeferredTab(id: "2", child: UserAppointments()),
+            DeferredTab(id: "3", child: FavoritScreen()),
           ],
         );
       },
@@ -144,9 +197,9 @@ class _BottomNavContent extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, LucideIcons.settings, "Settings".tr(), "1"),
-            _buildNavItem(context, LucideIcons.home, "Home".tr(), "2"),
-            _buildNavItem(context, LucideIcons.heart, "Favorites".tr(), "3"),
+            _buildNavItem(context, LucideIcons.settings, "settings".tr(), "1"),
+            _buildNavItem(context, LucideIcons.home, "home".tr(), "2"),
+            _buildNavItem(context, LucideIcons.heart, "favorites".tr(), "3"),
           ],
         ),
       ),
@@ -183,30 +236,13 @@ class _BottomNavContent extends StatelessWidget {
   }
 }
 
-
 class FavoritScreen extends StatelessWidget {
   const FavoritScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Favorites'.tr()),
-        actions: [
-          IconButton(
-            icon: Icon(LucideIcons.scan),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => UserQrScannerPage(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Consumer<UserNavBarProvider>(
+    return SafeArea(
+      child: Consumer<UserNavBarProvider>(
         builder: (context, provider, _) {
           if (provider.favClinics.isEmpty) {
             return Center(
@@ -220,12 +256,12 @@ class FavoritScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No favorite clinics'.tr(),
+                    'no_favorite_clinics'.tr(),
                     style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Add clinics to see them here'.tr(),
+                    'add_clinics_to_see_them_here'.tr(),
                     style: TextStyle(
                       fontSize: 14,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -249,10 +285,12 @@ class FavoritScreen extends StatelessWidget {
                   children: [
                     IconButton(
                       onPressed: () async {
-                        await provider.toggleFavorite(clinic['uid'], clinic);
+                        await provider.toggleFavorite(clinic['uid']);
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Removed from favorites'.tr())),
+                          SnackBar(
+                            content: Text('removed_from_favorites'.tr()),
+                          ),
                         );
                       },
                       icon: Icon(
@@ -314,7 +352,7 @@ class _ClinicCard extends StatelessWidget {
                       : null,
                 ),
                 title: Text(
-                  clinic["clinicName"] ?? "Unnamed Clinic".tr(),
+                  clinic["clinicName"] ?? "unnamed_clinic".tr(),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 subtitle: Padding(
@@ -324,7 +362,7 @@ class _ClinicCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        clinic["specialty"] ?? "General".tr(),
+                        clinic["specialty"] ?? "general".tr(),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 15,
@@ -368,7 +406,7 @@ class _ClinicCard extends StatelessWidget {
                   titleAlignment: ListTileTitleAlignment.center,
                   title: Center(
                     child: Text(
-                      "Book appointment".tr(),
+                      "book_appointment".tr(),
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         color: Theme.of(context).colorScheme.onPrimary,
@@ -389,29 +427,32 @@ class _ClinicCard extends StatelessWidget {
               right: 8,
               child: IconButton(
                 icon: Icon(
-                  isFav ? LucideIcons.heart : LucideIcons.heart,
+                  isFav
+                      ? LucideIcons.heart
+                      : LucideIcons
+                            .heart, // Changed to filled heart when favorite
                   color: isFav
                       ? Theme.of(context).colorScheme.error
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 onPressed: () async {
                   try {
-                    await provider.toggleFavorite(clinic['uid'], clinic);
+                    await provider.toggleFavorite(clinic['uid']);
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
                           isFav
-                              ? 'Removed from favorites'.tr()
-                              : 'Added to favorites'.tr(),
+                              ? 'removed_from_favorites'.tr()
+                              : 'added_to_favorites'.tr(),
                         ),
                       ),
                     );
                   } catch (e) {
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('error_generic'.tr())),
+                    );
                   }
                 },
               ),

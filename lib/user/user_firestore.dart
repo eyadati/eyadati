@@ -43,17 +43,17 @@ class UserFirestore {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Cancel Appointment'.tr()),
-        content: Text('Are you sure you want to cancel this appointment?'.tr()),
+        title: Text('cancel_appointment'.tr()),
+        content: Text('are_you_sure_to_cancel_appointment'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('No'.tr()),
+            child: Text('no'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
-              'Yes'.tr(),
+              'yes'.tr(),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
@@ -73,7 +73,7 @@ class UserFirestore {
           .get(GetOptions(source: Source.cache));
 
       if (!appointmentDoc.exists) {
-        throw Exception('Appointment not found'.tr());
+        throw Exception('appointment_not_found'.tr());
       }
 
       final appointmentData = appointmentDoc.data()!;

@@ -36,7 +36,9 @@ class ClinicFirestore {
         "FCM": fcm,
         "mapsLink": mapsLink,
         "workingDays": workingDays,
-        "freeTrial": 15,
+        "subscriptionStartDate": DateTime.now(),
+        "subscriptionEndDate": DateTime.now().add(Duration(days: 31)),
+        "paused": false,
         "phone": phone,
         "address": adress,
         "city": city,
@@ -57,46 +59,80 @@ class ClinicFirestore {
 
   Future<void> updateClinic(
     String name, //1
+
     String clinicName, //1
+
     String mapsLink, //2
+
     String picUrl, //5
+
     String city, //2
+
     List workingDays, //3
+
     String phone, //1
+
     String specialty, //4
+
     String sessionDuration, //4
+
     int openingAt, //3
+
     int closingAt, //3
+
     int breakStart, //3
+
     int breakTime, //3
+
     String adress, //2
+
+    bool paused,
   ) async {
     try {
       final fcm = await FirebaseMessaging.instance.getToken();
 
       await collection.doc(clinic?.uid).update({
         "uid": clinic!.uid,
+
         "email": clinic!.email,
+
         "name": name,
+
         "clinicName": clinicName,
+
         "FCM": fcm,
+
         "mapsLink": mapsLink,
+
         "workingDays": workingDays,
-        "freeTrial": 15,
+
         "phone": phone,
+
         "address": adress,
+
         "city": city,
+
         'picUrl': picUrl,
+
         "openingAt": openingAt,
+
         'closingAt': closingAt,
+
         'breakStart': breakStart,
+
         "break": breakTime,
+
         "specialty": specialty,
+
         'Duration': sessionDuration,
+
         'staff': 1.toInt(),
+
+        "paused": paused,
       });
     } catch (e) {
       debugPrint("Clinic creation error : $e");
+
       rethrow;
     }
   }
@@ -109,17 +145,17 @@ class ClinicFirestore {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Cancel Appointment'.tr()),
-        content: Text('Are you sure you want to cancel this appointment?'.tr()),
+        title: Text('cancel_appointment'.tr()),
+        content: Text('are_you_sure_to_cancel_appointment'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('No'.tr()),
+            child: Text('no'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
-              'Yes'.tr(),
+              'yes'.tr(),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
@@ -139,7 +175,7 @@ class ClinicFirestore {
           .get(GetOptions(source: Source.cache));
 
       if (!appointmentDoc.exists) {
-        throw Exception('Appointment not found'.tr());
+        throw Exception('appointment_not_found'.tr());
       }
 
       final appointmentData = appointmentDoc.data()!;
@@ -169,7 +205,7 @@ class ClinicFirestore {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('error_generic'.tr())));
     }
   }
 }

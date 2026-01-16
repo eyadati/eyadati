@@ -4,8 +4,9 @@ import 'package:eyadati/clinic/clinicRegisterUi.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/gestures.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UI Helper Widgets and Functions
@@ -28,13 +29,9 @@ class _ClinicOnboardingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<ClinicOnboardingProvider>();
-
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: provider.currentPage == 0 ? _IntroPage() : _FormPage(),
-      ),
+      body: SafeArea(child: _FormPage()),
     );
   }
 }
@@ -73,7 +70,7 @@ class _IntroPage extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: context.read<ClinicOnboardingProvider>().goToFormPage,
               icon: const Icon(LucideIcons.arrowRight),
-              label: Text("Get Started".tr()),
+              label: Text("get_started".tr()),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 32,
@@ -84,7 +81,7 @@ class _IntroPage extends StatelessWidget {
             const SizedBox(height: 100),
             TextButton(
               onPressed: () => Clinicauth().clinicLoginIn(context),
-              child: Text("Already have an account? Login".tr()),
+              child: Text("already_have_account_login".tr()),
             ),
           ],
         ),
@@ -107,7 +104,7 @@ class _FormPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle(context, "Account Information".tr()),
+            _buildSectionTitle(context, "account_information".tr()),
             _buildTextFormField(
               context,
               controller: provider.nameController,
@@ -137,7 +134,7 @@ class _FormPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            _buildSectionTitle(context, "Business Information".tr()),
+            _buildSectionTitle(context, "business_information".tr()),
             _buildTextFormField(
               context,
               controller: provider.clinicNameController,
@@ -152,14 +149,14 @@ class _FormPage extends StatelessWidget {
             _buildTextFormField(
               context,
               controller: provider.durationController,
-              label: 'Appointmnent duration(minutes)'.tr(),
+              label: 'appointment_duration_minutes'.tr(),
               inputType: TextInputType.number,
               focusNode: provider.focusNodes[4],
               nextNode: provider.focusNodes[5],
             ),
             const SizedBox(height: 32),
 
-            _buildSectionTitle(context, "Address & Contact".tr()),
+            _buildSectionTitle(context, "address_and_contact".tr()),
             _buildCityDropdown(context, provider),
             const SizedBox(height: 16),
             _buildTextFormField(
@@ -199,7 +196,7 @@ class _FormPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            _buildSectionTitle(context, "Working Hours".tr()),
+            _buildSectionTitle(context, "working_hours".tr()),
             _buildTimePickerRow(context, "Opening", 'opening', provider),
             const SizedBox(height: 12),
             _buildTimePickerRow(context, "Closing", 'closing', provider),
@@ -208,18 +205,58 @@ class _FormPage extends StatelessWidget {
             const SizedBox(height: 12),
             _buildTimePickerRow(context, "Break End", 'breakEnd', provider),
             const SizedBox(height: 24),
-            _buildSectionTitle(context, "opening Days".tr(), isSmall: true),
+            _buildSectionTitle(context, "opening_days".tr(), isSmall: true),
             _buildWorkingDaysChips(context, provider),
             const SizedBox(height: 32),
 
-            _buildSectionTitle(context, "Clinic Image".tr()),
+            _buildSectionTitle(context, "clinic_image".tr()),
             Center(child: _buildAvatarPicker(context, provider)),
             const SizedBox(height: 32),
+
+            // Terms and Conditions Checkbox
+            CheckboxListTile(
+              value: provider.agreeToTerms,
+              onChanged: provider.toggleAgreeToTerms,
+              title: Text.rich(
+                TextSpan(
+                  text: 'i_agree_to'.tr(),
+                  children: [
+                    TextSpan(
+                      text: 'privacy_policy'.tr(),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          // TODO: Navigate to Privacy Policy
+                          debugPrint('Clinic Privacy Policy tapped!');
+                        },
+                    ),
+                    TextSpan(text: 'and'.tr()),
+                    TextSpan(
+                      text: 'terms_of_service'.tr(),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () {
+                          // TODO: Navigate to Terms of Service
+                          debugPrint('Clinic Terms of Service tapped!');
+                        },
+                    ),
+                  ],
+                ),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            const SizedBox(height: 16),
 
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: provider.isSubmitting
+                onPressed: provider.isSubmitting || !provider.agreeToTerms
                     ? null
                     : () async {
                         final success = await provider.validateAndSubmit(
@@ -239,7 +276,7 @@ class _FormPage extends StatelessWidget {
                 ),
                 child: provider.isSubmitting
                     ? _buildButtonProgress()
-                    : Text("Complete Setup".tr()),
+                    : Text("complete_setup".tr()),
               ),
             ),
           ],
@@ -318,7 +355,7 @@ Widget _buildCityDropdown(
     onChanged: provider.selectCity,
     validator: (value) {
       if (value == null || value.isEmpty) {
-        return 'Please select a city'.tr();
+        return 'please_select_a_city'.tr();
       }
       return null;
     },
@@ -343,7 +380,7 @@ Widget _buildSpecialtyDropdown(
     onChanged: provider.selectSpecialty,
     validator: (value) {
       if (value == null || value.isEmpty) {
-        return 'Please select a specialty'.tr();
+        return 'please_select_a_specialty'.tr();
       }
       return null;
     },
@@ -417,7 +454,7 @@ Widget _buildTimePickerRow(
       ),
       TextButton.icon(
         icon: const Icon(LucideIcons.clock),
-        label: Text(timeText ?? "Select Time".tr()),
+        label: Text(timeText ?? "select_time".tr()),
         onPressed: () async {
           TimeOfDay? picked = await showTimePicker(
             context: context,
@@ -447,37 +484,20 @@ Widget _buildAvatarPicker(
       ),
       itemCount: 3,
       itemBuilder: (cntx, i) {
-        if (i < 2) {
-          // The first two are default avatars
-          return GestureDetector(
-            onTap: () {
-              provider.selectAvatar(i);
-            },
-            child: CircleAvatar(
-              radius: 11,
-              backgroundColor: provider.avatarNumber == i
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-              child: Image.asset("assets/avatars/${i + 1}.png"),
-            ),
-          );
-        } else {
-          // The third one is for uploading
-          return GestureDetector(
-            onTap: () {
-              provider.pickImage();
-            },
-            child: CircleAvatar(
-              radius: 11,
-              backgroundColor: provider.pickedImage != null
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-              child: provider.pickedImage == null
-                  ? const Icon(Icons.add_a_photo, size: 30)
-                  : Image.file(provider.pickedImage!),
-            ),
-          );
-        }
+        return GestureDetector(
+          onTap: () {
+            provider.pickImage();
+          },
+          child: CircleAvatar(
+            radius: 11,
+            backgroundColor: provider.pickedImage != null
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+            child: provider.pickedImage == null
+                ? const Icon(Icons.add_a_photo, size: 30)
+                : Image.file(provider.pickedImage!),
+          ),
+        );
       },
     ),
   );

@@ -77,7 +77,7 @@ class AppStartupService {
     final doc = await FirebaseFirestore.instance
         .collection('clinics')
         .doc(_userId)
-        .get(GetOptions(source: Source.cache));
+        .get(GetOptions(source: Source.serverAndCache));
     return doc.exists;
   }
 
@@ -100,17 +100,10 @@ class AppStartupService {
     Function(Map<String, dynamic>) onSuccess,
   ) async {
     try {
-      final cacheDoc = await ref.get(GetOptions(source: Source.cache));
-      if (cacheDoc.exists) {
-        onSuccess(cacheDoc.data() as Map<String, dynamic>);
-        debugPrint("✅ Data loaded from cache: ${ref.path}");
-        return;
-      }
-
-      final serverDoc = await ref.get(GetOptions(source: Source.server));
-      if (serverDoc.exists) {
-        onSuccess(serverDoc.data() as Map<String, dynamic>);
-        debugPrint("✅ Data loaded from server: ${ref.path}");
+      final doc = await ref.get(GetOptions(source: Source.server));
+      if (doc.exists) {
+        onSuccess(doc.data() as Map<String, dynamic>);
+        debugPrint("✅ Data loaded from server and cache: ${ref.path}");
       }
     } catch (e) {
       debugPrint("❌ Failed to load ${ref.path}: $e");

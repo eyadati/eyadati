@@ -21,7 +21,7 @@ class UserSettings extends StatelessWidget {
           SettingsSection(
             tiles: [
               SettingsTile.navigation(
-                title: Text("Edit Profile".tr()),
+                title: Text("edit_profile".tr()),
                 leading: Icon(LucideIcons.user),
                 onPressed: (_) => showModalBottomSheet(
                   context: context,
@@ -31,14 +31,64 @@ class UserSettings extends StatelessWidget {
                 ),
               ),
               SettingsTile.navigation(
-                title: Text("Language".tr()),
+                title: Text("language".tr()),
                 leading: Icon(LucideIcons.globe),
-                onPressed: (_) => showDialog(
-                  context: context,
-                  builder: (_) {
-                    return AlertDialog(title: Text("Language".tr()));
-                  },
-                ),
+                onPressed: (_) {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text("language".tr()),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RadioListTile<Locale>(
+                              title: const Text('English'),
+                              value: const Locale('en'),
+                              groupValue: context.locale,
+                              onChanged: (Locale? value) async {
+                                if (value != null) {
+                                  await context.setLocale(value);
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                            RadioListTile<Locale>(
+                              title: const Text('Français'),
+                              value: const Locale('fr'),
+                              groupValue: context.locale,
+                              onChanged: (Locale? value) async {
+                                if (value != null) {
+                                  await context.setLocale(value);
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                            RadioListTile<Locale>(
+                              title: const Text('العربية'),
+                              value: const Locale('ar'),
+                              groupValue: context.locale,
+                              onChanged: (Locale? value) async {
+                                if (value != null) {
+                                  await context.setLocale(value);
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: Text('close'.tr()),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
               ),
 
               SettingsTile.switchTile(
@@ -49,32 +99,21 @@ class UserSettings extends StatelessWidget {
                   ).toggleTheme();
                 },
                 initialValue: Provider.of<ThemeProvider>(context).isDarkMode,
-                title: Text("Dark mode".tr()),
+                title: Text("dark_mode".tr()),
                 leading: Icon(LucideIcons.moon),
               ),
               SettingsTile.navigation(
-                title: Text("log out".tr()),
+                title: Text("log_out".tr()),
                 leading: Icon(LucideIcons.globe),
-                onPressed: (_) {
-                  FirebaseAuth.instance.signOut();
-                  Navigator.pushReplacement(
+                onPressed: (context) async {
+                  // Added async
+                  await FirebaseAuth.instance.signOut(); // Await signOut
+                  if (!context.mounted) return; // Check context after await
+                  Navigator.pushAndRemoveUntil(
+                    // Use pushAndRemoveUntil
                     context,
-                    MaterialPageRoute(
-                      builder: (ctx) => FutureBuilder<Widget>(
-                        future: decidePage(context),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return Center(child: CircularProgressIndicator());
-                          }
-                          return Container(
-                            child:
-                                snapshot.data ??
-                                Text('Something went wrong'.tr()),
-                          );
-                        },
-                      ),
-                    ),
+                    MaterialPageRoute(builder: (ctx) => intro(ctx)),
+                    (route) => false, // Clear all previous routes
                   );
                 },
               ),

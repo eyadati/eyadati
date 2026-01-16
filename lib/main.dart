@@ -1,3 +1,7 @@
+import 'package:eyadati/splash_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // Import Firebase Messaging
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/Appointments/utils.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
@@ -12,14 +16,55 @@ import 'package:eyadati/flow.dart';
 import 'package:eyadati/Themes/ThemeProvider.dart'; // Import ThemeProvider
 import 'package:lucide_icons/lucide_icons.dart';
 
+// Top-level function to handle background messages
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint("Handling a background message: ${message.messageId}");
+  // You can show a local notification here if needed
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EasyLocalization.ensureInitialized(); // Initialize EasyLocalization
+  await EasyLocalization.ensureInitialized();
 
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Request permission for notifications (iOS and Web)
+    final messaging = FirebaseMessaging.instance;
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      debugPrint('User granted permission');
+    } else if (settings.authorizationStatus ==
+        AuthorizationStatus.provisional) {
+      debugPrint('User granted provisional permission');
+    } else {
+      debugPrint('User declined or has not accepted permission');
+    }
+
+    // Pass all uncaught "fatal" errors from the framework to Crashlytics
+    FlutterError.onError = (errorDetails) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
+    // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
 
     await Supabase.initialize(
       url: "https://erkldarqweehvwgpncrg.supabase.co",
@@ -48,42 +93,39 @@ void main() async {
       ),
     );
   } catch (e) {
-    runApp(_buildErrorApp(e.toString()));
-  }
-}
-
-/// Minimal error screen for initialization failures
-Widget _buildErrorApp(String error) {
-  return MaterialApp(
-    home: Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                LucideIcons.alertTriangle,
-                size: 80,
-                color: Colors.red,
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    LucideIcons.alertTriangle,
+                    size: 80,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'initialization_error'.tr(),
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    e.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'initialization_error'.tr(),
-                style: const TextStyle(fontSize: 20),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                error,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Main app widget
@@ -102,6 +144,25 @@ class _EyadatiAppState extends State<EyadatiApp> {
     super.initState();
     // Cache the future ONCE at app launch
     _navigationFuture = _initializeAndDecide();
+
+    // Foreground message handler
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
+
+      if (message.notification != null) {
+        debugPrint(
+          'Message also contained a notification: ${message.notification}',
+        );
+      }
+      _showPaymentStatusDialog(message);
+    });
+
+    // Handle messages when the app is in the background or terminated and opened by the user
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('A new onMessageOpenedApp event was published!');
+      _navigateToScreenAndShowDialog(message);
+    });
   }
 
   Future<Widget> _initializeAndDecide() async {
@@ -124,6 +185,59 @@ class _EyadatiAppState extends State<EyadatiApp> {
     }
   }
 
+  // Function to show a dialog based on FCM message data
+  void _showPaymentStatusDialog(RemoteMessage message) {
+    // Ensure that the context is still valid before showing the dialog
+    if (!mounted) {
+      return;
+    }
+
+    final data = message.data;
+    final String type = data['type'] ?? '';
+    final String status = data['status'] ?? '';
+    final String subscriptionEndDate = data['subscriptionEndDate'] ?? 'N/A';
+    final String title = message.notification?.title ?? 'Notification';
+    final String body = message.notification?.body ?? '';
+
+    if (type == 'payment_status' || type == 'subscription_update') {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(title.tr()),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(body.tr()),
+                if (type == 'subscription_update' || status == 'success')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'subscription_ends: ${subscriptionEndDate.tr()}',
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('ok'.tr()),
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+
+  void _navigateToScreenAndShowDialog(RemoteMessage message) {
+    _showPaymentStatusDialog(message);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Access the ThemeProvider
@@ -135,23 +249,7 @@ class _EyadatiAppState extends State<EyadatiApp> {
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,
-      home: FutureBuilder<Widget>(
-        future: _navigationFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasError) {
-            debugPrint('Navigation error: ${snapshot.error}');
-            return Scaffold(
-              body: Center(child: Text('something_went_wrong'.tr())),
-            );
-          }
-          return snapshot.data!;
-        },
-      ),
+      home: SplashScreen(),
     );
   }
 }
