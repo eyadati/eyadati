@@ -1,6 +1,6 @@
 # Implementation Plan: Enhance Localization Support and User Onboarding
 
-## Phase 1: Localization Enhancement
+## Phase 1: Localization Enhancement [checkpoint: 65a2571]
 
 - [~] **Task: Conductor - User Manual Verification 'Phase 1: Localization Enhancement' (Protocol in workflow.md)**
 - [~] Task: Audit existing translations and identify missing strings.
