@@ -186,6 +186,8 @@ class _ClinicAppointmentsView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        title: Image.asset('assets/logo.png', height: 40),
+        centerTitle: true,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
         actions: [

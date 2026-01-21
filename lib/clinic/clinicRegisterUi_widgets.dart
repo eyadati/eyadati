@@ -1,5 +1,4 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:eyadati/clinic/clinicAuth.dart';
 import 'package:eyadati/clinic/clinicRegisterUi.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
 import 'package:flutter/material.dart';
@@ -32,60 +31,6 @@ class _ClinicOnboardingView extends StatelessWidget {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: SafeArea(child: _FormPage()),
-    );
-  }
-}
-
-class _IntroPage extends StatelessWidget {
-  const _IntroPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.personStanding,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              "hello_to_eyadati".tr(),
-              style: Theme.of(
-                context,
-              ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "setup_clinic_profile".tr(),
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 48),
-            ElevatedButton.icon(
-              onPressed: context.read<ClinicOnboardingProvider>().goToFormPage,
-              icon: const Icon(LucideIcons.arrowRight),
-              label: Text("get_started".tr()),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-              ),
-            ),
-            const SizedBox(height: 100),
-            TextButton(
-              onPressed: () => Clinicauth().clinicLoginIn(context),
-              child: Text("already_have_account_login".tr()),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

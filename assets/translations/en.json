@@ -193,4 +193,14 @@
     "error_loading_appointments": "Error loading appointments",
     "please_select_opening_and_closing_times": "Please select opening and closing times",
     "not_applicable": "N/A",
-    "subscription_ends_prefix": "Subscription ends:"}
+    "subscription_ends_prefix": "Subscription ends:",
+    "clinic_authentication": "Clinic Authentication",
+    "already_have_account_login": "Already have an account? Login",
+    "create_new_account": "Create a new account",
+    "clinic_login": "Clinic Login",
+    "please_enter_email": "Please enter your email",
+    "please_enter_password": "Please enter your password",
+
+    "user_authentication": "User Authentication",
+    "user_login": "User Login"
+}

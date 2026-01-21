@@ -3,27 +3,43 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb_flutter;
+import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
 
 class ClinicFirestore {
-  final clinic = FirebaseAuth.instance.currentUser;
-  final SupabaseClient client = Supabase.instance.client;
-  final collection = FirebaseFirestore.instance.collection("clinics");
+  final sb_flutter.SupabaseClient client = sb_flutter.Supabase.instance.client;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _firebaseAuth;
+  final CollectionReference<Map<String, dynamic>> collection;
+  final User? clinic;
+  final ConnectivityService? _connectivityService; // Add ConnectivityService
+
+  ClinicFirestore({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    ConnectivityService? connectivityService,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+       collection = (firestore ?? FirebaseFirestore.instance).collection(
+         "clinics",
+       ),
+       clinic = (firebaseAuth ?? FirebaseAuth.instance).currentUser,
+       _connectivityService = connectivityService; // Initialize it
   Future<void> addClinic(
-    String name, //1
+    String name,
     String mapsLink,
-    String clinicName, //1
-    String picUrl, //5
-    String city, //2
-    List workingDays, //3
-    String phone, //1
-    String specialty, //4
-    int sessionDuration, //4
-    int openingAt, //3
-    int closingAt, //3
-    int breakStart, //3
-    int breakTime, //3
-    String adress, //2
+    String clinicName,
+    String picUrl,
+    String city,
+    List workingDays,
+    String phone,
+    String specialty,
+    int sessionDuration,
+    int openingAt,
+    int closingAt,
+    int breakStart,
+    int breakEnd,
+    String adress,
   ) async {
     try {
       final fcm = await FirebaseMessaging.instance.getToken();
@@ -46,9 +62,9 @@ class ClinicFirestore {
         "openingAt": openingAt,
         'closingAt': closingAt,
         'breakStart': breakStart,
-        "break": breakTime,
+        "breakEnd": breakEnd,
         "specialty": specialty,
-        'Duration': sessionDuration,
+        'duration': sessionDuration,
         'staff': 1.toInt(),
       });
     } catch (e) {
@@ -58,34 +74,20 @@ class ClinicFirestore {
   }
 
   Future<void> updateClinic(
-    String name, //1
-
-    String clinicName, //1
-
-    String mapsLink, //2
-
-    String picUrl, //5
-
-    String city, //2
-
-    List workingDays, //3
-
-    String phone, //1
-
-    String specialty, //4
-
-    String sessionDuration, //4
-
-    int openingAt, //3
-
-    int closingAt, //3
-
-    int breakStart, //3
-
-    int breakTime, //3
-
-    String adress, //2
-
+    String name,
+    String clinicName,
+    String mapsLink,
+    String picUrl,
+    String city,
+    List workingDays,
+    String phone,
+    String specialty,
+    String sessionDuration,
+    int openingAt,
+    int closingAt,
+    int breakStart,
+    int breakTime,
+    String adress,
     bool paused,
   ) async {
     try {
@@ -137,6 +139,106 @@ class ClinicFirestore {
     }
   }
 
+  Future<Map<String, dynamic>?> getClinicData(String clinicUid) async {
+    try {
+      // First, try to get data from cache
+      DocumentSnapshot doc = await collection.doc(clinicUid).get(GetOptions(source: Source.cache));
+
+      // If data is not in cache AND device is online, try to get from server (and cache)
+      if (!doc.exists && (_connectivityService?.isOnline == true)) {
+        doc = await collection.doc(clinicUid).get(GetOptions(source: Source.serverAndCache));
+      } else if (!doc.exists && (_connectivityService?.isOnline == false)) {
+          // If offline and not in cache, we still don't have data, return null
+          debugPrint("Clinic data not in cache and device is offline.");
+          return null;
+      }
+
+      // If after all attempts, the document still doesn't exist, return null
+      if (!doc.exists) {
+        return null;
+      }
+
+      return doc.data() as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint("Error getting clinic data: $e");
+      return null;
+    }
+  }
+
+  Future<void> updateClinicPauseStatus(String clinicUid, bool isPaused) async {
+    try {
+      await collection.doc(clinicUid).update({"paused": isPaused});
+    } catch (e) {
+      debugPrint("Error updating clinic pause status: $e");
+      rethrow;
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> getAvailableClinics() {
+    return collection.where('paused', isEqualTo: false).snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    });
+  }
+
+  Future<void> deleteClinicAccount(
+    BuildContext context,
+    String password,
+  ) async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        throw Exception('No user logged in.');
+      }
+
+      // Reauthenticate user
+      final AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // 1. Delete clinic document from Firestore
+      await collection.doc(user.uid).delete();
+
+      // 2. Remove clinic from user favorites (Placeholder - ideally a Cloud Function)
+      // This would involve iterating through all user documents and removing the clinic's UID
+      // from their favorites list. This can be very expensive and should ideally be done
+      // via a Firebase Cloud Function or a batch job.
+      debugPrint(
+        "TODO: Implement removal from user favorites (Cloud Function recommended).",
+      );
+
+      // 3. Remove appointments made by users (Placeholder - ideally a Cloud Function)
+      // This would involve querying all appointments related to this clinic and deleting them
+      // from both the clinic's sub-collection and the users' sub-collections.
+      debugPrint(
+        "TODO: Implement removal of user appointments (Cloud Function recommended).",
+      );
+
+      // 4. Delete the Firebase Authentication user
+      await user.delete();
+
+      // Sign out after deletion
+      await _firebaseAuth.signOut();
+    } on FirebaseAuthException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.message}'.tr())));
+      }
+      rethrow;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e'.tr())));
+      }
+      rethrow;
+    }
+  }
+
   Future<void> cancelAppointment(
     String appointmentId,
     String clinicId,
@@ -167,7 +269,7 @@ class ClinicFirestore {
 
     try {
       // Get appointment to find user UID
-      final appointmentDoc = await FirebaseFirestore.instance
+      final appointmentDoc = await _firestore
           .collection('clinics')
           .doc(clinicId)
           .collection('appointments')
@@ -182,10 +284,10 @@ class ClinicFirestore {
       final userUid = appointmentData['userUid'] as String;
 
       // Delete from both collections
-      final batch = FirebaseFirestore.instance.batch();
+      final batch = _firestore.batch();
 
       batch.delete(
-        FirebaseFirestore.instance
+        _firestore
             .collection('clinics')
             .doc(clinicId)
             .collection('appointments')
@@ -193,7 +295,7 @@ class ClinicFirestore {
       );
 
       batch.delete(
-        FirebaseFirestore.instance
+        _firestore
             .collection('users')
             .doc(userUid)
             .collection('appointments')

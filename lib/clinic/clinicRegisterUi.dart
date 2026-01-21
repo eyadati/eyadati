@@ -1,12 +1,17 @@
+// ignore_for_file: use_build_context_synchronously
 import 'dart:io';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:eyadati/clinic/clinicAuth.dart';
+
 import 'package:eyadati/clinic/clinic_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_url_extractor/url_extractor.dart';
 import 'package:eyadati/utils/network_helper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // Add Provider import
+import 'package:eyadati/utils/connectivity_service.dart'; // Add ConnectivityService import
 
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
@@ -268,55 +273,55 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     }
   }
 
+  final FirebaseAuth auth;
+
+  ClinicOnboardingProvider() : auth = FirebaseAuth.instance;
+  
+  // ... (rest of the provider properties) ...
+
   Future<bool> validateAndSubmit(BuildContext context) async {
+    // ... (all the validation checks remain the same) ...
     if (!formKey.currentState!.validate()) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please fill all required fields".tr())),
-      );
+      _showSnackBar(context, "Please fill all required fields".tr());
       return false;
     }
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+
+    // Check internet connectivity
+    if (!await NetworkHelper.checkInternetConnectivity()) {
+      if (!context.mounted) return false;
+      _showSnackBar(context, 'no_internet_connection'.tr());
       isSubmitting = false; // Ensure submitting state is reset
       notifyListeners();
       return false;
     }
+
     // Validate time logic
     if (openingMinutes == null || closingMinutes == null) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select opening and closing times".tr())),
-      );
+      _showSnackBar(context, "Please select opening and closing times".tr());
       return false;
     }
     if (openingMinutes! >= closingMinutes!) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Opening time must be before closing time".tr()),
-        ),
-      );
+      _showSnackBar(context, "Opening time must be before closing time".tr());
       return false;
     }
     if (breakStartMinutes != null && breakEndMinutes != null) {
       if (breakStartMinutes! >= breakEndMinutes!) {
         if (!context.mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Break start time must be before break end time".tr(),
-            ),
-          ),
+        _showSnackBar(
+          context,
+          "Break start time must be before break end time".tr(),
         );
         return false;
       }
       if (breakStartMinutes! < openingMinutes! ||
           breakEndMinutes! > closingMinutes!) {
         if (!context.mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Break times must be within working hours".tr()),
-          ),
+        _showSnackBar(
+          context,
+          "Break times must be within working hours".tr(),
         );
         return false;
       }
@@ -326,50 +331,41 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     final duration = int.tryParse(durationController.text);
     if (duration == null || duration <= 0) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Appointment duration must be a positive number".tr()),
-        ),
+      _showSnackBar(
+        context,
+        "Appointment duration must be a positive number".tr(),
       );
       return false;
     }
 
     if (_selectedCity == null) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Please select a city".tr())));
+      _showSnackBar(context, "Please select a city".tr());
       return false;
     }
     if (selectedSpecialty == null) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Please select a specialty".tr())));
+      _showSnackBar(context, "Please select a specialty".tr());
       return false;
     }
     if (workingDays.isEmpty) {
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select at least one working day".tr())),
-      );
+      _showSnackBar(context, "Please select at least one working day".tr());
       return false;
     }
 
     if (!agreeToTerms) {
       // New validation for agreeToTerms
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Please agree to the terms and privacy policy".tr()),
-        ),
-      );
+      _showSnackBar(context, "Please agree to the terms and privacy policy".tr());
       return false;
     }
-    try {
-      isSubmitting = true;
-      notifyListeners();
 
+    isSubmitting = true;
+    notifyListeners();
+
+    UserCredential? userCredential;
+    try {
       String? imageUrl;
       if (pickedImage != null) {
         imageUrl = await _uploadImage();
@@ -381,28 +377,51 @@ class ClinicOnboardingProvider extends ChangeNotifier {
         throw Exception("Image upload failed or no image selected.");
       }
 
-      await Clinicauth().clinicAccount(
-        emailController.text.trim(),
-        passwordController.text,
-        context,
+      // Step 1: Create Auth User
+      userCredential = await auth.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text,
       );
 
-      await ClinicFirestore().addClinic(
-        nameController.text.trim(),
-        mapsLinkController.text.trim(),
-        clinicNameController.text.trim(),
-        imageUrl,
-        _selectedCity!,
-        workingDays,
-        phoneController.text.trim(),
-        selectedSpecialty!,
-        int.tryParse(durationController.text) ?? 60,
-        openingMinutes!,
-        closingMinutes!,
-        breakStartMinutes ?? 0,
-        breakEndMinutes ?? 0,
-        addressController.text.trim(),
+      final user = userCredential.user;
+      if (user == null) {
+        throw Exception("user_creation_failed".tr());
+      }
+      
+      // Step 2: Create Firestore Document
+      // Get ConnectivityService before any async calls that might invalidate context
+      if (!context.mounted) return false; // Ensure context is mounted before accessing provider
+      final connectivityService = Provider.of<ConnectivityService>(
+        context,
+        listen: false,
       );
+      try {
+          await ClinicFirestore(
+          connectivityService: connectivityService,
+        ).addClinic(
+          nameController.text.trim(),
+          mapsLinkController.text.trim(),
+          clinicNameController.text.trim(),
+          imageUrl,
+          _selectedCity!,
+          workingDays,
+          phoneController.text.trim(),
+          selectedSpecialty!,
+          int.tryParse(durationController.text) ?? 60,
+          openingMinutes!,
+          closingMinutes!,
+          breakStartMinutes ?? 0,
+          breakEndMinutes ?? 0,
+          addressController.text.trim(),
+        );
+      } catch (e) {
+          await user.delete();
+          throw Exception("failed_to_save_clinic_data".tr());
+      }
+
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('role', 'clinic');
 
       isSubmitting = false;
       notifyListeners();
@@ -411,11 +430,16 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       isSubmitting = false;
       notifyListeners();
       if (!context.mounted) return false;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}")));
+      _showSnackBar(context, "Error: ${e.toString()}");
       return false; // ✅ Failure
     }
+  }
+
+  void _showSnackBar(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -436,4 +460,6 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     phoneController.dispose();
     super.dispose();
   }
+
+
 }

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:eyadati/utils/network_helper.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ================ PROVIDER ================
@@ -181,7 +182,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         emailController.text = data['email'] ?? '';
         clinicNameController.text = data['clinicName'] ?? '';
         specialtyController.text = data['specialty'] ?? '';
-        durationController.text = data['Duration']?.toString() ?? '';
+        durationController.text = data['duration']?.toString() ?? '';
         addressController.text = data['address'] ?? '';
         phoneController.text = data['phone'] ?? '';
         mapsLinkController.text = data['mapsLink'] ?? '';
@@ -234,7 +235,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
       return;
     }
 
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+    if (!await NetworkHelper.checkInternetConnectivity()) {
       isSaving = false; // Reset saving state
       notifyListeners();
       return;
@@ -257,7 +258,7 @@ class ClinicEditProfileProvider extends ChangeNotifier {
         "name": nameController.text.trim(),
         "clinicName": clinicNameController.text.trim(),
         "specialty": specialtyController.text,
-        "Duration": int.tryParse(durationController.text) ?? 60,
+        "duration": int.tryParse(durationController.text) ?? 60,
         "city": selectedCity,
         "address": addressController.text.trim(),
         "phone": phoneController.text.trim(),
@@ -746,7 +747,7 @@ class _ClinicEditProfileContent extends StatelessWidget {
           backgroundImage: provider.pickedImage != null
               ? FileImage(provider.pickedImage!)
               : (provider.picUrl != null && provider.picUrl!.startsWith('http')
-                        ? NetworkImage(provider.picUrl!)
+                        ? CachedNetworkImageProvider(provider.picUrl!)
                         : (provider.picUrl != null
                               ? AssetImage(provider.picUrl!)
                               : null))

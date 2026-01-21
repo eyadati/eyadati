@@ -5,14 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:eyadati/utils/network_helper.dart';
+import 'package:eyadati/utils/connectivity_service.dart'; // Add ConnectivityService import
 
 // ================ PROVIDER ================
 
 class UserEditProfileProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
+  final ConnectivityService? _connectivityService; // Add this field
 
-  UserEditProfileProvider({required this.auth, required this.firestore}) {
+  UserEditProfileProvider({
+    required this.auth,
+    required this.firestore,
+    ConnectivityService? connectivityService, // Add this parameter
+  })  : _connectivityService = connectivityService {
     _initializeData();
   }
 
@@ -121,13 +127,29 @@ class UserEditProfileProvider extends ChangeNotifier {
     final user = auth.currentUser;
     if (user == null) throw Exception('no_user_found'.tr());
 
-    final doc = await firestore
+    // First, try to get data from cache
+    DocumentSnapshot doc = await firestore
         .collection('users')
         .doc(user.uid)
         .get(GetOptions(source: Source.cache));
-    if (!doc.exists) throw Exception('user_document_not_found'.tr());
 
-    final data = doc.data()!;
+    // If data is not in cache AND device is online, try to get from server (and cache)
+    if (!doc.exists && (_connectivityService?.isOnline == true)) {
+      doc = await firestore
+          .collection('users')
+          .doc(user.uid)
+          .get(GetOptions(source: Source.serverAndCache));
+    } else if (!doc.exists && (_connectivityService?.isOnline == false)) {
+      // If offline and not in cache, we still don't have data
+      throw Exception('user_document_not_found_offline'.tr());
+    }
+
+    // If after all attempts, the document still doesn't exist, throw an exception
+    if (!doc.exists) {
+      throw Exception('user_document_not_found'.tr());
+    }
+
+    final data = doc.data()! as Map<String, dynamic>;
     nameController.text = data['name'] ?? '';
     emailController.text = data['email'] ?? '';
     phoneController.text = data['phone'] ?? '';
@@ -150,7 +172,7 @@ class UserEditProfileProvider extends ChangeNotifier {
       return;
     }
 
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+    if (!await NetworkHelper.checkInternetConnectivity()) {
       isSaving = false; // Reset saving state
       notifyListeners();
       return;
@@ -227,9 +249,10 @@ class UserEditProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => UserEditProfileProvider(
+      create: (context) => UserEditProfileProvider(
         auth: FirebaseAuth.instance,
         firestore: FirebaseFirestore.instance,
+        connectivityService: Provider.of<ConnectivityService>(context, listen: false),
       ),
       child: const UserEditProfileView(),
     );

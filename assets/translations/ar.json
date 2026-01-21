@@ -193,4 +193,15 @@
         "error_loading_appointments": "خطأ في تحميل المواعيد",
         "please_select_opening_and_closing_times": "الرجاء تحديد أوقات الفتح والإغلاق",
         "not_applicable": "غير متوفر",
-        "subscription_ends_prefix": "نهاية الاشتراك:"}
+        "subscription_ends_prefix": "نهاية الاشتراك:",
+    "clinic_authentication": "مصادقة العيادة",
+    "already_have_account_login": "لديك حساب بالفعل؟ تسجيل الدخول",
+    "create_new_account": "إنشاء حساب جديد",
+    "clinic_login": "تسجيل دخول العيادة",
+    "please_enter_email": "يرجى إدخال بريدك الإلكتروني",
+    "please_enter_password": "يرجى إدخال كلمة المرور الخاصة بك",
+    "login_failed": "فشل تسجيل الدخول. يرجى التحقق من بيانات الاعتماد الخاصة بك.",
+    "login": "تسجيل الدخول",
+    "user_authentication": "مصادقة المستخدم",
+    "user_login": "تسجيل دخول المستخدم"
+}

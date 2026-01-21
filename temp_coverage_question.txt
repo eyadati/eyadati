@@ -1,0 +1,3 @@
+The default required test code coverage is >80% (Recommended). Do you want to change this percentage?
+A) No (Keep 80% required coverage)
+B) Yes (Type the new percentage)

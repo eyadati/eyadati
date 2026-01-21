@@ -9,9 +9,8 @@ class Clinicauth {
   Future<void> clinicAccount(
     String email,
     String password,
-    BuildContext context,
   ) async {
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+    if (!await NetworkHelper.checkInternetConnectivity()) {
       return;
     }
     await auth.createUserWithEmailAndPassword(email: email, password: password);
@@ -48,7 +47,11 @@ class Clinicauth {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (!await NetworkHelper.checkInternetConnectivity(ctx)) {
+                final navigator = Navigator.of(context);
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final dialogNavigator = Navigator.of(ctx);
+
+                if (!await NetworkHelper.checkInternetConnectivity()) {
                   return;
                 }
                 try {
@@ -58,21 +61,15 @@ class Clinicauth {
                         password: loginPassword.text.trim(),
                       );
                   if (cred.user != null) {
-                    Navigator.pop(ctx); // close modal
-                    if (!context.mounted) return;
-
-                    Navigator.pushAndRemoveUntil(
-                      context,
+                    dialogNavigator.pop(); // close modal
+                    navigator.pushAndRemoveUntil(
                       MaterialPageRoute(builder: (_) => Clinichome()),
                       (route) => false,
                     );
                   }
                 } catch (e) {
                   debugPrint("Login error: $e");
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text("Login failed".tr())));
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text("Login failed".tr())));
                 }
               },
               child: Text("Login".tr()),

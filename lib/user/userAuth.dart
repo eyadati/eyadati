@@ -6,26 +6,23 @@ import 'package:eyadati/utils/network_helper.dart';
 
 // CREATING NEW USER
 class Userauth {
-  Future<void> createUser(
+  Future<String?> createUser(
     String email,
     String password,
-    BuildContext context,
   ) async {
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
-      return;
+    if (!await NetworkHelper.checkInternetConnectivity()) {
+      return "no_internet_connection".tr();
     }
     try {
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-    } on FirebaseAuthException {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("error_generic".tr())));
-      }
-      rethrow;
+      return null; // Success
+    } on FirebaseAuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return "error_generic".tr();
     }
   }
 
@@ -71,7 +68,7 @@ class Userauth {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (!await NetworkHelper.checkInternetConnectivity(ctx)) {
+                if (!await NetworkHelper.checkInternetConnectivity()) {
                   return;
                 }
                 try {
@@ -81,6 +78,7 @@ class Userauth {
                         password: loginPassword.text.trim(),
                       );
                   if (cred.user != null) {
+                    // ignore: use_build_context_synchronously
                     Navigator.pop(ctx); // close modal
                     if (!context.mounted) return;
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/FCM/notificationsService.dart';
@@ -10,131 +11,116 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-/// Manages user appointments with batched clinic data fetching and pagination
+// Represents a combined appointment and its associated clinic data
+class AppointmentWithClinic {
+  final Map<String, dynamic> appointment;
+  final Map<String, dynamic> clinic;
+
+  AppointmentWithClinic({required this.appointment, required this.clinic});
+}
+
+/// Manages user appointments with batched clinic data fetching.
 class UserAppointmentsProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
   final UserFirestore _userFirestore;
   final NotificationService _notificationService;
 
-  final List<Map<String, dynamic>> _appointments = [];
-  final Map<String, Map<String, dynamic>> _clinicCache = {};
+  StreamSubscription? _appointmentsSubscription;
 
-  bool _isLoading = false;
-  bool _hasMore = true;
-  final int _pageSize = 20;
-  DocumentSnapshot? _lastDocument;
+  List<AppointmentWithClinic> _appointments = [];
+  List<AppointmentWithClinic> get appointments => _appointments;
+
+  final Map<String, Map<String, dynamic>> _clinicCache = {};
+  bool _isLoading = true;
+  bool get isLoading => _isLoading;
 
   UserAppointmentsProvider({
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
     UserFirestore? userFirestore,
     NotificationService? notificationService,
-  }) : auth = auth ?? FirebaseAuth.instance,
-       firestore = firestore ?? FirebaseFirestore.instance,
-       _userFirestore = userFirestore ?? UserFirestore(),
-       _notificationService = notificationService ?? NotificationService();
+  })  : auth = auth ?? FirebaseAuth.instance,
+        firestore = firestore ?? FirebaseFirestore.instance,
+        _userFirestore = userFirestore ?? UserFirestore(),
+        _notificationService = notificationService ?? NotificationService() {
+    _initAppointmentsStream();
+  }
 
-  List<Map<String, dynamic>> get appointments => _appointments;
-  bool get isLoading => _isLoading;
-  bool get hasMore => _hasMore;
-
-  /// Loads appointments with pagination and batch-fetches clinic data
-  Future<void> loadAppointments() async {
-    final userId = auth.currentUser?.uid;
-    if (userId == null) {
-      throw Exception("user_not_logged_in".tr());
-    }
-
-    if (_isLoading || !_hasMore) return;
-
+  void _initAppointmentsStream() {
     _isLoading = true;
     notifyListeners();
 
-    try {
-      Query query = firestore
-          .collection("users")
-          .doc(userId)
-          .collection("appointments")
-          .where("date", isGreaterThan: Timestamp.fromDate(DateTime.now()))
-          .orderBy("date", descending: true)
-          .limit(_pageSize);
+    _appointmentsSubscription?.cancel();
 
-      if (_lastDocument != null) {
-        query = query.startAfterDocument(_lastDocument!);
-      }
+    final userId = auth.currentUser?.uid;
+    if (userId == null) {
+      _isLoading = false;
+      _appointments = [];
+      notifyListeners();
+      return;
+    }
 
-      final snapshot = await query.get();
+    final stream = firestore
+        .collection("users")
+        .doc(userId)
+        .collection("appointments")
+        .where("date", isGreaterThan: Timestamp.fromDate(DateTime.now()))
+        .orderBy("date")
+        .limit(15)
+        .snapshots();
 
-      if (snapshot.docs.isEmpty) {
-        _hasMore = false;
-        _lastDocument = null; // Reset _lastDocument if no more documents
-        notifyListeners(); // Notify listeners as state changes
+    _appointmentsSubscription = stream.listen((snapshot) async {
+      final appointmentDocs = snapshot.docs;
+      if (appointmentDocs.isEmpty) {
+        _appointments = [];
+        _isLoading = false;
+        notifyListeners();
         return;
       }
 
-      _lastDocument = snapshot.docs.last;
-      _hasMore =
-          snapshot.docs.length ==
-          _pageSize; // Correctly set hasMore for pagination
+      final clinicUids = appointmentDocs
+          .map((doc) => doc.data()['clinicUid'] as String)
+          .toSet();
 
-      // Extract appointment data
-      final newAppointments = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {"id": doc.id, ...data};
-      }).toList();
+      // Fetch clinic data for UIDs not already in cache
+      final uidsToFetch =
+          clinicUids.where((uid) => !_clinicCache.containsKey(uid)).toList();
+      if (uidsToFetch.isNotEmpty) {
+        // Firestore 'in' query is limited to 30 elements per query.
+        for (var i = 0; i < uidsToFetch.length; i += 30) {
+          final batchUids =
+              uidsToFetch.skip(i).take(30).toList();
+          final clinicsSnapshot = await firestore
+              .collection('clinics')
+              .where(FieldPath.documentId, whereIn: batchUids)
+              .get();
+          for (var doc in clinicsSnapshot.docs) {
+            _clinicCache[doc.id] = doc.data();
+          }
+        }
+      }
 
-      // Batch fetch unique clinic IDs
-      final clinicIds = newAppointments
-          .map((a) => a["clinicUid"] as String?)
-          .whereType<String>()
-          .toSet()
-          .where((id) => !_clinicCache.containsKey(id))
-          .toList();
+      // Combine appointments with cached clinic data
+      final newAppointments = <AppointmentWithClinic>[];
+      for (var doc in appointmentDocs) {
+        final appointmentData = doc.data();
+        appointmentData['id'] = doc.id; // Add document ID to map
+        final clinicData = _clinicCache[appointmentData['clinicUid']];
+        if (clinicData != null) {
+          newAppointments.add(AppointmentWithClinic(
+            appointment: appointmentData,
+            clinic: clinicData,
+          ));
+        }
+      }
 
-      await batchFetchClinics(clinicIds);
-
-      _appointments.addAll(newAppointments);
-    } catch (e) {
-      debugPrint("Error loading appointments: $e");
-    } finally {
+      _appointments = newAppointments;
       _isLoading = false;
       notifyListeners();
-    }
+    });
   }
 
-  /// Fetches multiple clinics in parallel
-  Future<void> batchFetchClinics(List<String> clinicIds) async {
-    if (clinicIds.isEmpty) return;
-
-    final futures = clinicIds
-        .map(
-          (id) => firestore
-              .collection("clinics")
-              .doc(id)
-              .get(GetOptions(source: Source.cache)),
-        )
-        .toList();
-
-    final snapshots = await Future.wait(futures);
-    debugPrint("Batch fetched snapshots length: ${snapshots.length}");
-
-    for (var i = 0; i < snapshots.length; i++) {
-      final doc = snapshots[i];
-      debugPrint(
-        "Processing doc ${clinicIds[i]}. RuntimeType: ${doc.runtimeType}. Exists: ${doc.exists}, Data: ${doc.data()}",
-      );
-      if (doc.exists) {
-        _clinicCache[clinicIds[i]] = doc.data()!;
-      }
-    }
-  }
-
-  /// Gets cached clinic data
-  Map<String, dynamic>? getClinicData(String clinicId) =>
-      _clinicCache[clinicId];
-
-  /// Cancels appointment and removes from local list
   Future<void> cancelAppointment(
     String appointmentId,
     String clinicUid,
@@ -153,18 +139,17 @@ class UserAppointmentsProvider extends ChangeNotifier {
         body: 'the_appointment_got_cancelled'.tr(),
       );
     }
-
-    _appointments.removeWhere((a) => a["id"] == appointmentId);
-    notifyListeners();
+    // The stream will update the list automatically, no need for notifyListeners()
   }
 
-  /// Resets and reloads appointments
   Future<void> refresh() async {
-    _appointments.clear();
-    _clinicCache.clear();
-    _lastDocument = null;
-    _hasMore = true;
-    await loadAppointments();
+    _initAppointmentsStream();
+  }
+
+  @override
+  void dispose() {
+    _appointmentsSubscription?.cancel();
+    super.dispose();
   }
 }
 
@@ -174,6 +159,7 @@ class Appointmentslistview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The provider is created in `userAppointments.dart`
     return const _AppointmentsListView();
   }
 }
@@ -185,42 +171,36 @@ class _AppointmentsListView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<UserAppointmentsProvider>(
       builder: (context, provider, _) {
-        final userId = FirebaseAuth.instance.currentUser?.uid;
-        if (userId == null) {
-          return Center(child: Text("please_login".tr()));
+        if (provider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
         }
 
-        return RefreshIndicator(
-          onRefresh: provider.refresh,
-          child: ListView.builder(
-            itemCount:
-                provider.appointments.length + (provider.hasMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index >= provider.appointments.length) {
-                if (!provider.isLoading) {
-                  provider.loadAppointments();
-                }
-                return const Center(child: CircularProgressIndicator());
-              }
+        if (provider.appointments.isEmpty) {
+          return Center(child: Text('no_appointments'.tr()));
+        }
 
-              final appointment = provider.appointments[index];
-              final clinicUid = appointment["clinicUid"] as String? ?? "";
-              final slot = appointment["date"] as Timestamp?;
+        final appointments = provider.appointments;
 
-              if (slot == null) return const SizedBox();
+        return ListView.builder(
+          itemCount: appointments.length + 1, // Add 1 for the SizedBox
+          itemBuilder: (context, index) {
+            if (index == appointments.length) {
+              return SizedBox(
+                height: 92 + MediaQuery.of(context).padding.bottom,
+              ); // Adjust height for floating nav bar
+            }
+            final appointmentWithClinic = appointments[index];
+            final slot =
+                appointmentWithClinic.appointment["date"] as Timestamp?;
 
-              final clinicData = provider.getClinicData(clinicUid);
-              if (clinicData == null) {
-                return ListTile(title: Text("clinic_data_not_found".tr()));
-              }
+            if (slot == null) return const SizedBox.shrink();
 
-              return _AppointmentCard(
-                appointment: appointment,
-                clinicData: clinicData,
-                slot: slot,
-              );
-            },
-          ),
+            return _AppointmentCard(
+              appointment: appointmentWithClinic.appointment,
+              clinicData: appointmentWithClinic.clinic,
+              slot: slot,
+            );
+          },
         );
       },
     );
@@ -267,11 +247,11 @@ class _AppointmentCard extends StatelessWidget {
           IconButton(
             onPressed: () async {
               await context.read<UserAppointmentsProvider>().cancelAppointment(
-                appointmentId,
-                clinicUid,
-                clinicData,
-                context,
-              );
+                    appointmentId,
+                    clinicUid,
+                    clinicData,
+                    context,
+                  );
             },
             icon: Icon(
               LucideIcons.xCircle,

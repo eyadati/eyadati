@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 // Professional clinic blue for interactive elements - original HSL: (210, 0.75, 0.55)
 // This is an approximation in RGB. You can fine-tune this if needed.
-const Color _primarySeedColor = Color.fromARGB(255, 34, 139, 230);
+const Color _primarySeedColor = Color.fromARGB(255, 0, 150, 136); // Teal Blue
 
 ThemeData darkMode = ThemeData(
   brightness: Brightness.dark,

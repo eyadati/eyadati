@@ -39,43 +39,70 @@ class UserSettings extends StatelessWidget {
                     builder: (BuildContext context) {
                       return AlertDialog(
                         title: Text("language".tr()),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RadioListTile<Locale>(
-                              title: const Text('English'),
-                              value: const Locale('en'),
-                              groupValue: context.locale,
-                              onChanged: (Locale? value) async {
-                                if (value != null) {
-                                  await context.setLocale(value);
-                                  Navigator.pop(context);
-                                }
-                              },
-                            ),
-                            RadioListTile<Locale>(
-                              title: const Text('Français'),
-                              value: const Locale('fr'),
-                              groupValue: context.locale,
-                              onChanged: (Locale? value) async {
-                                if (value != null) {
-                                  await context.setLocale(value);
-                                  Navigator.pop(context);
-                                }
-                              },
-                            ),
-                            RadioListTile<Locale>(
-                              title: const Text('العربية'),
-                              value: const Locale('ar'),
-                              groupValue: context.locale,
-                              onChanged: (Locale? value) async {
-                                if (value != null) {
-                                  await context.setLocale(value);
-                                  Navigator.pop(context);
-                                }
-                              },
-                            ),
-                          ],
+                        content: StatefulBuilder(
+                          builder: (BuildContext context, StateSetter setState) {
+                            Locale selectedLocale = context.locale;
+                            
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // ignore: deprecated_member_use
+                                RadioListTile<Locale>(
+                                  title: const Text('English'),
+                                  value: const Locale('en'),
+                                  // ignore: deprecated_member_use
+                                  groupValue: selectedLocale,
+                                  // ignore: deprecated_member_use
+                                  onChanged: (Locale? value) async {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedLocale = value;
+                                      });
+                                      await context.setLocale(value);
+                                      if (!context.mounted) return;
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                ),
+                                // ignore: deprecated_member_use
+                                RadioListTile<Locale>(
+                                  title: const Text('Français'),
+                                  value: const Locale('fr'),
+                                  // ignore: deprecated_member_use
+                                  groupValue: selectedLocale,
+                                  // ignore: deprecated_member_use
+                                  onChanged: (Locale? value) async {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedLocale = value;
+                                      });
+                                      await context.setLocale(value);
+                                      if (!context.mounted) return;
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                ),
+                                // ignore: deprecated_member_use
+                                RadioListTile<Locale>(
+                                  title: const Text('العربية'),
+                                  value: const Locale('ar'),
+                                  // ignore: deprecated_member_use
+                                  groupValue: selectedLocale,
+                                  // ignore: deprecated_member_use
+                                  onChanged: (Locale? value) async {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedLocale = value;
+                                      });
+                                      await context.setLocale(value);
+                                      if (!context.mounted) return;
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         actions: [
                           TextButton(

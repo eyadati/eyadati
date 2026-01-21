@@ -1,9 +1,11 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eyadati/clinic/clinicHome.dart';
-import 'package:eyadati/clinic/clinicRegisterUi_widgets.dart';
+import 'package:eyadati/clinic/clinic_auth_selection.dart';
 import 'package:eyadati/user/UserHome.dart';
-import 'package:eyadati/user/userRegistrationUi.dart';
+import 'package:eyadati/user/user_auth_selection.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -14,16 +16,30 @@ Future<Widget> decidePage(BuildContext context) async {
     if (!context.mounted) return const SizedBox.shrink();
     return intro(context);
   } else {
-    try {
-      // ✅ Cache the role check first
-      final isClinic = await _isClinicRole(currentUser.uid);
-
-      if (isClinic) return Clinichome();
-      return Userhome();
-    } catch (e) {
-      debugPrint("Role check error: $e");
-      if (!context.mounted) return const SizedBox.shrink();
-      return intro(context);
+    final connectivityResult = await (Connectivity().checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      // Offline
+      final prefs = await SharedPreferences.getInstance();
+      final role = prefs.getString('role');
+      if (role == 'clinic') {
+        return Clinichome();
+      } else {
+        return Userhome();
+      }
+    } else {
+      // Online
+      try {
+        final isClinic = await _isClinicRole(currentUser.uid);
+        if (isClinic) {
+          return Clinichome();
+        } else {
+          return Userhome();
+        }
+      } catch (e) {
+        debugPrint("Role check error: $e");
+        if (!context.mounted) return const SizedBox.shrink();
+        return intro(context);
+      }
     }
   }
 }
@@ -51,43 +67,67 @@ Widget intro(BuildContext context) {
                   builder: (BuildContext context) {
                     return AlertDialog(
                       title: Text("language".tr()),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          RadioListTile<Locale>(
-                            title: const Text('English'),
-                            value: const Locale('en'),
-                            groupValue: context.locale,
-                            onChanged: (Locale? value) async {
-                              if (value != null) {
-                                await context.setLocale(value);
-                                Navigator.pop(context);
-                              }
-                            },
-                          ),
-                          RadioListTile<Locale>(
-                            title: const Text('Français'),
-                            value: const Locale('fr'),
-                            groupValue: context.locale,
-                            onChanged: (Locale? value) async {
-                              if (value != null) {
-                                await context.setLocale(value);
-                                Navigator.pop(context);
-                              }
-                            },
-                          ),
-                          RadioListTile<Locale>(
-                            title: const Text('العربية'),
-                            value: const Locale('ar'),
-                            groupValue: context.locale,
-                            onChanged: (Locale? value) async {
-                              if (value != null) {
-                                await context.setLocale(value);
-                                Navigator.pop(context);
-                              }
-                            },
-                          ),
-                        ],
+                      content: StatefulBuilder(
+                        builder: (BuildContext context, StateSetter setState) {
+                                                                  Locale selectedLocale = context.locale;                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                                                                                                                                                                                                  // ignore: deprecated_member_use
+                                                                                                                                                                                                  RadioListTile<Locale>(
+                                                                                                                                                                                                    title: const Text('English'),
+                                                                                                                                                                                                    value: const Locale('en'),
+                                                                                                                                                                                                    // ignore: deprecated_member_use
+                                                                                                                                                                                                    groupValue: selectedLocale,
+                                                                                                                                                                                                    // ignore: deprecated_member_use
+                                                                                                                                                                                                    onChanged: (Locale? value) async {
+                                                                                                                                                                if (value != null) {
+                                                                                                                                                                  setState(() {
+                                                                                                                                                                    selectedLocale = value;
+                                                                                                                                                                  });
+                                                                                                                                                                  await context.setLocale(value);
+                                                                                                                                                                  if (!context.mounted) return;
+                                                                                                                                                                  Navigator.pop(context);
+                                                                                                                                                                }
+                                                                                                                                                              },
+                                                                                                                                                            ),                              // ignore: deprecated_member_use
+                              RadioListTile<Locale>(
+                                title: const Text('Français'),
+                                value: const Locale('fr'),
+                                // ignore: deprecated_member_use
+                                groupValue: selectedLocale,
+                                // ignore: deprecated_member_use
+                                onChanged: (Locale? value) async {
+                                  if (value != null) {
+                                    setState(() {
+                                      selectedLocale = value;
+                                    });
+                                    await context.setLocale(value);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  }
+                                },
+                              ),
+                              // ignore: deprecated_member_use
+                              RadioListTile<Locale>(
+                                title: const Text('العربية'),
+                                value: const Locale('ar'),
+                                // ignore: deprecated_member_use
+                                groupValue: selectedLocale,
+                                // ignore: deprecated_member_use
+                                onChanged: (Locale? value) async {
+                                  if (value != null) {
+                                    setState(() {
+                                      selectedLocale = value;
+                                    });
+                                    await context.setLocale(value);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  }
+                                },
+                              ),
+                            ],
+                          );
+                        },
                       ),
                       actions: [
                         TextButton(
@@ -125,7 +165,7 @@ Widget intro(BuildContext context) {
                       onTap: () => Navigator.pushAndRemoveUntil(
                         builderContext, // Use builderContext
                         MaterialPageRoute(
-                          builder: (_) => const ClinicOnboardingPages(),
+                          builder: (_) => const ClinicAuthSelectionScreen(),
                         ),
                         (route) => false,
                       ),
@@ -137,7 +177,7 @@ Widget intro(BuildContext context) {
                       onTap: () => Navigator.pushReplacement(
                         builderContext, // Use builderContext
                         MaterialPageRoute(
-                          builder: (_) => const UserOnboardingPages(),
+                          builder: (_) => const UserAuthSelectionScreen(),
                         ),
                       ),
                     ),

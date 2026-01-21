@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eyadati/chargili/paiment.dart';
-import 'package:eyadati/clinic/clinicSettingsPage.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart'; // flutter pub add flutter_floating_bottom_bar
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/NavBarUi/AppoitmentsManagment.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:eyadati/utils/connectivity_service.dart';
 import 'package:eyadati/clinic/clinic_appointments.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
@@ -48,6 +48,7 @@ class _BottomNavContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CliniNavBarProvider>();
+    final connectivity = context.watch<ConnectivityService>();
     final selectedIndex = int.parse(provider.selected) - 1;
 
     return StreamBuilder<DocumentSnapshot>(
@@ -106,20 +107,25 @@ class _BottomNavContent extends StatelessWidget {
 
           // Main content area with lazy loading
           body: (context, controller) {
-            // 'controller' is for scroll-to-hide functionality
-            // Not used here since IndexedStack handles page switching
-            return DeferredIndexedStack(
-              index: selectedIndex,
+            return Column(
               children: [
-                DeferredTab(
-                  id: "1",
-                  child: ClinicAppointments(clinicId: clinicUid),
+                if (!connectivity.isOnline) const _OfflineBanner(),
+                Expanded(
+                  child: DeferredIndexedStack(
+                    index: selectedIndex,
+                    children: [
+                      DeferredTab(
+                        id: "1",
+                        child: ClinicAppointments(clinicId: clinicUid),
+                      ),
+                      DeferredTab(
+                        id: "2",
+                        child: ManagementScreen(clinicUid: clinicUid),
+                      ),
+                     
+                    ],
+                  ),
                 ),
-                DeferredTab(
-                  id: "2",
-                  child: ManagementScreen(clinicUid: clinicUid),
-                ),
-                DeferredTab(id: "3", child: Clinicsettings()),
               ],
             );
           },
@@ -137,12 +143,7 @@ class _BottomNavContent extends StatelessWidget {
                   "managment".tr(),
                   "2",
                 ),
-                _buildNavItem(
-                  context,
-                  LucideIcons.settings,
-                  "settings".tr(),
-                  "3",
-                ),
+               
               ],
             ),
           ),
@@ -238,6 +239,24 @@ class _BottomNavContent extends StatelessWidget {
             Text(label.tr(), style: TextStyle(color: color, fontSize: 11)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.error,
+      padding: const EdgeInsets.all(8.0),
+      child: Text(
+        'you_are_currently_offline'.tr(),
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Theme.of(context).colorScheme.onError),
       ),
     );
   }

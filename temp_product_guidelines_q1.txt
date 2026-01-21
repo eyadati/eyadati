@@ -1,0 +1,11 @@
+I will now help you create the `product-guidelines.md`. This document will define the prose style, brand messaging, and visual identity for the Eyadati project.
+
+Let's start by defining the overall tone and voice of the application's communication.
+
+What tone and voice best represents the Eyadati application? (Select all that apply)
+A) Professional and Authoritative (Recommended: Emphasizes expertise and trustworthiness in a medical context.)
+B) Friendly and Empathetic (Emphasizes patient care and understanding.)
+C) Modern and Innovative (Highlights technological advancement and efficiency.)
+D) Accessible and Clear (Prioritizes ease of understanding for all users.)
+E) Type your own answer
+F) Autogenerate and review product-guidelines.md

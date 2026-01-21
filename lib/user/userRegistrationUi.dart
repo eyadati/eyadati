@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart'; // Added this back
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:eyadati/utils/network_helper.dart';
 
@@ -128,7 +129,7 @@ class UserOnboardingProvider extends ChangeNotifier {
       return;
     }
 
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
+    if (!await NetworkHelper.checkInternetConnectivity()) {
       isLoading = false;
       notifyListeners();
       return;
@@ -138,22 +139,36 @@ class UserOnboardingProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
 
+    UserCredential? userCredential;
     try {
-      // Create user
-      await Userauth().createUser(
-        emailController.text.trim(),
-        passwordController.text,
-        context,
+      // Step 1: Create Auth user
+      userCredential = await auth.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text,
       );
 
-      // Add user data
-      await firestore.collection("users").doc(auth.currentUser!.uid).set({
-        "name": nameController.text.trim(),
-        "phone": phoneController.text.trim(),
-        "city": selectedCity,
-        "email": emailController.text.trim(),
-        "createdAt": FieldValue.serverTimestamp(),
-      });
+      final user = userCredential.user;
+      if (user == null) {
+        throw Exception("user_creation_failed".tr());
+      }
+
+      // Step 2: Create Firestore document
+      try {
+        await firestore.collection("users").doc(user.uid).set({
+          "name": nameController.text.trim(),
+          "phone": phoneController.text.trim(),
+          "city": selectedCity,
+          "email": emailController.text.trim(),
+          "createdAt": FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        // If Firestore write fails, delete the auth user to allow re-registration
+        await user.delete();
+        throw Exception("failed_to_save_user_data".tr());
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('role', 'user');
 
       // Navigate to home
       if (context.mounted) {
@@ -163,6 +178,8 @@ class UserOnboardingProvider extends ChangeNotifier {
           (route) => false,
         );
       }
+    } on FirebaseAuthException catch (e) {
+      error = e.message ?? 'An error occurred'.tr();
     } catch (e) {
       error = e.toString();
     } finally {

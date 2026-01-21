@@ -1,15 +1,9 @@
 description = "adding features"
 prompt = """
-Execute these tasks based on importance:
-
--review folder and filter where is clinic files and user files so you can find related files more easily
--change specialty names like psychology becomes psychologist...etc(clinic side)
--finish button related to subscription ended(clinic side)
--fix dark mode colors(clinic side)
--_buildNavItem number 1 always shows nothing even if you put a widget that already working in number 2 or 3(user side)
--on app start fetch data from server not cache and only use cache when opening clinics list(user side)
--clinics are not showed on fav clinics so also make fetch them from firestore not from cache, it shows after hot restart but with unkown data so user uid to fetch clinics info
--review clinic filter and fix behavior errors since it's not working properly(user side)
--fix slots generation since it overlaps with breaks and some slots are missing, user a method where you store all available slots in a list and then remove the ones in between(user side)
--aappointments are not showing when appointment confirmed until i do hot restart(user side)
+Execute these tasks:
+-check user favorite clinic functions since user favorites page has clinics with no data so either the data isn't called correctly or the data saved isn't correct
+-theme resets to light mode after closing the app and opening it again and theme switch doesn't work in clinic side
+-logo is too small
+-managment slots are not correct since they contain break times and it should also only givr present and future slots not past ones too
+-bottom nav bar is overlaying some widgets so make sure pages included in the nav bar is properly displayed
 """

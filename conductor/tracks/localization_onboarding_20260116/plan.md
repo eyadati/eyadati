@@ -2,7 +2,7 @@
 
 ## Phase 1: Localization Enhancement [checkpoint: 65a2571]
 
-- [~] **Task: Conductor - User Manual Verification 'Phase 1: Localization Enhancement' (Protocol in workflow.md)**
+- [x] **Task: Conductor - User Manual Verification 'Phase 1: Localization Enhancement' (Protocol in workflow.md)**
 - [~] Task: Audit existing translations and identify missing strings.
     - [x] Sub-task: Review `assets/translations/en.json`, `fr.json`, and `ar.json`.
     - [x] Sub-task: Create a list of all untranslated strings in the UI.
@@ -25,8 +25,10 @@
 
 ## Phase 2: User Onboarding
 
-- [ ] **Task:add these features and improvments (Protocol in workflow.md)**
-- [ ] Task: Implement pause tile switch so clinics can pause their profile which make them invisible for users.
+- [ ] **Task: Conductor - User Manual Verification 'Phase 2: User Onboarding' (Protocol in workflow.md)**
+
+
+- [~] Task: Implement pause tile switch so clinics can pause their profile which make them invisible for users.
 - [ ] Task: Implement account delete in settings while providing the needed functions for removing clinic from user favorites,removing appointments made by users and removing all data related to clinic and make sure there is a confirmation dialogue before deleting.
 - [ ] Task:Implement terms of service and privacy policy in settings.
 - [ ] Task:Implement avatar at the top of clinic settings showing their profile picture using picUrl from firestore.

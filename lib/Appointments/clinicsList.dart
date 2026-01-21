@@ -10,6 +10,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:geolocator/geolocator.dart'; // Import geolocator
 import 'package:google_maps_url_extractor/url_extractor.dart'; // Import GoogleMapsUrlExtractor
 import 'package:eyadati/utils/location_helper.dart'; // Import LocationHelper
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:eyadati/NavBarUi/UserNavBar.dart';
 
 class ClinicSearchProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
@@ -19,7 +21,6 @@ class ClinicSearchProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   String? _userCity;
-  Set<String> _favoriteClinics = {}; // New: Store UIDs of favorite clinics
   Position? _currentLocation; // New: Store user's current location
 
   // Filter states
@@ -34,15 +35,6 @@ class ClinicSearchProvider extends ChangeNotifier {
   }
 
   // Getters
-  List<Map<String, dynamic>> get currentClinics => _currentClinics;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-  String? get userCity => _userCity;
-  String? get selectedCity => _selectedCity;
-  String? get selectedSpecialty => _selectedSpecialty;
-  String get searchQuery => _searchQuery;
-  Set<String> get favoriteClinics =>
-      _favoriteClinics; // New getter for favorite clinics
 
   // Static data
   static const List<String> specialtiesList = [
@@ -163,51 +155,25 @@ class ClinicSearchProvider extends ChangeNotifier {
       final doc = await firestore
           .collection("users")
           .doc(user.uid)
-          .get(GetOptions(source: Source.cache));
+          .get(GetOptions(source: Source.server));
       _userCity = doc.data()?["city"]?.toString();
 
       if (_userCity != null) {
         await fetchClinics();
         debugPrint(_userCity);
       }
-      await _loadFavoriteClinics(); // Load favorite clinics
     } catch (e) {
       debugPrint("Error initializing: $e");
     }
   }
 
-  Future<void> _loadFavoriteClinics() async {
-    final user = auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final favoriteDocs = await firestore
-          .collection("users")
-          .doc(user.uid)
-          .collection("favorites") // Corrected: access subcollection "favorites"
-          .get(GetOptions(source: Source.server));
-      _favoriteClinics = favoriteDocs.docs.map((doc) => doc.id).toSet();
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Error loading favorite clinics: $e");
-    }
-  }
-
-  List<Map<String, dynamic>> get filteredClinics {
-    return _currentClinics.where((clinic) {
-      final matchesSearch =
-          _searchQuery.isEmpty ||
-          (clinic["clinicName"] ?? "").toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          );
-
-      final matchesSpecialty =
-          _selectedSpecialty == null ||
-          (clinic["specialty"] ?? "").toString() == _selectedSpecialty;
-
-      return matchesSearch && matchesSpecialty;
-    }).toList();
-  }
+  List<Map<String, dynamic>> get currentClinics => _currentClinics;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  String? get userCity => _userCity;
+  String? get selectedCity => _selectedCity;
+  String? get selectedSpecialty => _selectedSpecialty;
+  String get searchQuery => _searchQuery;
 
   Future<void> fetchClinics() async {
     if (_isLoading) return;
@@ -222,39 +188,25 @@ class ClinicSearchProvider extends ChangeNotifier {
     try {
       Query<Map<String, dynamic>> baseQuery = firestore
           .collection("clinics")
-          .withConverter<Map<String, dynamic>>(
-            fromFirestore: (snapshot, _) => snapshot.data()!,
-            toFirestore: (model, _) => model,
-          )
           .where("city", isEqualTo: cityToQuery);
 
       if (_selectedSpecialty != null) {
         baseQuery = baseQuery.where("specialty", isEqualTo: _selectedSpecialty);
       }
 
-      if (_searchQuery.isNotEmpty) {
-        baseQuery = baseQuery
-            .orderBy("clinicName")
-            .startAt([_searchQuery])
-            .endAt(['$_searchQuery\uf8ff']);
-      }
-      baseQuery = baseQuery.limit(50);
-
-      // Always try cache first for clinic list
-      final QuerySnapshot<Map<String, dynamic>> querySnapshot =
-          await baseQuery.get(GetOptions(source: Source.cache));
+      final querySnapshot = await baseQuery.get();
 
       List<Map<String, dynamic>> fetchedClinics = querySnapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()}) // Removed !
+          .map((doc) => {'id': doc.id, ...doc.data()})
           .toList();
 
-      // If cache is empty, fetch from server
-      if (fetchedClinics.isEmpty) {
-        final QuerySnapshot<Map<String, dynamic>> serverSnapshot =
-            await baseQuery.get(GetOptions(source: Source.server)); // Fetch from server
-        fetchedClinics = serverSnapshot.docs
-            .map((doc) => {'id': doc.id, ...doc.data()}) // Removed !
-            .toList();
+      // Client-side filtering for search query
+      if (_searchQuery.isNotEmpty) {
+        fetchedClinics = fetchedClinics.where((clinic) {
+          final clinicName = clinic['clinicName'] as String?;
+          return clinicName != null &&
+              clinicName.toLowerCase().contains(_searchQuery.toLowerCase());
+        }).toList();
       }
 
       if (_currentLocation != null) {
@@ -274,12 +226,11 @@ class ClinicSearchProvider extends ChangeNotifier {
                   clinicLat,
                   clinicLon,
                 );
-                clinic['distance'] = distance; // Store distance in meters
+                clinic['distance'] = distance;
               }
             }
           }
         }
-        // Sort clinics by distance
         fetchedClinics.sort((a, b) {
           final distA = a['distance'] as double?;
           final distB = b['distance'] as double?;
@@ -300,17 +251,17 @@ class ClinicSearchProvider extends ChangeNotifier {
     }
   }
 
-  void applyFilters({String? city, String? specialty}) async {
+  void applyFilters({String? city, String? specialty}) {
     _selectedCity = city;
     _selectedSpecialty = specialty;
-    await fetchClinics();
+    fetchClinics();
   }
 
   void updateSearch(String query) {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       _searchQuery = query;
-      notifyListeners();
+      fetchClinics();
     });
   }
 
@@ -319,31 +270,6 @@ class ClinicSearchProvider extends ChangeNotifier {
     _selectedSpecialty = null;
     _searchQuery = '';
     fetchClinics();
-  }
-
-  Future<void> toggleFavorite(String clinicUid, bool isFavorite) async {
-    final user = auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final userFavoritesRef = firestore
-          .collection("users")
-          .doc(user.uid)
-          .collection("favorites");
-
-      if (isFavorite) {
-        await userFavoritesRef.doc(clinicUid).delete();
-        _favoriteClinics.remove(clinicUid);
-      } else {
-        await userFavoritesRef.doc(clinicUid).set({
-          'addedAt': FieldValue.serverTimestamp(),
-        });
-        _favoriteClinics.add(clinicUid);
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Error toggling favorite: $e");
-    }
   }
 
   @override
@@ -499,7 +425,7 @@ class _ClinicBottomSheetContent extends StatelessWidget {
       );
     }
 
-    final clinics = provider.filteredClinics;
+    final clinics = provider.currentClinics;
 
     if (clinics.isEmpty) {
       return Center(
@@ -675,7 +601,7 @@ class _ClinicCard extends StatelessWidget {
     ImageProvider? backgroundImage;
     if (picUrl != null) {
       if (picUrl.startsWith('http')) {
-        backgroundImage = NetworkImage(picUrl);
+        backgroundImage = CachedNetworkImageProvider(picUrl);
       } else {
         backgroundImage = AssetImage(picUrl);
       }
@@ -701,24 +627,35 @@ class _ClinicCard extends StatelessWidget {
             title: Text(
               clinic["clinicName"] ?? "Unnamed Clinic".tr(),
               style: const TextStyle(fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            trailing: Consumer<ClinicSearchProvider>(
-              builder: (context, provider, child) {
-                final isFavorite = provider.favoriteClinics.contains(
-                  clinic['id'],
-                );
-                return IconButton(
-                  icon: Icon(
-                    isFavorite
-                        ? LucideIcons.heart
-                        : LucideIcons
-                              .heart, // Changed to filled heart when favorite
-                    color: isFavorite
-                        ? Theme.of(context).colorScheme.error
-                        : null,
-                  ),
-                  onPressed: () {
-                    provider.toggleFavorite(clinic['id'], isFavorite);
+            trailing: Consumer<UserNavBarProvider>(
+              builder: (context, userNavBarProvider, child) {
+                // We need to fetch the favorite clinics from UserNavBarProvider
+                // and check if the current clinic is in that list.
+                // Since favoriteClinicsStream now emits List<Map<String, dynamic>>,
+                // we need to adapt this.
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: userNavBarProvider.favoriteClinicsStream,
+                  builder: (context, snapshot) {
+                    bool isFavorite = false;
+                    if (snapshot.hasData) {
+                      isFavorite = snapshot.data!.any(
+                        (favClinic) => favClinic['uid'] == clinic['id'],
+                      );
+                    }
+                    return IconButton(
+                      icon: Icon(
+                        isFavorite ? LucideIcons.heart : LucideIcons.heart,
+                        color: isFavorite
+                            ? Theme.of(context).colorScheme.error
+                            : null,
+                      ),
+                      onPressed: () {
+                        userNavBarProvider.toggleFavorite(clinic['id']);
+                      },
+                    );
                   },
                 );
               },
@@ -782,32 +719,32 @@ class _ClinicCard extends StatelessWidget {
                 );
               }*/
           ),
-          Container(
-            margin: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            child: ListTile(
-              onTap: () async {
-                final booked = await SlotsUi.showModalSheet(context, clinic);
-                if (booked == true && context.mounted) {
-                  Navigator.of(context).pop(true);
-                }
-              },
-              titleAlignment: ListTileTitleAlignment.center,
-              title: Center(
-                child: Text(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final booked = await SlotsUi.showModalSheet(context, clinic);
+                  if (booked == true && context.mounted) {
+                    Navigator.of(context).pop(true);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: Text(
                   "book_appointment".tr(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 ),
-              ),
-              trailing: Icon(
-                LucideIcons.chevronRight,
-                color: Theme.of(context).colorScheme.onPrimary,
+                label: const Icon(LucideIcons.chevronRight, size: 20),
               ),
             ),
           ),

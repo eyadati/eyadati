@@ -3,10 +3,8 @@ import 'package:firebase_messaging/firebase_messaging.dart'; // Import Firebase 
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:eyadati/Appointments/utils.dart';
-import 'package:eyadati/clinic/clinicHome.dart';
+
 import 'package:eyadati/firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart'; // Import Provider
@@ -14,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
 import 'package:eyadati/flow.dart';
 import 'package:eyadati/Themes/ThemeProvider.dart'; // Import ThemeProvider
+import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
 import 'package:lucide_icons/lucide_icons.dart';
 
 // Top-level function to handle background messages
@@ -27,6 +26,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
+  Provider.debugCheckInvalidValueType = null;
 
   try {
     await Firebase.initializeApp(
@@ -82,6 +82,7 @@ void main() async {
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          ChangeNotifierProvider(create: (_) => ConnectivityService()),
           // Add other providers here if needed
         ],
         child: EasyLocalization(
@@ -137,119 +138,48 @@ class EyadatiApp extends StatefulWidget {
 }
 
 class _EyadatiAppState extends State<EyadatiApp> {
-  late Future<Widget> _navigationFuture;
-
   @override
   void initState() {
     super.initState();
-    // Cache the future ONCE at app launch
-    _navigationFuture = _initializeAndDecide();
-
-    // Foreground message handler
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Got a message whilst in the foreground!');
-      debugPrint('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        debugPrint(
-          'Message also contained a notification: ${message.notification}',
-        );
-      }
-      _showPaymentStatusDialog(message);
-    });
-
-    // Handle messages when the app is in the background or terminated and opened by the user
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('A new onMessageOpenedApp event was published!');
-      _navigateToScreenAndShowDialog(message);
-    });
+    // No longer caching a future, directly building with FutureBuilder
+    // The previous _navigationFuture = _initializeAndDecide(); is removed.
   }
 
   Future<Widget> _initializeAndDecide() async {
     try {
-      // Use the optimized decidePage that checks role first
       final Widget homePage = await decidePage(context);
-
-      // Initialize data caching ONLY for the relevant role
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final isClinic = homePage is Clinichome;
-        await AppStartupService().initialize(isClinic);
-      }
-
       return homePage;
     } catch (e) {
       debugPrint("Initialization error: $e");
       if (!mounted) return const SizedBox.shrink();
-      return intro(context); // Fallback to intro on error
+      return intro(context);
     }
-  }
-
-  // Function to show a dialog based on FCM message data
-  void _showPaymentStatusDialog(RemoteMessage message) {
-    // Ensure that the context is still valid before showing the dialog
-    if (!mounted) {
-      return;
-    }
-
-    final data = message.data;
-    final String type = data['type'] ?? '';
-    final String status = data['status'] ?? '';
-    final String subscriptionEndDate = data['subscriptionEndDate'] ?? 'not_applicable'.tr();
-    final String title = message.notification?.title ?? 'Notification';
-    final String body = message.notification?.body ?? '';
-
-    if (type == 'payment_status' || type == 'subscription_update') {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text(title.tr()),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(body.tr()),
-                if (type == 'subscription_update' || status == 'success')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      'subscription_ends_prefix'.tr() + ' ${subscriptionEndDate.tr()}',
-                    ),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: Text('ok'.tr()),
-              ),
-            ],
-          );
-        },
-      );
-    }
-  }
-
-
-  void _navigateToScreenAndShowDialog(RemoteMessage message) {
-    _showPaymentStatusDialog(message);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Access the ThemeProvider
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: themeProvider.themeData, // Use theme from ThemeProvider
+      theme: themeProvider.themeData,
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,
-      home: SplashScreen(),
+      home: FutureBuilder<Widget>(
+        future: _initializeAndDecide(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return SplashScreen();
+          } else if (snapshot.hasError) {
+            debugPrint("Error loading initial page: ${snapshot.error}");
+            return intro(context); // Fallback to intro on error
+          } else if (snapshot.hasData) {
+            return snapshot.data!;
+          }
+          return SplashScreen(); // Fallback
+        },
+      ),
     );
   }
 }

@@ -193,4 +193,15 @@
     "error_loading_appointments": "Erreur lors du chargement des rendez-vous",
     "please_select_opening_and_closing_times": "Veuillez sélectionner les heures d'ouverture et de fermeture",
     "not_applicable": "N/A",
-    "subscription_ends_prefix": "Fin d'abonnement :"}
+    "subscription_ends_prefix": "Fin d'abonnement :",
+    "clinic_authentication": "Authentification de la clinique",
+    "already_have_account_login": "Vous avez déjà un compte ? S'identifier",
+    "create_new_account": "Créer un nouveau compte",
+    "clinic_login": "Connexion à la clinique",
+    "please_enter_email": "Veuillez entrer votre email",
+    "please_enter_password": "Veuillez entrer votre mot de passe",
+    "login_failed": "La connexion a échoué. Veuillez vérifier vos informations d'identification.",
+    "login": "S'identifier",
+    "user_authentication": "Authentification de l'utilisateur",
+    "user_login": "Connexion de l'utilisateur"
+}

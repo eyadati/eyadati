@@ -37,6 +37,12 @@ class ManagementProvider extends ChangeNotifier {
     _initializeData();
   }
 
+  Stream<QuerySnapshot> get appointmentsStream => firestore
+      .collection("clinics")
+      .doc(clinicUid)
+      .collection("appointments")
+      .snapshots();
+
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<List<DateTime>> get weekSlots => _weekSlots;
@@ -185,7 +191,12 @@ class ManagementProvider extends ChangeNotifier {
         continue;
       }
 
-      final slots = await bookingLogic.generateSlots(day, clinicUid);
+      final slotDurationMinutes = _parseInt(_clinicData!["duration"], 60);
+      final slots = await bookingLogic.generateSlots(
+        day,
+        clinicUid,
+        slotDurationMinutes,
+      );
       // Only show days that have at least one slot
       if (slots.isNotEmpty) {
         _weekSlots.add(slots);
@@ -343,51 +354,64 @@ class _ManagementScreenState extends State<ManagementScreen> {
                 children: [
                   _buildDayHeaderWithNavigation(context, provider),
                   Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: provider.visibleDays.length,
-                      onPageChanged: (index) {
-                        provider.setCurrentPageIndex(index);
-                      },
-                      itemBuilder: (context, dayIndex) {
-                        final day = provider.visibleDays[dayIndex];
-                        final slots = provider.weekSlots[dayIndex];
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: provider.appointmentsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            !snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-                        return Column(
-                          children: [
-                            Expanded(
-                              child: slots.isEmpty
-                                  ? _buildEmptyState(context, day, provider)
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        0,
-                                        8,
-                                        0,
-                                        0,
-                                      ), // Remove bottom padding here
-                                      itemCount:
-                                          slots.length +
-                                          1, // Add 1 for the SizedBox
-                                      itemBuilder: (context, slotIndex) {
-                                        if (slotIndex == slots.length) {
-                                          // This is the last item, add the SizedBox
-                                          return SizedBox(
-                                            height:
-                                                92 +
-                                                MediaQuery.of(
-                                                  context,
-                                                ).padding.bottom,
-                                          );
-                                        }
-                                        return _buildSlotCard(
-                                          context,
-                                          provider,
-                                          slots[slotIndex],
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
+                        // The realAppointmentsCount is now managed internally by the provider
+                        // and accessed via provider.getRealAppointmentsForSlot(slot).
+
+                        return PageView.builder(
+                          controller: _pageController,
+                          itemCount: provider.visibleDays.length,
+                          onPageChanged: (index) {
+                            provider.setCurrentPageIndex(index);
+                          },
+                          itemBuilder: (context, dayIndex) {
+                            final day = provider.visibleDays[dayIndex];
+                            final slots = provider.weekSlots[dayIndex];
+
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: slots.isEmpty
+                                      ? _buildEmptyState(context, day, provider)
+                                      : ListView.builder(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            0,
+                                            8,
+                                            0,
+                                            0,
+                                          ),
+                                          itemCount: slots.length + 1,
+                                          itemBuilder: (context, slotIndex) {
+                                            if (slotIndex == slots.length) {
+                                              return SizedBox(
+                                                height:
+                                                    92 +
+                                                    MediaQuery.of(
+                                                      context,
+                                                    ).padding.bottom,
+                                              );
+                                            }
+                                            return _buildSlotCard(
+                                              context,
+                                              provider,
+                                              slots[slotIndex],
+                                            );
+                                          },
+                                        ),
+                                ),
+                              ],
+                            );
+                          },
                         );
                       },
                     ),
@@ -426,6 +450,7 @@ class _ManagementScreenState extends State<ManagementScreen> {
                   }
                 : null,
           ),
+          Image.asset('assets/logo.png', height: 40),
           Text(
             DateFormat('EEEE, MMM d, yyyy').format(day.toLocal()),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(

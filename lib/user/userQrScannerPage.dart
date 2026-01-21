@@ -20,7 +20,8 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
   @override
   void initState() {
     super.initState();
-    cameraController.stop(); // Ensure camera is stopped initially
+    // The MobileScanner widget will handle starting the camera.
+    // Explicitly stopping it here prevents it from working.
   }
 
   @override
@@ -42,7 +43,7 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
               if (barcodes.isNotEmpty) {
                 final String? clinicUid = barcodes.first.rawValue;
                 if (clinicUid != null) {
-                  _foundBarcode(context, clinicUid);
+                  _foundBarcode(clinicUid);
                 }
               }
             }
@@ -83,7 +84,7 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
     );
   }
 
-  void _foundBarcode(BuildContext context, String clinicUid) async {
+  void _foundBarcode(String clinicUid) async {
     debugPrint('Scanned clinic UID: $clinicUid');
     // For now, we assume the scanned QR code is a clinic UID
     // In a real app, you might want to validate this UID or fetch clinic data first
@@ -108,8 +109,6 @@ class _UserQrScannerPageState extends State<UserQrScannerPage> {
         Navigator.of(context).pop(); // Go back to favorites screen
         return;
       }
-
-      final Map<String, dynamic> actualClinicData = clinicDoc.data()!;
 
       await provider.toggleFavorite(clinicUid);
       if (!mounted) return;

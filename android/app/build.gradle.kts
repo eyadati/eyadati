@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") version "4.4.1"
     id("com.google.firebase.crashlytics")
     // END: FlutterFire Configuration
     id("kotlin-android")

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:eyadati/user/user_appointments.dart';
 
 // ================ PROVIDER ================
 class SlotInfo {
@@ -30,6 +31,7 @@ class SlotsUiProvider extends ChangeNotifier {
   late final int duration;
 
   String _userName = '';
+  String _userPhone = '';
 
   SlotsUiProvider({
     required this.clinic,
@@ -37,10 +39,10 @@ class SlotsUiProvider extends ChangeNotifier {
     FirebaseAuth? auth,
   }) : auth = auth ?? FirebaseAuth.instance {
     _initializeData();
-    _loadUserName();
+    _loadUserData();
   }
 
-  Future<void> _loadUserName() async {
+  Future<void> _loadUserData() async {
     final user = auth.currentUser;
     if (user != null) {
       final userDoc = await firestore
@@ -48,7 +50,9 @@ class SlotsUiProvider extends ChangeNotifier {
           .doc(user.uid)
           .get(GetOptions(source: Source.cache));
       if (userDoc.exists) {
-        _userName = userDoc.data()?['name'] ?? '';
+        final data = userDoc.data()!;
+        _userName = data['name'] ?? '';
+        _userPhone = data['phone'] ?? '';
         notifyListeners();
       }
     }
@@ -71,7 +75,6 @@ class SlotsUiProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _loadStaffCount();
       await _loadSlots();
     } catch (e) {
       errorMessage = 'failed_load_slots'.tr(args: [e.toString()]);
@@ -95,7 +98,7 @@ class SlotsUiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> nextWeek(BuildContext context) async {
+  Future<void> nextWeek() async {
     selectedDate = selectedDate.add(const Duration(days: 7));
     focusedDay = focusedDay.add(const Duration(days: 7));
     selectedSlot = null;
@@ -104,24 +107,13 @@ class SlotsUiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> previousWeek(BuildContext context) async {
+  Future<void> previousWeek() async {
     selectedDate = selectedDate.subtract(const Duration(days: 7));
     focusedDay = focusedDay.subtract(const Duration(days: 7));
     selectedSlot = null;
     allSlots = [];
     await _loadSlots();
     notifyListeners();
-  }
-
-  Future<void> _loadStaffCount() async {
-    final clinicDoc = await firestore
-        .collection('clinics')
-        .doc(clinic['uid'])
-        .get(GetOptions(source: Source.cache));
-    if (clinicDoc.exists) {
-      staffCount = clinicDoc.data()?['staff'] ?? 1;
-    }
-    debugPrint('Clinic doc: $clinicDoc');
   }
 
   Future<void> _loadSlots() async {
@@ -235,7 +227,7 @@ class SlotsUiProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> changeDate(BuildContext context, DateTime picked) async {
+  Future<void> changeDate(DateTime picked) async {
     selectedDate = DateTime(picked.year, picked.month, picked.day);
     selectedSlot = null;
     focusedDay = DateTime(picked.year, picked.month, picked.day);
@@ -262,84 +254,12 @@ class SlotsUiProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> confirmBooking(BuildContext context) async {
+  Future<bool> confirmBooking() async {
     if (selectedSlot == null) return false;
-
-    bool addToCalendar = true; // Default to true
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildConfirmationRow(
-                context,
-                'clinic'.tr(),
-                clinic['clinicName'],
-              ),
-              const SizedBox(height: 8),
-              _buildConfirmationRow(
-                context,
-                'specialty'.tr(),
-                clinic['specialty'],
-              ),
-              const SizedBox(height: 8),
-              _buildConfirmationRow(
-                context,
-                'date'.tr(),
-                DateFormat('yyyy-MM-dd').format(selectedDate),
-              ),
-              const SizedBox(height: 8),
-              _buildConfirmationRow(
-                context,
-                'time'.tr(),
-                DateFormat('HH:mm').format(selectedSlot!),
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 16),
-              _buildConfirmationRow(context, 'user'.tr(), _userName),
-              const SizedBox(height: 16),
-              CheckboxListTile(
-                title: Text('add_to_calendar'.tr()),
-                value: addToCalendar,
-                onChanged: (newValue) {
-                  setState(() {
-                    addToCalendar = newValue!;
-                  });
-                },
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text('cancel'.tr()),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (addToCalendar) {
-                  _addAppointmentToCalendar();
-                }
-                Navigator.of(context).pop(true);
-              },
-              child: Text('confirm'.tr()),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!context.mounted) return false;
-
-    return confirmed ?? false;
+    return true;
   }
 
-  void _addAppointmentToCalendar() {
+  Future<void> _addAppointmentToCalendar() async {
     if (selectedSlot == null) return;
 
     final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
@@ -351,21 +271,29 @@ class SlotsUiProvider extends ChangeNotifier {
       location: clinic['address'],
     );
 
-    Add2Calendar.addEvent2Cal(event);
+    await Add2Calendar.addEvent2Cal(event);
   }
 
-  Future<void> bookSelectedSlot(BuildContext context) async {
-    if (selectedSlot == null) return;
-
-    final confirmed = await confirmBooking(context);
-    if (!confirmed || !context.mounted) return;
+  Future<bool> bookSelectedSlot({
+    required String userName,
+    required String userPhone,
+    bool addToCalendar = true,
+  }) async {
+    if (selectedSlot == null) return false;
 
     try {
+      if (addToCalendar) {
+        try {
+          await _addAppointmentToCalendar();
+        } catch (e) {
+          debugPrint("Error adding to calendar: $e");
+          // Do not rethrow, just log and continue with booking
+        }
+      }
+
       await firestore.runTransaction((transaction) async {
-        // Get the actual slot duration
         final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
 
-        // Check availability
         final slotStart = Timestamp.fromDate(selectedSlot!);
         final slotEnd = Timestamp.fromDate(
           selectedSlot!.add(Duration(minutes: slotInfo.duration)),
@@ -379,17 +307,21 @@ class SlotsUiProvider extends ChangeNotifier {
             .where('date', isLessThan: slotEnd)
             .get();
 
+        final staffCount = clinic['staff'] as int? ?? 1;
         if (querySnapshot.docs.length >= staffCount) {
           throw Exception('slot is full'.tr());
         }
 
-        // Book the slot
         final appointmentId =
             "${clinic['uid']}_${auth.currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}";
+        
+        // Save the provided user name and phone directly into the appointment
         final appointmentData = {
           "clinicUid": clinic['uid'],
           "userUid": auth.currentUser!.uid,
-          "date": slotStart, // Already a Timestamp
+          "date": slotStart,
+          "userName": userName,
+          "phone": userPhone,
           "createdAt": FieldValue.serverTimestamp(),
         };
 
@@ -411,46 +343,14 @@ class SlotsUiProvider extends ChangeNotifier {
         );
       });
 
-      // Refresh data AFTER transaction completes
-      if (context.mounted) {
-        // Refresh current slots view to show the slot is taken
-        await _loadSlots();
-        await context.read<UserAppointmentsProvider>().loadAppointments();
-        notifyListeners();
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('booking_success'.tr())));
-
-        // Pop with a success result
-        Navigator.of(context).pop(true);
-      }
+      await _loadSlots();
+      notifyListeners();
+      return true; // Booking successful
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('booking failed'.tr(args: [e.toString()]))),
-        );
-      }
+      errorMessage = 'booking failed'.tr(args: [e.toString()]);
+      notifyListeners();
+      return false; // Booking failed
     }
-  }
-
-  Widget _buildConfirmationRow(
-    BuildContext context,
-    String label,
-    String value,
-  ) {
-    return RichText(
-      text: TextSpan(
-        style: Theme.of(context).textTheme.bodyMedium,
-        children: [
-          TextSpan(
-            text: '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          TextSpan(text: value),
-        ],
-      ),
-    );
   }
 }
 
@@ -484,31 +384,167 @@ class SlotsUi {
 
 class _SlotsDialog extends StatelessWidget {
   const _SlotsDialog();
+
+  // Helper method to build a confirmation row for the dialog
+  Widget _buildConfirmationRow(
+    BuildContext context,
+    String label,
+    String value,
+  ) {
+    return RichText(
+      text: TextSpan(
+        style: Theme.of(context).textTheme.bodyMedium,
+        children: [
+          TextSpan(
+            text: '$label: ',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: value),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SlotsUiProvider>();
     final clinic = provider.clinic;
 
+    Future<void> handleBookAppointment() async {
+      if (provider.selectedSlot == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('select_a_slot_first'.tr())));
+        return;
+      }
+
+      bool addToCalendar = true;
+
+      // Create controllers and initialize them
+      final nameController = TextEditingController(text: provider._userName);
+      final phoneController = TextEditingController(text: provider._userPhone);
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (stfContext, setState) => AlertDialog(
+            title: Text('confirm_appointment'.tr()),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildConfirmationRow(
+                    stfContext,
+                    'clinic'.tr(),
+                    clinic['clinicName'],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildConfirmationRow(
+                    stfContext,
+                    'date'.tr(),
+                    DateFormat('yyyy-MM-dd').format(provider.selectedDate),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildConfirmationRow(
+                    stfContext,
+                    'time'.tr(),
+                    DateFormat('HH:mm').format(provider.selectedSlot!),
+                  ),
+                  const Divider(height: 24),
+                  // Editable TextFields for user info
+                  TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: 'full_name'.tr(),
+                      icon: const Icon(LucideIcons.user),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: phoneController,
+                    decoration: InputDecoration(
+                      labelText: 'phone_number'.tr(),
+                      icon: const Icon(LucideIcons.phone),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: Text('add_to_calendar'.tr()),
+                    value: addToCalendar,
+                    onChanged: (newValue) {
+                      setState(() {
+                        addToCalendar = newValue!;
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text('cancel'.tr()),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text('confirm'.tr()),
+              ),
+            ],
+          ),
+        ),
+      );
+      
+      // Dispose controllers
+      final name = nameController.text;
+      final phone = phoneController.text;
+      nameController.dispose();
+      phoneController.dispose();
+
+      if (!context.mounted) return;
+      if (confirmed ?? false) {
+        final bookingSuccess = await provider.bookSelectedSlot(
+          userName: name,
+          userPhone: phone,
+          addToCalendar: addToCalendar,
+        );
+        if (!context.mounted) return;
+
+        if (bookingSuccess) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('booking_success'.tr())));
+          Navigator.of(context).pop(true);
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(provider.errorMessage)));
+        }
+      }
+    }
+
     return SafeArea(
       child: SizedBox(
         width: double.maxFinite,
-
         child: Column(
           children: [
             _ClinicInfoCard(clinic: clinic),
             const SizedBox(height: 10),
             _DatePickerRow(),
             Flexible(child: _SlotsGrid()),
-
             Container(
-              margin: EdgeInsets.all(12),
+              margin: const EdgeInsets.all(12),
               width: MediaQuery.of(context).size.width * 0.7,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: TextButton(
-                onPressed: () => provider.bookSelectedSlot(context),
+                onPressed: handleBookAppointment,
                 child: Text(
                   "book_appointment".tr(),
                   style: TextStyle(
@@ -565,7 +601,7 @@ class _ClinicInfoCard extends StatelessWidget {
                 backgroundImage:
                     (clinic['picUrl'] != null &&
                         clinic['picUrl'].startsWith('http'))
-                    ? NetworkImage(clinic['picUrl'])
+                    ? CachedNetworkImageProvider(clinic['picUrl'])
                     : (clinic['picUrl'] != null
                               ? AssetImage(clinic['picUrl'])
                               : null)
@@ -640,7 +676,7 @@ class _DatePickerRow extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios),
-                onPressed: () => provider.previousWeek(context),
+                onPressed: () => provider.previousWeek(),
               ),
               Text(
                 DateFormat('MMM d, yyyy').format(provider.focusedDay),
@@ -648,7 +684,7 @@ class _DatePickerRow extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.arrow_forward_ios),
-                onPressed: () => provider.nextWeek(context),
+                onPressed: () => provider.nextWeek(),
               ),
             ],
           ),
@@ -660,7 +696,7 @@ class _DatePickerRow extends StatelessWidget {
                 isSameDay(provider.selectedDate, day),
             onDaySelected: (selectedDay, focusedDay) {
               if (!isSameDay(provider.selectedDate, selectedDay)) {
-                provider.changeDate(context, selectedDay);
+                provider.changeDate(selectedDay);
               }
             },
             headerVisible: false, // Hide default header as we have a custom one

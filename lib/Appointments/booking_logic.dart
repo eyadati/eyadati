@@ -2,9 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:eyadati/utils/network_helper.dart';
-import 'package:provider/provider.dart';
-import 'package:eyadati/user/user_appointments.dart';
 
 /// Handles appointment booking logic with optimized Firestore operations
 /// and thread-safe slot booking via transactions.
@@ -38,7 +35,11 @@ class BookingLogic extends ChangeNotifier {
 
   /// Generates hourly slots for a specific day using a single Firestore query
   /// and in-memory processing for optimal performance
-  Future<List<DateTime>> generateSlots(DateTime day, String clinicUid) async {
+  Future<List<DateTime>> generateSlots(
+    DateTime day,
+    String clinicUid,
+    int slotDurationMinutes,
+  ) async {
     try {
       // Fetch and cache clinic data
       final clinicData = await _getCachedClinicData(clinicUid);
@@ -102,17 +103,29 @@ class BookingLogic extends ChangeNotifier {
         bookedSlots[slotHour] = (bookedSlots[slotHour] ?? 0) + 1;
       }
 
+      final now = DateTime.now();
+
       // Generate available slots
       final availableSlots = <DateTime>[];
       DateTime slotStart = openingTime;
 
-      while (slotStart.isBefore(closingTime)) {
-        final slotEnd = slotStart.add(const Duration(hours: 1));
+      while (slotStart
+          .add(Duration(minutes: slotDurationMinutes))
+          .isBefore(closingTime.add(Duration(minutes: 1)))) {
+        // Ensure last slot ends before or exactly at closing time
+        final slotEnd = slotStart.add(Duration(minutes: slotDurationMinutes));
 
-        if (slotEnd.isAfter(closingTime)) break;
+        // Skip if slot is entirely within the break, or overlaps significantly
+        final isDuringBreak =
+            (slotStart.isBefore(breakEnd) && slotEnd.isAfter(breakStart));
+        if (isDuringBreak) {
+          slotStart = slotEnd; // Move to the end of this potential slot
+          continue;
+        }
 
-        // Skip if overlaps with break
-        if (slotStart.isBefore(breakEnd) && slotEnd.isAfter(breakStart)) {
+        // Skip if the slot is in the past
+        if (slotEnd.isBefore(now)) {
+          // Use slotEnd to ensure the *entire* slot is in the past
           slotStart = slotEnd;
           continue;
         }
@@ -123,7 +136,7 @@ class BookingLogic extends ChangeNotifier {
           availableSlots.add(slotStart);
         }
 
-        slotStart = slotEnd;
+        slotStart = slotEnd; // Move to the next slot
       }
 
       return availableSlots;
@@ -131,91 +144,6 @@ class BookingLogic extends ChangeNotifier {
       debugPrint("Slot generation error: $e".tr());
       return [];
     }
-  }
-
-  /// Books an appointment atomically using Firestore transactions
-  /// to prevent race conditions and overbooking
-  Future<void> bookAppointment(
-    String clinicUid,
-    DateTime slot,
-    BuildContext context,
-  ) async {
-    if (!await NetworkHelper.checkInternetConnectivity(context)) {
-      throw Exception("no_internet_connection".tr());
-    }
-    final user = auth.currentUser;
-    if (user == null) throw Exception("User not logged in".tr());
-
-    final utcSlot = slot;
-    final appointmentId =
-        "${clinicUid}_${user.uid}_${utcSlot.millisecondsSinceEpoch}";
-    // Count existing bookings for this slot
-    final slotQuery = await firestore
-        .collection('clinics')
-        .doc(clinicUid)
-        .collection("appointments")
-        .where("date", isEqualTo: Timestamp.fromDate(utcSlot))
-        .count()
-        .get();
-
-    await firestore.runTransaction((transaction) async {
-      // Fetch clinic data
-      final clinicDoc = await transaction.get(
-        firestore.collection("clinics").doc(clinicUid),
-      );
-      if (!clinicDoc.exists) throw Exception("Clinic not found".tr());
-
-      final clinicData = clinicDoc.data()!;
-
-      // SAFE PARSING HELPER
-      int parseInt(dynamic value, int defaultValue) {
-        if (value is int) return value;
-        if (value is double) return value.toInt();
-        if (value is String) return int.tryParse(value) ?? defaultValue;
-        return defaultValue;
-      }
-
-      final staffCount = parseInt(clinicData["staff"], 1);
-
-      final currentBookings = slotQuery.count ?? 0;
-      if (currentBookings >= staffCount) {
-        throw Exception("Slot is now full.".tr());
-      }
-
-      // Fetch user data
-      final userDoc = await transaction.get(
-        firestore.collection("users").doc(user.uid),
-      );
-
-      // Create appointment
-      final appointmentData = {
-        "clinicUid": clinicUid,
-        "userUid": user.uid,
-        "date": Timestamp.fromDate(utcSlot),
-        "userName": userDoc.data()?["name"] ?? "Unknown",
-        "phone": userDoc.data()?["phone"] ?? "No phone",
-        "createdAt": FieldValue.serverTimestamp(),
-      };
-
-      // Atomic write to both locations
-      transaction.set(
-        firestore
-            .collection('clinics')
-            .doc(clinicUid)
-            .collection("appointments")
-            .doc(appointmentId),
-        appointmentData,
-      );
-      transaction.set(
-        firestore
-            .collection('users')
-            .doc(user.uid)
-            .collection("appointments")
-            .doc(appointmentId),
-        appointmentData,
-      );
-    });
-    Provider.of<UserAppointmentsProvider>(context, listen: false).refresh();
   }
 
   /// Gets cached clinic data or fetches from Firestore if not available
