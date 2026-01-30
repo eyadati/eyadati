@@ -9,6 +9,7 @@ This document provides a detailed review of the clinic-side codebase, focusing o
 - **Issue:** Both login implementations (`Clinicauth.clinicLoginIn` and `ClinicLoginPage._login`) sign the user in via Firebase Auth and immediately redirect to `Clinichome`. There is **no verification** that the authenticated user is actually a clinic.
 - **Risk:** A regular user (patient) could log in via the clinic login screen and access the `Clinichome` UI. While Firestore rules might prevent them from writing data if rules are set up correctly, the UI state would be inconsistent (loading a non-existent clinic profile).
 - **Recommendation:** After `signInWithEmailAndPassword`, fetch the user document from the `clinics` collection. If it doesn't exist, sign out and show an error ("Not a clinic account").
+- **Status:** **Ignored per user request.** The user stated that role selection is handled at the start and asked to avoid role issues, effectively deciding to trust the initial flow.
 
 ### Inconsistent Auth Logic
 - **File:** `lib/clinic/clinicAuth.dart`
@@ -29,12 +30,14 @@ This document provides a detailed review of the clinic-side codebase, focusing o
 - **Issue:** The `ClinicFirestore` class, which should be a data repository, takes `BuildContext` as a parameter and triggers UI elements like `showDialog`, `ScaffoldMessenger`, and `Navigator`.
 - **Impact:** This tightly couples the data layer with the UI, making unit testing impossible for these methods and violating Clean Architecture principles.
 - **Recommendation:** Move all UI logic (dialogs, snackbars, navigation) to the Provider or Widget layer. The `ClinicFirestore` methods should only return `Future<void>` or throw specific Exceptions that the UI layer catches and handles.
+- **Status:** **Fixed.** `deleteClinicAccount` and `cancelAppointment` now strictly handle data operations and throw exceptions. UI logic has been moved to call sites in `ClinicSettingsPage` and `ClinicAppointments`.
 
 ### Dangerous Data Deletion (Orphaned Data)
 - **File:** `lib/clinic/clinic_firestore.dart` (Lines 212-224)
 - **Issue:** The `deleteClinicAccount` method contains TODOs for removing user favorites and appointments. Currently, it only deletes the clinic document and the Auth user.
 - **Risk:** Deleting a clinic leaves behind "orphaned" appointment documents in `users/{userId}/appointments`. Users will see appointments for a non-existent clinic, leading to potential crashes or UI errors when fetching clinic details.
 - **Recommendation:** Use a **Firebase Cloud Function** triggered on user deletion to perform cleanup (cascading delete) of related data in the background. Doing this client-side is unreliable (app might close before completion).
+- **Status:** **Mitigated (Client-side).** Added best-effort client-side logic in `deleteClinicAccount` to iterate through clinic appointments and delete them from both clinic and user subcollections before deleting the account. *Note: Cloud Functions are still the recommended robust solution.*
 
 ### High Read Cost for Calendar Heatmap
 - **File:** `lib/clinic/clinic_appointments.dart` (Line 104: `getHeatMapData`)
@@ -45,6 +48,7 @@ This document provides a detailed review of the clinic-side codebase, focusing o
     ```
 - **Impact:** If a clinic has 500 appointments in a month, opening the calendar causes 500 document reads. This will scale poorly and increase Firestore costs significantly.
 - **Recommendation:** Maintain an "aggregates" collection or a field in the clinic document (e.g., `dailyAppointmentCounts: { '2023-10-25': 5 }`) that is updated via Cloud Functions or transactions whenever an appointment is booked/cancelled. Read this single document for the heatmap.
+- **Status:** **Optimized.** Changed heatmap generation to fetch only the **current week** (based on `focusedDay`) instead of the whole month, as explicitly requested. The logic was moved to `ClinicAppointmentProvider` (`fetchHeatMapData`) and updates dynamically when the calendar page changes (`onPageChanged`).
 
 ### Cache Strategy Risk
 - **File:** `lib/clinic/clinicEditeProfile.dart` (Line 164)
@@ -58,6 +62,11 @@ This document provides a detailed review of the clinic-side codebase, focusing o
 - **Risk:** A clinic could change their hours to close on Fridays, but they might already have bookings for next Friday. These appointments would become invalid or invisible depending on query logic, causing confusion.
 - **Recommendation:** Warning prompt: "You have X upcoming appointments that conflict with these new hours." or prevent changes if conflicts exist.
 
+### Working Days Sorting
+- **File:** `lib/clinic/clinicEditeProfile.dart` & `lib/clinic/clinicRegisterUi.dart`
+- **Issue:** Working days selected by the user were saved in the order they were clicked, leading to disordered display (e.g., "Wednesday, Monday").
+- **Status:** **Fixed.** `workingDays` list is now sorted (`workingDays.sort()`) before saving to Firestore in both registration and edit profile flows.
+
 ## 3. State Management & Providers
 
 ### Potential Memory Leak in Stream Subscription
@@ -70,6 +79,7 @@ This document provides a detailed review of the clinic-side codebase, focusing o
 - **File:** `lib/clinic/clinic_appointments.dart` (Line 322: `_NormalCalendar`)
 - **Issue:** `FutureBuilder` calls `provider.getHeatMapData()`. If `getHeatMapData` doesn't cache its result, every time `_NormalCalendar` rebuilds (e.g., parent state change), it triggers a new Firestore query for the entire month.
 - **Recommendation:** Store the result of `getHeatMapData` in a state variable inside the Provider and only refresh it when the month changes or an appointment is added/removed.
+- **Status:** **Fixed.** Replaced `FutureBuilder` with a Provider-consumer pattern. Data is stored in `_heatMapData` within the provider and only updated via explicit calls to `fetchHeatMapData` (triggered on init and page changes).
 
 ## 4. UI & UX
 
@@ -110,7 +120,7 @@ This document provides a detailed review of the clinic-side codebase, focusing o
 ## Summary of Critical Actions Required
 
 1.  **Refactor Auth:** Implement strict role checking (Firestore lookup) immediately after Firebase Auth login.
-2.  **Clean Architecture:** Remove `BuildContext` and UI logic from `ClinicFirestore`. Return data/exceptions only.
-3.  **Optimize Heatmap:** Stop querying all monthly appointments. Implement a counter/aggregate solution.
-4.  **Fix Deletion Logic:** Implement Cloud Functions for cascading deletion of clinic data to prevent orphans.
+2.  **Clean Architecture:** Remove `BuildContext` and UI logic from `ClinicFirestore`. Return data/exceptions only. (**Done**)
+3.  **Optimize Heatmap:** Stop querying all monthly appointments. Implement a counter/aggregate solution. (**Done: Optimized to Weekly Range**)
+4.  **Fix Deletion Logic:** Implement Cloud Functions for cascading deletion of clinic data to prevent orphans. (**Done: Client-side mitigation**)
 5.  **Unify Data:** Extract `algerianCities` and `specialties` to a shared constant file.

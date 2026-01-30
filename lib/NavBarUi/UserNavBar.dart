@@ -8,12 +8,13 @@ import 'package:eyadati/user/userQrScannerPage.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart'; // flutter pub add flutter_floating_bottom_bar
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
+import 'package:flutter_lucide_animated/flutter_lucide_animated.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:rxdart/rxdart.dart';
+import 'package:marquee/marquee.dart';
+import 'package:eyadati/utils/skeletons.dart';
 
 class UserNavBarProvider extends ChangeNotifier {
   String _selected = "1";
@@ -39,51 +40,33 @@ class UserNavBarProvider extends ChangeNotifier {
         .doc(user.uid)
         .collection('favorites')
         .snapshots()
-        .switchMap((favoriteSnapshot) async* {
-      if (favoriteSnapshot.docs.isEmpty) {
-        yield []; // No favorites, yield an empty list
-        return;
-      }
+        .map((snapshot) {
+          final clinics = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'uid': doc.id,
+              'clinicName': data['clinicName'],
+              'address': data['address'],
+              'specialty': data['specialty'],
+              'picUrl': data['picUrl'],
+              'favoritedTimestamp': data['timestamp'],
+            };
+          }).toList();
 
-      final favoriteData = {
-        for (var doc in favoriteSnapshot.docs)
-          doc.id: doc.data()['timestamp'] as Timestamp?
-      };
-      final clinicUids = favoriteData.keys.toList();
+          // Sort by favorited timestamp
+          clinics.sort((a, b) {
+            final Timestamp? timestampA = a['favoritedTimestamp'];
+            final Timestamp? timestampB = b['favoritedTimestamp'];
 
-      // Batch fetch clinic documents using 'whereIn'
-      final List<Map<String, dynamic>> clinics = [];
-      // Firestore 'in' query supports a maximum of 30 elements.
-      for (var i = 0; i < clinicUids.length; i += 30) {
-        final batchUids = clinicUids.skip(i).take(30).toList();
-        final clinicsSnapshot = await firestore
-            .collection('clinics')
-            .where(FieldPath.documentId, whereIn: batchUids)
-            .get();
+            if (timestampA == null && timestampB == null) return 0;
+            if (timestampA == null) return 1;
+            if (timestampB == null) return -1;
 
-        for (var clinicDoc in clinicsSnapshot.docs) {
-          final data = clinicDoc.data();
-          data['uid'] = clinicDoc.id; // Add uid to the map
-          data['favoritedTimestamp'] =
-              favoriteData[clinicDoc.id]; // Add timestamp
-          clinics.add(data);
-        }
-      }
+            return timestampB.compareTo(timestampA); // Newest first
+          });
 
-      // Sort by favorited timestamp
-      clinics.sort((a, b) {
-        final Timestamp? timestampA = a['favoritedTimestamp'];
-        final Timestamp? timestampB = b['favoritedTimestamp'];
-
-        if (timestampA == null && timestampB == null) return 0;
-        if (timestampA == null) return 1;
-        if (timestampB == null) return -1;
-
-        return timestampB.compareTo(timestampA); // Newest first
-      });
-
-      yield clinics;
-    });
+          return clinics;
+        });
   }
 
   Future<void> toggleFavorite(String clinicUid) async {
@@ -106,7 +89,14 @@ class UserNavBarProvider extends ChangeNotifier {
           .doc(clinicUid)
           .get();
       if (clinicDoc.exists) {
-        await favoriteDoc.set({'timestamp': FieldValue.serverTimestamp()});
+        final clinicData = clinicDoc.data()!;
+        await favoriteDoc.set({
+          'timestamp': FieldValue.serverTimestamp(),
+          'clinicName': clinicData['clinicName'],
+          'address': clinicData['address'],
+          'specialty': clinicData['specialty'],
+          'picUrl': clinicData['picUrl'],
+        });
       }
     }
   }
@@ -209,7 +199,13 @@ class _BottomNavContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 26),
+            LucideAnimatedIcon(
+              icon: value == "1" ? home : heart,
+              onTap: () => provider.select(value),
+              trigger: isSelected ? AnimationTrigger.loop : AnimationTrigger.onTap,
+              color: color,
+              size: 26,
+            ),
             const SizedBox(height: 4),
             Text(label.tr(), style: TextStyle(color: color, fontSize: 11)),
           ],
@@ -242,9 +238,11 @@ class FavoritScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<UserNavBarProvider>();
+
     return Scaffold(
       appBar: AppBar(
-        title: Image.asset('assets/logo.png', height: 40),
+        title: Image.asset('assets/logo.png', height: 120),
         centerTitle: true,
         actions: [
           IconButton(
@@ -264,94 +262,64 @@ class FavoritScreen extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: Consumer<UserNavBarProvider>(
-          builder: (context, provider, _) {
-            return StreamBuilder<List<Map<String, dynamic>>>(
-              stream: provider.favoriteClinicsStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('something_went_wrong'.tr()));
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          LucideIcons.heart,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'no_favorite_clinics'.tr(),
-                          style: const TextStyle(fontSize: 18),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'add_clinics_to_see_them_here'.tr(),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: provider.favoriteClinicsStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return ListView.builder(
+                itemCount: 3,
+                itemBuilder: (context, index) => const ClinicCardSkeleton(),
+              );
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('something_went_wrong'.tr()));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      LucideIcons.heart,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                  );
+                    const SizedBox(height: 16),
+                    Text(
+                      'no_favorite_clinics'.tr(),
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'add_clinics_to_see_them_here'.tr(),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final favClinics = snapshot.data!;
+
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              itemCount: favClinics.length + 1, // Add 1 for the SizedBox
+              itemBuilder: (context, index) {
+                if (index == favClinics.length) {
+                  return SizedBox(
+                    height: 92 + MediaQuery.of(context).padding.bottom,
+                  ); // Adjust height to account for floating nav bar
                 }
+                final clinic = favClinics[index];
+                const isFav = true;
 
-                final favClinics = snapshot.data!;
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: favClinics.length + 1, // Add 1 for the SizedBox
-                  itemBuilder: (context, index) {
-                    if (index == favClinics.length) {
-                      return SizedBox(
-                        height: 92 + MediaQuery.of(context).padding.bottom,
-                      ); // Adjust height to account for floating nav bar
-                    }
-                    final clinic = favClinics[index];
-                    // isFav logic is no longer needed here as the stream only provides favorited clinics.
-                    // The toggleFavorite button will handle the state.
-                    const isFav = true;
-
-                    return Slidable(
-                      key: ValueKey(clinic['uid']),
-                      endActionPane: ActionPane(
-                        motion: const ScrollMotion(),
-                        extentRatio: 0.2,
-                        children: [
-                          IconButton(
-                            onPressed: () async {
-                              await provider.toggleFavorite(clinic['uid']);
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('removed_from_favorites'.tr()),
-                                ),
-                              );
-                            },
-                            icon: Icon(
-                              LucideIcons.heart,
-                              color: Theme.of(context).colorScheme.error,
-                              size: 40,
-                            ),
-                          ),
-                        ],
-                      ),
-                      child: _ClinicCard(
-                        clinic: clinic,
-                        showFavoriteButton: false,
-                        isFav: isFav,
-                      ),
-                    );
-                  },
+                return _ClinicCard(
+                  clinic: clinic,
+                  showFavoriteButton: true,
+                  isFav: isFav,
                 );
               },
             );
@@ -406,9 +374,17 @@ class _ClinicCard extends StatelessWidget {
                       ? Icon(LucideIcons.home) // Placeholder icon
                       : null,
                 ),
-                title: Text(
-                  clinic["clinicName"] ?? "unnamed_clinic".tr(),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                title: SizedBox(
+                  height: 25,
+                  child: Marquee(
+                    text: clinic["clinicName"] ?? "unnamed_clinic".tr(),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    scrollAxis: Axis.horizontal,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    blankSpace: 20.0,
+                    velocity: 30.0,
+                    pauseAfterRound: const Duration(seconds: 2),
+                  ),
                 ),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -417,7 +393,8 @@ class _ClinicCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        clinic["specialty"] ?? "general".tr(),
+                        (clinic["specialty"] as String?)?.tr() ??
+                            "general".tr(),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 15,
@@ -433,15 +410,22 @@ class _ClinicCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(
-                              clinic["address"] ?? clinic["city"] ?? "",
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                            child: SizedBox(
+                              height: 20,
+                              child: Marquee(
+                                text: clinic["address"] ?? clinic["city"] ?? "",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                                scrollAxis: Axis.horizontal,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                blankSpace: 20.0,
+                                velocity: 25.0,
+                                pauseAfterRound: const Duration(seconds: 2),
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -480,17 +464,13 @@ class _ClinicCard extends StatelessWidget {
             Positioned(
               top: 8,
               right: 8,
-              child: IconButton(
-                icon: Icon(
-                  isFav
-                      ? LucideIcons.heart
-                      : LucideIcons
-                            .heart, // Changed to filled heart when favorite
-                  color: isFav
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                onPressed: () async {
+              child: LucideAnimatedIcon(
+                icon: heart,
+                trigger: isFav ? AnimationTrigger.loop : AnimationTrigger.onTap,
+                color: isFav
+                    ? Theme.of(context).colorScheme.error
+                    : Colors.grey.withAlpha((255 * 0.4).round()),
+                onTap: () async {
                   try {
                     await provider.toggleFavorite(clinic['uid']);
                     if (!context.mounted) return;

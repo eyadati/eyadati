@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:eyadati/utils/constants.dart'; // Import constants
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +20,7 @@ class UserEditProfileProvider extends ChangeNotifier {
     required this.auth,
     required this.firestore,
     ConnectivityService? connectivityService, // Add this parameter
-  })  : _connectivityService = connectivityService {
+  }) : _connectivityService = connectivityService {
     _initializeData();
   }
 
@@ -38,77 +39,7 @@ class UserEditProfileProvider extends ChangeNotifier {
   String? error;
 
   // Algerian cities list (matching registration)
-  final List<String> algerianCities = [
-    'Algiers',
-    'Oran',
-    'Constantine',
-    'Annaba',
-    'Blida',
-    'Batna',
-    'Djelfa',
-    'Sétif',
-    'Sidi Bel Abbès',
-    'Biskra',
-    'Tébessa',
-    'Skikda',
-    'Tiaret',
-    'Béjaïa',
-    'Tlemcen',
-    'Béchar',
-    'Mostaganem',
-    'Bordj Bou Arreridj',
-    'Chlef',
-    'Souk Ahras',
-    'El Eulma',
-    'Médéa',
-    'Tizi Ouzou',
-    'Jijel',
-    'Laghouat',
-    'El Oued',
-    'Ouargla',
-    'M\'Sila',
-    'Relizane',
-    'Saïda',
-    'Bou Saâda',
-    'Guelma',
-    'Aïn Beïda',
-    'Maghnia',
-    'Mascara',
-    'Khenchela',
-    'Barika',
-    'Messaad',
-    'Aflou',
-    'Aïn Oussara',
-    'Adrar',
-    'Aïn Defla',
-    'Aïn Fakroun',
-    'Aïn Oulmene',
-    'Aïn M\'lila',
-    'Aïn Sefra',
-    'Aïn Témouchent',
-    'Aïn Touta',
-    'Akbou',
-    'Azzaba',
-    'Berrouaghia',
-    'Bir el-Ater',
-    'Boufarik',
-    'Bouira',
-    'Chelghoum Laid',
-    'Cheria',
-    'Chettia',
-    'El Bayadh',
-    'El Guerrara',
-    'El-Khroub',
-    'Frenda',
-    'Ferdjioua',
-    'Ghardaïa',
-    'Hassi Bahbah',
-    'Khemis Miliana',
-    'Ksar Chellala',
-    'Ksar Boukhari',
-    'Lakhdaria',
-    'Larbaâ',
-  ];
+  final List<String> algerianCities = AppConstants.algerianCities;
 
   Future<void> _initializeData() async {
     isLoading = true;
@@ -126,10 +57,11 @@ class UserEditProfileProvider extends ChangeNotifier {
 
   Future<void> _saveLastSyncTimestamp(String userUid) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_sync_user_$userUid', DateTime.now().toIso8601String());
+    await prefs.setString(
+      'last_sync_user_$userUid',
+      DateTime.now().toIso8601String(),
+    );
   }
-
-
 
   Future<void> _loadUserData() async {
     final user = auth.currentUser;
@@ -148,7 +80,9 @@ class UserEditProfileProvider extends ChangeNotifier {
           .doc(user.uid)
           .get(GetOptions(source: Source.serverAndCache));
       if (doc.exists) {
-        await _saveLastSyncTimestamp(user.uid); // Save timestamp after successful server fetch
+        await _saveLastSyncTimestamp(
+          user.uid,
+        ); // Save timestamp after successful server fetch
       }
     } else if (!doc.exists && (_connectivityService?.isOnline == false)) {
       // If offline and not in cache, we still don't have data
@@ -263,7 +197,10 @@ class UserEditProfilePage extends StatelessWidget {
       create: (context) => UserEditProfileProvider(
         auth: FirebaseAuth.instance,
         firestore: FirebaseFirestore.instance,
-        connectivityService: Provider.of<ConnectivityService>(context, listen: false),
+        connectivityService: Provider.of<ConnectivityService>(
+          context,
+          listen: false,
+        ),
       ),
       child: const UserEditProfileView(),
     );
@@ -275,6 +212,8 @@ class UserEditProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<UserEditProfileProvider>();
+
     return Scaffold(
       appBar: AppBar(
         title: Text('edit_profile'.tr()),
@@ -284,95 +223,87 @@ class UserEditProfileView extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: Consumer<UserEditProfileProvider>(
-          builder: (context, provider, _) {
-            if (provider.isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (provider.error != null) {
-              return _buildErrorState(context, provider);
-            }
-
-            return Form(
-              key: provider.formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle(context, 'personal_information'.tr()),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      provider.nameController,
-                      'full_name'.tr(),
-                      provider.validateRequired,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      provider.emailController,
-                      'email'.tr(),
-                      provider.validateEmail,
-                      readOnly: true,
-                      helperText: 'email_change_help'.tr(),
-                    ),
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(context, 'contact_information'.tr()),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      provider.phoneController,
-                      'phone_number'.tr(),
-                      provider.validatePhone,
-                      inputType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildCityDropdown(context, provider),
-                    const SizedBox(height: 24),
-
-                    if (provider.error != null) ...[
-                      Text(
-                        provider.error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+        child: provider.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : provider.error != null
+            ? _buildErrorState(context, provider)
+            : Form(
+                key: provider.formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle(context, 'personal_information'.tr()),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        provider.nameController,
+                        'full_name'.tr(),
+                        provider.validateRequired,
                       ),
-                      const SizedBox(height: 8),
-                    ],
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        provider.emailController,
+                        'email'.tr(),
+                        provider.validateEmail,
+                        readOnly: true,
+                        helperText: 'email_change_help'.tr(),
+                      ),
+                      const SizedBox(height: 24),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: provider.isSaving
-                            ? null
-                            : () => provider.updateProfile(context),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      _buildSectionTitle(context, 'contact_information'.tr()),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        provider.phoneController,
+                        'phone_number'.tr(),
+                        provider.validatePhone,
+                        inputType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildCityDropdown(context, provider),
+                      const SizedBox(height: 24),
+
+                      if (provider.error != null) ...[
+                        Text(
+                          provider.error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
                           ),
                         ),
-                        child: provider.isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                        const SizedBox(height: 8),
+                      ],
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: provider.isSaving
+                              ? null
+                              : () => provider.updateProfile(context),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: provider.isSaving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  'save_changes'.tr(),
+                                  style: const TextStyle(fontSize: 16),
                                 ),
-                              )
-                            : Text(
-                                'save_changes'.tr(),
-                                style: const TextStyle(fontSize: 16),
-                              ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
-            );
-          },
-        ),
       ),
     );
   }

@@ -20,7 +20,7 @@ ThemeData clinicLightTheme = ThemeData(
   ),
   // App bar styling
   appBarTheme: AppBarTheme(
-    backgroundColor: const Color(0xFFFFFFFF), // White
+    backgroundColor: const Color(0xFFF2F2F2), // White
     foregroundColor: const Color(0xFF1E1E1E), // Dark grey
     elevation: 0,
     // For Material 3, consider using systemOverlayStyle if needed for status bar icons

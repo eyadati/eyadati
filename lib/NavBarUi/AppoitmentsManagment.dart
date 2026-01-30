@@ -122,29 +122,34 @@ class ManagementProvider extends ChangeNotifier {
         // Key format: "manual_slot_{clinicUid}_{slotKey}"
         final parts = key.split('_');
         if (parts.length >= 4 && parts[2] == clinicUid) {
-          final slotKey = parts.sublist(3).join('_'); // Reconstruct slot key
+          final slotKey = parts
+              .sublist(3)
+              .join('_'); // Reconstruct slot key (yyyy-MM-ddTHH:mmZ)
 
-          // Parse the date from slot key: "yyyy-MM-ddTHH:mm"
-          final dateParts = slotKey.split('T');
-          if (dateParts.length == 2) {
-            final dateComponents = dateParts[0].split('-');
-            if (dateComponents.length == 3) {
-              final year = int.parse(dateComponents[0]);
-              final month = int.parse(dateComponents[1]);
-              final day = int.parse(dateComponents[2]);
-              final slotDate = DateTime(year, month, day);
+          // Parse the date from slot key
+          try {
+            final dateTime = DateTime.parse(slotKey);
+            // Convert to local for day comparison with 'today'
+            final localDateTime = dateTime.toLocal();
+            final slotDate = DateTime(
+              localDateTime.year,
+              localDateTime.month,
+              localDateTime.day,
+            );
 
-              // Only load if not in the past
-              if (!slotDate.isBefore(today)) {
-                final count = prefs.getInt(key) ?? 0;
-                if (count > 0) {
-                  _manualAppointments[slotKey] = count;
-                }
-              } else {
-                // Clean up old entries automatically
-                await prefs.remove(key);
+            // Only load if not in the past
+            if (!slotDate.isBefore(today)) {
+              final count = prefs.getInt(key) ?? 0;
+              if (count > 0) {
+                _manualAppointments[slotKey] = count;
               }
+            } else {
+              // Clean up old entries automatically
+              await prefs.remove(key);
             }
+          } catch (e) {
+            debugPrint("Error parsing slot key $slotKey: $e");
+            await prefs.remove(key);
           }
         }
       }
@@ -234,9 +239,9 @@ class ManagementProvider extends ChangeNotifier {
   }
 
   String _getSlotKey(DateTime slotTime) {
-    // Ensure UTC consistency
-    final utcTime = slotTime.isUtc ? slotTime : slotTime;
-    return "${utcTime.year}-${_twoDigits(utcTime.month)}-${_twoDigits(utcTime.day)}T${_twoDigits(utcTime.hour)}:00";
+    // Ensure UTC consistency and ISO8601 compliance
+    final utcTime = slotTime.toUtc();
+    return "${utcTime.year}-${_twoDigits(utcTime.month)}-${_twoDigits(utcTime.day)}T${_twoDigits(utcTime.hour)}:${_twoDigits(utcTime.minute)}Z";
   }
 
   String _twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -342,8 +347,10 @@ class _ManagementScreenState extends State<ManagementScreen> {
       create: (_) => ManagementProvider(clinicUid: widget.clinicUid),
       child: Scaffold(
         body: SafeArea(
-          child: Consumer<ManagementProvider>(
-            builder: (_, provider, __) {
+          child: Builder(
+            builder: (context) {
+              final provider = context.watch<ManagementProvider>();
+
               if (provider.isLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -438,14 +445,16 @@ class _ManagementScreenState extends State<ManagementScreen> {
     final day = provider.visibleDays[provider.currentPageIndex];
     return Container(
       padding: const EdgeInsets.all(16.0),
-      color: Theme.of(context).colorScheme.primary,
+      color: Theme.of(
+        context,
+      ).scaffoldBackgroundColor, // UI Improvement: match scaffold
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
             icon: Icon(
               LucideIcons.arrowLeft,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: Theme.of(context).colorScheme.primary, // Contrast fix
             ),
             onPressed: provider.currentPageIndex > 0
                 ? () {
@@ -456,18 +465,21 @@ class _ManagementScreenState extends State<ManagementScreen> {
                   }
                 : null,
           ),
-          
+
           Text(
-            DateFormat('EEEE, MMM d, yyyy', context.locale.toString()).format(day.toLocal()),
+            DateFormat(
+              'EEEE, MMM d, yyyy',
+              context.locale.toString(),
+            ).format(day.toLocal()),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: Theme.of(context).colorScheme.primary, // Contrast fix
             ),
           ),
           IconButton(
             icon: Icon(
               LucideIcons.arrowRight,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: Theme.of(context).colorScheme.primary, // Contrast fix
             ),
             onPressed:
                 provider.currentPageIndex < provider.visibleDays.length - 1

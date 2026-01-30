@@ -50,11 +50,13 @@ class UserAppointmentsProvider extends ChangeNotifier {
     UserFirestore? userFirestore,
     NotificationService? notificationService,
     ConnectivityService? connectivityService,
-  })  : auth = auth ?? FirebaseAuth.instance,
-        firestore = firestore ?? FirebaseFirestore.instance,
-        _userFirestore = userFirestore ?? UserFirestore(connectivityService: connectivityService),
-        _notificationService = notificationService ?? NotificationService(),
-        _connectivityService = connectivityService {
+  }) : auth = auth ?? FirebaseAuth.instance,
+       firestore = firestore ?? FirebaseFirestore.instance,
+       _userFirestore =
+           userFirestore ??
+           UserFirestore(connectivityService: connectivityService),
+       _notificationService = notificationService ?? NotificationService(),
+       _connectivityService = connectivityService {
     _initAppointmentsStream();
 
     _connectivityService?.addListener(_onConnectivityChanged);
@@ -69,8 +71,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
 
   Future<void> _checkAndRefreshDataOnReconnect() async {
     final lastSync = await lastSyncTimestamp;
-    if (lastSync != null &&
-        DateTime.now().difference(lastSync).inMinutes > 5) {
+    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) {
       refresh();
     }
   }
@@ -104,7 +105,9 @@ class UserAppointmentsProvider extends ChangeNotifier {
         debugPrint("UserAppointments: Data from cache.");
       }
       if (snapshot.metadata.hasPendingWrites) {
-        debugPrint("UserAppointments: Data has pending writes (local changes).");
+        debugPrint(
+          "UserAppointments: Data has pending writes (local changes).",
+        );
       }
       final appointmentDocs = snapshot.docs;
       if (appointmentDocs.isEmpty) {
@@ -119,13 +122,13 @@ class UserAppointmentsProvider extends ChangeNotifier {
           .toSet();
 
       // Fetch clinic data for UIDs not already in cache
-      final uidsToFetch =
-          clinicUids.where((uid) => !_clinicCache.containsKey(uid)).toList();
+      final uidsToFetch = clinicUids
+          .where((uid) => !_clinicCache.containsKey(uid))
+          .toList();
       if (uidsToFetch.isNotEmpty) {
         // Firestore 'in' query is limited to 30 elements per query.
         for (var i = 0; i < uidsToFetch.length; i += 30) {
-          final batchUids =
-              uidsToFetch.skip(i).take(30).toList();
+          final batchUids = uidsToFetch.skip(i).take(30).toList();
           final clinicsSnapshot = await firestore
               .collection('clinics')
               .where(FieldPath.documentId, whereIn: batchUids)
@@ -143,10 +146,12 @@ class UserAppointmentsProvider extends ChangeNotifier {
         appointmentData['id'] = doc.id; // Add document ID to map
         final clinicData = _clinicCache[appointmentData['clinicUid']];
         if (clinicData != null) {
-          newAppointments.add(AppointmentWithClinic(
-            appointment: appointmentData,
-            clinic: clinicData,
-          ));
+          newAppointments.add(
+            AppointmentWithClinic(
+              appointment: appointmentData,
+              clinic: clinicData,
+            ),
+          );
         }
       }
 
@@ -160,19 +165,22 @@ class UserAppointmentsProvider extends ChangeNotifier {
     String appointmentId,
     String clinicUid,
     Map<String, dynamic> clinicData,
-    BuildContext context,
   ) async {
     final userId = auth.currentUser?.uid;
     if (userId == null) return;
 
-    await _userFirestore.cancelAppointment(appointmentId, userId, context);
+    try {
+      await _userFirestore.cancelAppointment(appointmentId, userId);
 
-    if (clinicData['FCM'] != null) {
-      await _notificationService.sendDirectNotification(
-        fcmToken: clinicData['FCM'],
-        title: 'appointment_cancelled'.tr(),
-        body: 'the_appointment_got_cancelled'.tr(),
-      );
+      if (clinicData['FCM'] != null) {
+        await _notificationService.sendDirectNotification(
+          fcmToken: clinicData['FCM'],
+          title: 'appointment_cancelled'.tr(),
+          body: 'the_appointment_got_cancelled'.tr(),
+        );
+      }
+    } catch (e) {
+      rethrow;
     }
     // The stream will update the list automatically, no need for notifyListeners()
   }
@@ -195,13 +203,7 @@ class Appointmentslistview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The provider is created in `userAppointments.dart`
-    return ChangeNotifierProvider(
-      create: (context) => UserAppointmentsProvider(
-        connectivityService: Provider.of<ConnectivityService>(context, listen: false),
-      ),
-      child: const _AppointmentsListView(),
-    );
+    return const _AppointmentsListView();
   }
 }
 
@@ -236,84 +238,85 @@ class _AppointmentsListViewState extends State<_AppointmentsListView>
   Future<void> _checkAndRefreshData() async {
     final provider = context.read<UserAppointmentsProvider>();
     final lastSync = await provider.lastSyncTimestamp;
-    if (lastSync != null &&
-        DateTime.now().difference(lastSync).inMinutes > 5) {
+    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) {
       provider.refresh();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<UserAppointmentsProvider>(
-      builder: (context, provider, _) {
-        if (provider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    final provider = context.watch<UserAppointmentsProvider>();
 
-        if (provider.appointments.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('no_appointments'.tr()),
-                // Display last sync timestamp here
-                FutureBuilder<DateTime?>(
-                  future: provider.lastSyncTimestamp,
-                  builder: (context, timestampSnapshot) {
-                    if (timestampSnapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox.shrink();
-                    }
-                    if (timestampSnapshot.hasData && timestampSnapshot.data != null) {
-                      final formattedTime = DateFormat.yMd(context.locale.toString()).add_Hms().format(timestampSnapshot.data!);
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'last_synced_at'.tr(args: [formattedTime]),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
+    if (provider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (provider.appointments.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('no_appointments'.tr()),
+            // Display last sync timestamp here
+            FutureBuilder<DateTime?>(
+              future: provider.lastSyncTimestamp,
+              builder: (context, timestampSnapshot) {
+                if (timestampSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const SizedBox.shrink();
+                }
+                if (timestampSnapshot.hasData &&
+                    timestampSnapshot.data != null) {
+                  final formattedTime = DateFormat.yMd(
+                    context.locale.toString(),
+                  ).add_Hms().format(timestampSnapshot.data!);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'last_synced_at'.tr(args: [formattedTime]),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
+          ],
+        ),
+      );
+    }
+
+    final appointments = provider.appointments;
+
+    return RefreshIndicator(
+      onRefresh: provider.refresh, // Connect to the refresh method
+      child: ListView.builder(
+        itemCount: appointments.length + 1, // Add 1 for the SizedBox
+        itemBuilder: (context, index) {
+          if (index == appointments.length) {
+            return SizedBox(
+              height: 92 + MediaQuery.of(context).padding.bottom,
+            ); // Adjust height for floating nav bar
+          }
+          final appointmentWithClinic = appointments[index];
+          final slot = appointmentWithClinic.appointment["date"] as Timestamp?;
+
+          if (slot == null) return const SizedBox.shrink();
+
+          return _AppointmentCard(
+            appointment: appointmentWithClinic.appointment,
+            clinicData: appointmentWithClinic.clinic,
+            slot: slot,
           );
-        }
-
-        final appointments = provider.appointments;
-
-        return RefreshIndicator(
-          onRefresh: provider.refresh, // Connect to the refresh method
-          child: ListView.builder(
-            itemCount: appointments.length + 1, // Add 1 for the SizedBox
-            itemBuilder: (context, index) {
-              if (index == appointments.length) {
-                return SizedBox(
-                  height: 92 + MediaQuery.of(context).padding.bottom,
-                ); // Adjust height for floating nav bar
-              }
-              final appointmentWithClinic = appointments[index];
-              final slot =
-                  appointmentWithClinic.appointment["date"] as Timestamp?;
-
-              if (slot == null) return const SizedBox.shrink();
-
-              return _AppointmentCard(
-                appointment: appointmentWithClinic.appointment,
-                clinicData: appointmentWithClinic.clinic,
-                slot: slot,
-              );
-            },
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }
+
 class _AppointmentCard extends StatelessWidget {
   final Map<String, dynamic> appointment;
   final Map<String, dynamic> clinicData;
@@ -328,7 +331,10 @@ class _AppointmentCard extends StatelessWidget {
   String _formatDateWithContext(Timestamp ts, BuildContext context) {
     final date = ts.toDate();
     final weekday = DateFormat('EEEE', context.locale.toString()).format(date);
-    final formatted = DateFormat('M/d/yyyy', context.locale.toString()).format(date);
+    final formatted = DateFormat(
+      'M/d/yyyy',
+      context.locale.toString(),
+    ).format(date);
     return "$weekday $formatted";
   }
 
@@ -341,7 +347,7 @@ class _AppointmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final appointmentId = appointment["id"] as String;
     final clinicUid = appointment["clinicUid"] as String;
-    final shopName = clinicData["name"] ?? "unknown_shop".tr();
+    final shopName = clinicData["clinicName"] ?? "unknown_shop".tr();
     final address = clinicData["address"] ?? "unknown_address".tr();
     final mapsLink = clinicData["mapsLink"] as String?;
 
@@ -353,12 +359,46 @@ class _AppointmentCard extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () async {
-              await context.read<UserAppointmentsProvider>().cancelAppointment(
-                    appointmentId,
-                    clinicUid,
-                    clinicData,
-                    context,
-                  );
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text('cancel_appointment'.tr()),
+                  content: Text('are_you_sure_to_cancel_appointment'.tr()),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('no'.tr()),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text(
+                        'yes'.tr(),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed != true) return;
+
+              try {
+                if (!context.mounted) return;
+                await context
+                    .read<UserAppointmentsProvider>()
+                    .cancelAppointment(appointmentId, clinicUid, clinicData);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('appointment_cancelled_success'.tr())),
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
             },
             icon: Icon(
               LucideIcons.xCircle,
@@ -379,13 +419,16 @@ class _AppointmentCard extends StatelessWidget {
             children: [
               _buildMarqueeRow("address".tr(), address),
               const SizedBox(height: 4),
-              Text(_formatDateWithContext(slot, context), style: const TextStyle(fontSize: 14)),
+              Text(
+                _formatDateWithContext(slot, context),
+                style: const TextStyle(fontSize: 14),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     _formatTimeWithContext(slot, context),
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   if (mapsLink != null && mapsLink.isNotEmpty)
                     IconButton(

@@ -309,12 +309,12 @@ class SlotsUiProvider extends ChangeNotifier {
 
         final staffCount = clinic['staff'] as int? ?? 1;
         if (querySnapshot.docs.length >= staffCount) {
-          throw Exception('slot is full'.tr());
+          throw Exception('slot_is_full'.tr());
         }
 
         final appointmentId =
             "${clinic['uid']}_${auth.currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}";
-        
+
         // Save the provided user name and phone directly into the appointment
         final appointmentData = {
           "clinicUid": clinic['uid'],
@@ -347,7 +347,7 @@ class SlotsUiProvider extends ChangeNotifier {
       notifyListeners();
       return true; // Booking successful
     } catch (e) {
-      errorMessage = 'booking failed'.tr(args: [e.toString()]);
+      errorMessage = 'booking_failed'.tr(args: [e.toString()]);
       notifyListeners();
       return false; // Booking failed
     }
@@ -444,13 +444,19 @@ class _SlotsDialog extends StatelessWidget {
                   _buildConfirmationRow(
                     stfContext,
                     'date'.tr(),
-                    DateFormat('yyyy-MM-dd', context.locale.toString()).format(provider.selectedDate),
+                    DateFormat(
+                      'yyyy-MM-dd',
+                      context.locale.toString(),
+                    ).format(provider.selectedDate),
                   ),
                   const SizedBox(height: 8),
                   _buildConfirmationRow(
                     stfContext,
                     'time'.tr(),
-                    DateFormat('HH:mm', context.locale.toString()).format(provider.selectedSlot!),
+                    DateFormat(
+                      'HH:mm',
+                      context.locale.toString(),
+                    ).format(provider.selectedSlot!),
                   ),
                   const Divider(height: 24),
                   // Editable TextFields for user info
@@ -498,7 +504,7 @@ class _SlotsDialog extends StatelessWidget {
           ),
         ),
       );
-      
+
       // Dispose controllers
       final name = nameController.text;
       final phone = phoneController.text;
@@ -613,7 +619,7 @@ class _ClinicInfoCard extends StatelessWidget {
             ),
             SizedBox(height: 20),
             Text(
-              clinic['clinicName'] ?? 'clinic unnamed'.tr(),
+              clinic['clinicName'] ?? 'clinic_unnamed'.tr(),
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -639,8 +645,7 @@ class _ClinicInfoCard extends StatelessWidget {
               workingDays
                   .where((d) => d >= 1 && d <= 7)
                   .map((d) => dayNames[d - 1])
-                  .join(', ')
-                  .tr(),
+                  .join(', '),
             ),
 
             const SizedBox(height: 4),
@@ -679,7 +684,10 @@ class _DatePickerRow extends StatelessWidget {
                 onPressed: () => provider.previousWeek(),
               ),
               Text(
-                DateFormat('MMM d, yyyy', context.locale.toString()).format(provider.focusedDay),
+                DateFormat(
+                  'MMM d, yyyy',
+                  context.locale.toString(),
+                ).format(provider.focusedDay),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               IconButton(
@@ -740,7 +748,7 @@ class _SlotsGrid extends StatelessWidget {
     }
 
     if (provider.allSlots.isEmpty) {
-      return Center(child: Text('no slots available'.tr()));
+      return Center(child: Text('no_slots_available'.tr()));
     }
 
     return GridView.builder(
@@ -779,7 +787,10 @@ class _SlotTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeString = DateFormat('HH:mm', context.locale.toString()).format(slotInfo.time);
+    final timeString = DateFormat(
+      'HH:mm',
+      context.locale.toString(),
+    ).format(slotInfo.time);
     final isFull = !slotInfo.isAvailable;
 
     return GestureDetector(

@@ -53,6 +53,10 @@
 <string>This app requires access to the calendar to create and manage events.</string>
 <key>NSContactsUsageDescription</key>
 <string>This app requires access to the contacts to add attendees to events.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>This app needs access to location when open to show nearby clinics and calculate distance.</string>
+<key>NSLocationAlwaysUsageDescription</key>
+<string>This app needs access to location to show nearby clinics.</string>
 <key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 </dict>

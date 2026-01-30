@@ -1,24 +1,65 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+    
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
+    // Helper function to check if the user is accessing their own document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // ======================================================
+    // USER RULES
+    // ======================================================
+    match /users/{userId} {
+      // Users can only read and write their own profile
+      allow read, write: if isAuthenticated() && isOwner(userId);
+
+      // Appointments subcollection within users
       match /appointments/{appointmentId} {
-        allow read, write: if request.auth.uid == userId;
+        // Users can read/write their own appointments
+        allow read, write: if isAuthenticated() && isOwner(userId);
+        
+        // Clinics need to be able to DELETE the appointment in the user's collection
+        // during a clinic-side cancellation.
+        allow delete: if isAuthenticated() && 
+          (isOwner(userId) || request.auth.uid == resource.data.clinicUid);
       }
 
+      // Favorites subcollection
       match /favorites/{clinicId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write: if isAuthenticated() && isOwner(userId);
       }
     }
 
+    // ======================================================
+    // CLINIC RULES
+    // ======================================================
     match /clinics/{clinicId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == clinicId;
+      // Clinics are publicly readable so users can search/find them
+      allow read: if true; 
+      
+      // Only the clinic owner can write to their profile
+      allow write: if isAuthenticated() && isOwner(clinicId);
 
+      // Appointments subcollection within clinics
       match /appointments/{appointmentId} {
-        allow read, write: if request.auth != null;
+        // Read: The clinic owner OR the user who booked it
+        allow read: if isAuthenticated() && 
+          (isOwner(clinicId) || request.auth.uid == resource.data.userUid);
+        
+        // Create: Any user can book an appointment at a clinic
+        // We validate that they set themselves as the userUid
+        allow create: if isAuthenticated() && 
+          request.resource.data.userUid == request.auth.uid;
+        
+        // Update/Delete: Only the clinic owner or the booking user
+        allow update, delete: if isAuthenticated() && 
+          (isOwner(clinicId) || request.auth.uid == resource.data.userUid);
       }
     }
   }

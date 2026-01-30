@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
 import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 
@@ -31,7 +30,7 @@ class UserFirestore {
       "uid": user?.uid,
       "city": city,
       "fcm": fcm,
-    });
+    }, SetOptions(merge: true));
   }
 
   Future<void> addToFavorites(String clinicUid) async {
@@ -48,45 +47,14 @@ class UserFirestore {
       "uid": user?.uid,
       "city": city,
       "fcm": fcm,
-    });
+    }, SetOptions(merge: true));
   }
 
-  Future<void> cancelAppointment(
-    String appointmentId,
-    String userUid,
-    BuildContext context,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('cancel_appointment'.tr()),
-        content: Text('are_you_sure_to_cancel_appointment'.tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('no'.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              'yes'.tr(),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
+  Future<void> cancelAppointment(String appointmentId, String userUid) async {
     try {
       // Check network connectivity before forcing server read
       if (!(_connectivityService?.isOnline == true)) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('no_internet_connection'.tr())),
-        );
-        return;
+        throw Exception('no_internet_connection'.tr());
       }
 
       // Get appointment to find clinic UID - FORCE SERVER READ
@@ -125,10 +93,7 @@ class UserFirestore {
 
       await batch.commit();
     } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      rethrow;
     }
   }
 }

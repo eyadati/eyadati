@@ -72,6 +72,10 @@ void main() async {
           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVya2xkYXJxd2VlaHZ3Z3BuY3JnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5MTIyMDgsImV4cCI6MjA3NzQ4ODIwOH0.rQPh6hFnn6sz78rLa8_AWU3NV__-EgX8wDOTXbyeQ7o",
     );
 
+    // SEED DATA (Run once or use fix function)
+    // DataSeeder.seedClinics();
+    // DataSeeder.fixSeedData();
+
     // Enable Firestore offline persistence with unlimited cache
     FirebaseFirestore.instance.settings = const Settings(
       persistenceEnabled: true,
@@ -138,11 +142,12 @@ class EyadatiApp extends StatefulWidget {
 }
 
 class _EyadatiAppState extends State<EyadatiApp> {
+  late Future<Widget> _navigationFuture;
+
   @override
   void initState() {
     super.initState();
-    // No longer caching a future, directly building with FutureBuilder
-    // The previous _navigationFuture = _initializeAndDecide(); is removed.
+    _navigationFuture = _initializeAndDecide();
   }
 
   Future<Widget> _initializeAndDecide() async {
@@ -167,7 +172,7 @@ class _EyadatiAppState extends State<EyadatiApp> {
       supportedLocales: context.supportedLocales,
       locale: context.locale,
       home: FutureBuilder<Widget>(
-        future: _initializeAndDecide(),
+        future: _navigationFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return SplashScreen();

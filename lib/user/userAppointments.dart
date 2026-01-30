@@ -1,6 +1,8 @@
+import 'package:eyadati/NavBarUi/UserNavBar.dart';
 import 'package:eyadati/user/userSettingsPage.dart';
 import 'package:eyadati/user/user_appointments.dart';
 import 'package:eyadati/Appointments/clinicsList.dart';
+import 'package:eyadati/utils/connectivity_service.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -16,11 +18,16 @@ class UserAppointments extends StatefulWidget {
 class _UserAppointmentsState extends State<UserAppointments> {
   @override
   Widget build(BuildContext context) {
-    return Provider<UserAppointmentsProvider>(
-      create: (_) => UserAppointmentsProvider(),
+    return ChangeNotifierProvider<UserAppointmentsProvider>(
+      create: (context) => UserAppointmentsProvider(
+        connectivityService: Provider.of<ConnectivityService>(
+          context,
+          listen: false,
+        ),
+      ),
       child: Scaffold(
         appBar: AppBar(
-          title: Image.asset('assets/logo.png', height: 40),
+          title: Image.asset('assets/logo.png', height: 120),
           centerTitle: true,
           leading: GestureDetector(
             child: Icon(LucideIcons.settings),
@@ -36,8 +43,8 @@ class _UserAppointmentsState extends State<UserAppointments> {
           actions: [
             GestureDetector(
               onTap: () async {
-                await ClinicFilterBottomSheet.show(context);
-                // The stream will automatically update, no need to do anything here
+                final userNavBarProvider = context.read<UserNavBarProvider>();
+                await ClinicFilterBottomSheet.show(context, userNavBarProvider);
               },
               child: Icon(LucideIcons.plus, size: 30),
             ),

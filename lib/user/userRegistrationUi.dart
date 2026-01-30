@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/user/UserHome.dart';
-import 'package:eyadati/user/userAuth.dart';
+import 'package:eyadati/user/user_login_page.dart';
+import 'package:eyadati/utils/constants.dart'; // Import constants
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart'; // Added this back
 import 'package:flutter/gestures.dart';
@@ -36,77 +37,7 @@ class UserOnboardingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  final List<String> algerianCities = [
-    'Algiers',
-    'Oran',
-    'Constantine',
-    'Annaba',
-    'Blida',
-    'Batna',
-    'Djelfa',
-    'Sétif',
-    'Sidi Bel Abbès',
-    'Biskra',
-    'Tébessa',
-    'Skikda',
-    'Tiaret',
-    'Béjaïa',
-    'Tlemcen',
-    'Béchar',
-    'Mostaganem',
-    'Bordj Bou Arreridj',
-    'Chlef',
-    'Souk Ahras',
-    'El Eulma',
-    'Médéa',
-    'Tizi Ouzou',
-    'Jijel',
-    'Laghouat',
-    'El Oued',
-    'Ouargla',
-    'M\'Sila',
-    'Relizane',
-    'Saïda',
-    'Bou Saâda',
-    'Guelma',
-    'Aïn Beïda',
-    'Maghnia',
-    'Mascara',
-    'Khenchela',
-    'Barika',
-    'Messaad',
-    'Aflou',
-    'Aïn Oussara',
-    'Adrar',
-    'Aïn Defla',
-    'Aïn Fakroun',
-    'Aïn Oulmene',
-    'Aïn M\'lila',
-    'Aïn Sefra',
-    'Aïn Témouchent',
-    'Aïn Touta',
-    'Akbou',
-    'Azzaba',
-    'Berrouaghia',
-    'Bir el-Ater',
-    'Boufarik',
-    'Bouira',
-    'Chelghoum Laid',
-    'Cheria',
-    'Chettia',
-    'El Bayadh',
-    'El Guerrara',
-    'El-Khroub',
-    'Frenda',
-    'Ferdjioua',
-    'Ghardaïa',
-    'Hassi Bahbah',
-    'Khemis Miliana',
-    'Ksar Chellala',
-    'Ksar Boukhari',
-    'Lakhdaria',
-    'Larbaâ',
-  ];
+  final List<String> algerianCities = AppConstants.algerianCities;
 
   void selectCity(String? city) {
     selectedCity = city;
@@ -179,7 +110,7 @@ class UserOnboardingProvider extends ChangeNotifier {
         );
       }
     } on FirebaseAuthException catch (e) {
-      error = e.message ?? 'An error occurred'.tr();
+      error = e.message ?? 'error_generic_message'.tr();
     } catch (e) {
       error = e.toString();
     } finally {
@@ -220,139 +151,144 @@ class _UserOnboardingContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<UserOnboardingProvider>();
+
     return Scaffold(
       appBar: AppBar(title: Text("user_registration".tr())),
-      body: Consumer<UserOnboardingProvider>(
-        builder: (context, provider, _) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: provider.formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 40),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: provider.formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 40),
 
-                    // All fields in one column
-                    _buildTextFormField(
-                      context, // Pass context
-                      provider.nameController,
-                      "full_name".tr(),
-                      provider,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildTextFormField(
-                      context, // Pass context
-                      provider.emailController,
-                      "email".tr(),
-                      provider,
-                      validator: _validateEmail,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildTextFormField(
-                      context, // Pass context
-                      provider.passwordController,
-                      "password".tr(),
-                      provider,
-                      obscureText: true,
-                      validator: _validatePassword,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildTextFormField(
-                      context, // Pass context
-                      provider.phoneController,
-                      "phone_number".tr(),
-                      provider,
-                      inputType: TextInputType.phone,
-                      validator: _validatePhone,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildCityDropdown(context, provider),
-                    const SizedBox(height: 24),
-
-                    CheckboxListTile(
-                      value: provider.agreeToTerms,
-                      onChanged: provider.toggleAgreeToTerms,
-                      title: Text.rich(
-                        TextSpan(
-                          text: 'i_agree_to'.tr(),
-                          children: [
-                            TextSpan(
-                              text: 'privacy_policy'.tr(),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () {
-                                  // TODO: Navigate to Privacy Policy
-                                  debugPrint('Privacy Policy tapped!');
-                                },
-                            ),
-                            TextSpan(text: 'and'.tr()),
-                            TextSpan(
-                              text: 'terms_of_service'.tr(),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                decoration: TextDecoration.underline,
-                              ),
-                              recognizer: TapGestureRecognizer()
-                                ..onTap = () {
-                                  // TODO: Navigate to Terms of Service
-                                  debugPrint('Terms of Service tapped!');
-                                },
-                            ),
-                          ],
-                        ),
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Error message
-                    if (provider.error != null) ...[
-                      Text(
-                        provider.error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Submit button
-                    ElevatedButton(
-                      onPressed: provider.isLoading || !provider.agreeToTerms
-                          ? null
-                          : () => provider.submitRegistration(context),
-                      child: provider.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text("finish".tr()),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Login link
-                    TextButton(
-                      onPressed: () => Userauth().userLogIn(context),
-                      child: Text('already_have_account_login'.tr()),
-                    ),
-                  ],
+                // All fields in one column
+                _buildTextFormField(
+                  context, // Pass context
+                  provider.nameController,
+                  "full_name".tr(),
+                  provider,
                 ),
-              ),
+                const SizedBox(height: 16),
+
+                _buildTextFormField(
+                  context, // Pass context
+                  provider.emailController,
+                  "email".tr(),
+                  provider,
+                  validator: _validateEmail,
+                ),
+                const SizedBox(height: 16),
+
+                _buildTextFormField(
+                  context, // Pass context
+                  provider.passwordController,
+                  "password".tr(),
+                  provider,
+                  obscureText: true,
+                  validator: _validatePassword,
+                ),
+                const SizedBox(height: 16),
+
+                _buildTextFormField(
+                  context, // Pass context
+                  provider.phoneController,
+                  "phone_number".tr(),
+                  provider,
+                  inputType: TextInputType.phone,
+                  validator: _validatePhone,
+                ),
+                const SizedBox(height: 16),
+
+                _buildCityDropdown(context, provider),
+                const SizedBox(height: 24),
+
+                CheckboxListTile(
+                  value: provider.agreeToTerms,
+                  onChanged: provider.toggleAgreeToTerms,
+                  title: Text.rich(
+                    TextSpan(
+                      text: 'i_agree_to'.tr(),
+                      children: [
+                        TextSpan(
+                          text: 'privacy_policy'.tr(),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              // TODO: Navigate to Privacy Policy
+                              debugPrint('Privacy Policy tapped!');
+                            },
+                        ),
+                        TextSpan(text: 'and'.tr()),
+                        TextSpan(
+                          text: 'terms_of_service'.tr(),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              // TODO: Navigate to Terms of Service
+                              debugPrint('Terms of Service tapped!');
+                            },
+                        ),
+                      ],
+                    ),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                const SizedBox(height: 16),
+
+                // Error message
+                if (provider.error != null) ...[
+                  Text(
+                    provider.error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Submit button
+                ElevatedButton(
+                  onPressed: provider.isLoading || !provider.agreeToTerms
+                      ? null
+                      : () => provider.submitRegistration(context),
+                  child: provider.isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text("finish".tr()),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Login link
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserLoginPage(),
+                      ),
+                    );
+                  },
+                  child: Text('already_have_account_login'.tr()),
+                ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/user/UserHome.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 
@@ -27,27 +28,39 @@ class _UserLoginPageState extends State<UserLoginPage> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
+      // Verify Role
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(cred.user!.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        await FirebaseAuth.instance.signOut();
+        throw FirebaseAuthException(
+          code: 'invalid-role',
+          message: 'not_a_user_account'.tr(),
+        );
+      }
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('role', 'user');
 
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const Userhome()),
-          (route) => false,
-        );
-      }
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const Userhome()),
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'login_failed'.tr())),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message ?? 'login_failed'.tr())));
     } finally {
       if (mounted) {
         setState(() {
@@ -92,7 +105,41 @@ class _UserLoginPageState extends State<UserLoginPage> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () async {
+                      if (_emailController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'please_enter_email_to_reset_password'.tr(),
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      try {
+                        await FirebaseAuth.instance.sendPasswordResetEmail(
+                          email: _emailController.text.trim(),
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('password_reset_email_sent'.tr()),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('error_generic'.tr())),
+                        );
+                      }
+                    },
+                    child: Text('forgot_password'.tr()),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (_isLoading)
                   const Center(child: CircularProgressIndicator())
                 else

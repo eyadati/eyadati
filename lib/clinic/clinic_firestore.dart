@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:eyadati/utils/network_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb_flutter;
 import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+
+import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
 
 class ClinicFirestore {
   final sb_flutter.SupabaseClient client = sb_flutter.Supabase.instance.client;
@@ -41,9 +44,16 @@ class ClinicFirestore {
     int breakStart,
     int breakEnd,
     String adress,
+    double? latitude,
+    double? longitude,
   ) async {
     try {
       final fcm = await FirebaseMessaging.instance.getToken();
+
+      GeoFirePoint? geoFirePoint;
+      if (latitude != null && longitude != null) {
+        geoFirePoint = GeoFirePoint(GeoPoint(latitude, longitude));
+      }
 
       await collection.doc(clinic?.uid).set({
         "uid": clinic!.uid,
@@ -67,6 +77,7 @@ class ClinicFirestore {
         "specialty": specialty,
         'duration': sessionDuration,
         'staff': 1.toInt(),
+        "position": geoFirePoint?.data, // Stores geohash and geopoint
       });
     } catch (e) {
       debugPrint("Clinic creation error : $e");
@@ -74,75 +85,72 @@ class ClinicFirestore {
     }
   }
 
-  Future<void> updateClinic(
-    String name,
-    String clinicName,
-    String mapsLink,
-    String picUrl,
-    String city,
-    List workingDays,
-    String phone,
-    String specialty,
-    String sessionDuration,
-    int openingAt,
-    int closingAt,
-    int breakStart,
-    int breakTime,
-    String adress,
-    bool paused,
-  ) async {
+  Future<void> updateClinic({
+    required String name,
+    required String clinicName,
+    required String mapsLink,
+    required String picUrl,
+    required String city,
+    required List workingDays,
+    required String phone,
+    required String specialty,
+    required int sessionDuration,
+    required int openingAt,
+    required int closingAt,
+    required int breakStart,
+    required int breakEnd,
+    required String address,
+    required bool paused,
+    double? latitude,
+    double? longitude,
+  }) async {
     try {
       final fcm = await FirebaseMessaging.instance.getToken();
 
-      await collection.doc(clinic?.uid).update({
+      GeoFirePoint? geoFirePoint;
+      if (latitude != null && longitude != null) {
+        geoFirePoint = GeoFirePoint(GeoPoint(latitude, longitude));
+      }
+
+      final updateData = {
         "uid": clinic!.uid,
-
         "email": clinic!.email,
-
         "name": name,
-
         "clinicName": clinicName,
-
         "FCM": fcm,
-
         "mapsLink": mapsLink,
-
         "workingDays": workingDays,
-
         "phone": phone,
-
-        "address": adress,
-
+        "address": address,
         "city": city,
-
         'picUrl': picUrl,
-
         "openingAt": openingAt,
-
         'closingAt': closingAt,
-
         'breakStart': breakStart,
-
-        "breakEnd": breakTime,
-
+        "breakEnd": breakEnd,
         "specialty": specialty,
-
         'duration': sessionDuration,
-
         'staff': 1.toInt(),
-
         "paused": paused,
-      });
-    } catch (e) {
-      debugPrint("Clinic creation error : $e");
+      };
 
+      if (geoFirePoint != null) {
+        updateData["position"] = geoFirePoint.data;
+      }
+
+      await collection.doc(clinic?.uid).update(updateData);
+    } catch (e) {
+      debugPrint("Clinic update error : $e");
       rethrow;
     }
   }
 
   Future<void> _saveLastSyncTimestamp(String clinicUid) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_sync_clinic_$clinicUid', DateTime.now().toIso8601String());
+    await prefs.setString(
+      'last_sync_clinic_$clinicUid',
+      DateTime.now().toIso8601String(),
+    );
   }
 
   Future<DateTime?> getLastSyncTimestamp(String clinicUid) async {
@@ -157,18 +165,24 @@ class ClinicFirestore {
   Future<Map<String, dynamic>?> getClinicData(String clinicUid) async {
     try {
       // First, try to get data from cache
-      DocumentSnapshot doc = await collection.doc(clinicUid).get(GetOptions(source: Source.cache));
+      DocumentSnapshot doc = await collection
+          .doc(clinicUid)
+          .get(GetOptions(source: Source.cache));
 
       // If data is not in cache AND device is online, try to get from server (and cache)
       if (!doc.exists && (_connectivityService?.isOnline == true)) {
-        doc = await collection.doc(clinicUid).get(GetOptions(source: Source.serverAndCache));
+        doc = await collection
+            .doc(clinicUid)
+            .get(GetOptions(source: Source.serverAndCache));
         if (doc.exists) {
-          await _saveLastSyncTimestamp(clinicUid); // Save timestamp after successful server fetch
+          await _saveLastSyncTimestamp(
+            clinicUid,
+          ); // Save timestamp after successful server fetch
         }
       } else if (!doc.exists && (_connectivityService?.isOnline == false)) {
-          // If offline and not in cache, we still don't have data, return null
-          debugPrint("Clinic data not in cache and device is offline.");
-          return null;
+        // If offline and not in cache, we still don't have data, return null
+        debugPrint("Clinic data not in cache and device is offline.");
+        return null;
       }
 
       // If after all attempts, the document still doesn't exist, return null
@@ -193,28 +207,28 @@ class ClinicFirestore {
   }
 
   Stream<List<Map<String, dynamic>>> getAvailableClinics() {
-    return collection.where('paused', isEqualTo: false).snapshots(includeMetadataChanges: true).map((
-      snapshot,
-    ) {
-      // Implement checks for metadata changes
-      if (snapshot.metadata.isFromCache) {
-        debugPrint("getAvailableClinics: Data from cache.");
-      }
-      if (snapshot.metadata.hasPendingWrites) {
-        debugPrint("getAvailableClinics: Data has pending writes (local changes).");
-      }
-      return snapshot.docs.map((doc) => doc.data()).toList();
-    });
+    return collection
+        .where('paused', isEqualTo: false)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+          // Implement checks for metadata changes
+          if (snapshot.metadata.isFromCache) {
+            debugPrint("getAvailableClinics: Data from cache.");
+          }
+          if (snapshot.metadata.hasPendingWrites) {
+            debugPrint(
+              "getAvailableClinics: Data has pending writes (local changes).",
+            );
+          }
+          return snapshot.docs.map((doc) => doc.data()).toList();
+        });
   }
 
-  Future<void> deleteClinicAccount(
-    BuildContext context,
-    String password,
-  ) async {
+  Future<void> deleteClinicAccount(String password) async {
     try {
       final user = _firebaseAuth.currentUser;
       if (user == null) {
-        throw Exception('No user logged in.');
+        throw Exception('no_user_logged_in'.tr());
       }
 
       // Reauthenticate user
@@ -224,82 +238,58 @@ class ClinicFirestore {
       );
       await user.reauthenticateWithCredential(credential);
 
+      // Best-effort client-side cleanup for orphaned data
+      // Note: This is not as reliable as Cloud Functions.
+      try {
+        final appointmentsSnapshot = await collection
+            .doc(user.uid)
+            .collection('appointments')
+            .get();
+
+        final batch = _firestore.batch();
+        for (var doc in appointmentsSnapshot.docs) {
+          // Delete from clinic subcollection
+          batch.delete(doc.reference);
+
+          // Attempt to delete from user subcollection (requires knowing userUid)
+          final data = doc.data();
+          if (data['userUid'] != null) {
+            batch.delete(
+              _firestore
+                  .collection('users')
+                  .doc(data['userUid'])
+                  .collection('appointments')
+                  .doc(doc.id),
+            );
+          }
+        }
+        await batch.commit();
+      } catch (e) {
+        debugPrint("Error performing client-side cleanup: $e");
+        // Continue with account deletion even if cleanup fails partially
+      }
+
       // 1. Delete clinic document from Firestore
       await collection.doc(user.uid).delete();
 
-      // 2. Remove clinic from user favorites (Placeholder - ideally a Cloud Function)
-      // This would involve iterating through all user documents and removing the clinic's UID
-      // from their favorites list. This can be very expensive and should ideally be done
-      // via a Firebase Cloud Function or a batch job.
-      debugPrint(
-        "TODO: Implement removal from user favorites (Cloud Function recommended).",
-      );
-
-      // 3. Remove appointments made by users (Placeholder - ideally a Cloud Function)
-      // This would involve querying all appointments related to this clinic and deleting them
-      // from both the clinic's sub-collection and the users' sub-collections.
-      debugPrint(
-        "TODO: Implement removal of user appointments (Cloud Function recommended).",
-      );
-
-      // 4. Delete the Firebase Authentication user
+      // 2. Delete the Firebase Authentication user
       await user.delete();
 
       // Sign out after deletion
       await _firebaseAuth.signOut();
-    } on FirebaseAuthException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.message}'.tr())));
-      }
-      rethrow;
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e'.tr())));
-      }
       rethrow;
     }
   }
 
-  Future<void> cancelAppointment(
-    String appointmentId,
-    String clinicId,
-    BuildContext context,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('cancel_appointment'.tr()),
-        content: Text('are_you_sure_to_cancel_appointment'.tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('no'.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(
-              'yes'.tr(),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
+  Future<void> cancelAppointment(String appointmentId, String clinicId) async {
     try {
       // Check network connectivity before forcing server read
-      if (!(_connectivityService?.isOnline == true)) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('no_internet_connection'.tr())),
-        );
-        return;
+      bool isOnline =
+          _connectivityService?.isOnline ??
+          await NetworkHelper.checkInternetConnectivity();
+      if (!isOnline) {
+        throw Exception('no_internet_connection'.tr());
       }
 
       // Get appointment to find user UID - FORCE SERVER READ
@@ -308,7 +298,7 @@ class ClinicFirestore {
           .doc(clinicId)
           .collection('appointments')
           .doc(appointmentId)
-          .get(GetOptions(source: Source.server)); // Changed to Source.server
+          .get(GetOptions(source: Source.server));
 
       if (!appointmentDoc.exists) {
         throw Exception('appointment_not_found'.tr());
@@ -338,10 +328,7 @@ class ClinicFirestore {
 
       await batch.commit();
     } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('error_generic'.tr())));
+      rethrow;
     }
   }
 }

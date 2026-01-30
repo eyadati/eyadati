@@ -330,7 +330,7 @@ Widget _buildSpecialtyDropdown(
       return null;
     },
     items: provider.specialties.map((s) {
-      return DropdownMenuItem(value: s, child: Text(s));
+      return DropdownMenuItem(value: s, child: Text(s.tr()));
     }).toList(),
     menuMaxHeight: 250,
   );

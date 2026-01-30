@@ -13,149 +13,92 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart'; // Add Provider import
 import 'package:eyadati/utils/connectivity_service.dart'; // Add ConnectivityService import
 
+import 'package:eyadati/utils/constants.dart';
+
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
+
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
+
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
   // Focus nodes for keyboard navigation
+
   final focusNodes = List.generate(9, (_) => FocusNode());
 
   // Controllers
+
   final nameController = TextEditingController();
+
   final mapsLinkController = TextEditingController();
+
   final durationController = TextEditingController();
+
   final emailController = TextEditingController();
+
   final passwordController = TextEditingController();
+
   final clinicNameController = TextEditingController();
+
   final addressController = TextEditingController();
+
   final phoneController = TextEditingController();
 
   // State
+
   File? pickedImage;
+
   String? picUrl;
+
   double? extractedLatitude;
+
   int avatarNumber = 1;
+
   double? extractedLongitude;
+
   int? openingMinutes;
+
   int? closingMinutes;
+
   int? breakStartMinutes;
+
   int? breakEndMinutes;
+
   List<int> workingDays = [];
+
   String? selectedSpecialty;
+
   String? _selectedCity;
+
   String? get selectedCity => _selectedCity;
+
   int currentPage = 0;
+
   bool isSubmitting = false;
+
   bool _agreeToTerms = false; // New property
 
   bool get agreeToTerms => _agreeToTerms;
 
   void toggleAgreeToTerms(bool? newValue) {
     _agreeToTerms = newValue ?? false;
+
     notifyListeners();
   }
 
-  // Specialties as getter for locale updates
-  List<String> get specialties => [
-    'general_medicine'.tr(),
-    'pediatrics'.tr(),
-    'gynecology'.tr(),
-    'dermatology'.tr(),
-    'dentistry'.tr(),
-    'orthopedics'.tr(),
-    'ophthalmology'.tr(),
-    'ent'.tr(),
-    'cardiology'.tr(),
-    'psychiatry'.tr(),
-    'psychology'.tr(),
-    'physiotherapy'.tr(),
-    'nutrition'.tr(),
-    'Neurology'.tr(),
-    'Gastroenterology'.tr(),
-    'Urology'.tr(),
-    'Pulmonology'.tr(),
-    'Endocrinology'.tr(),
-    'Rheumatology'.tr(),
-    'Oncology'.tr(),
-    'Surgery'.tr(),
-    'Radiology'.tr(),
-    'Laboratory Services'.tr(),
-    'Nephrology'.tr(),
-  ];
-  final List<String> algerianCities = [
-    'Algiers',
-    'Oran',
-    'Constantine',
-    'Annaba',
-    'Blida',
-    'Batna',
-    'Djelfa',
-    'Sétif',
-    'Sidi Bel Abbès',
-    'Biskra',
-    'Tébessa',
-    'Skikda',
-    'Tiaret',
-    'Béjaïa',
-    'Tlemcen',
-    'Béchar',
-    'Mostaganem',
-    'Bordj Bou Arreridj',
-    'Chlef',
-    'Souk Ahras',
-    'El Eulma',
-    'Médéa',
-    'Tizi Ouzou',
-    'Jijel',
-    'Laghouat',
-    'El Oued',
-    'Ouargla',
-    'M\'Sila',
-    'Relizane',
-    'Saïda',
-    'Bou Saâda',
-    'Guelma',
-    'Aïn Beïda',
-    'Maghnia',
-    'Mascara',
-    'Khenchela',
-    'Barika',
-    'Messaad',
-    'Aflou',
-    'Aïn Oussara',
-    'Adrar',
-    'Aïn Defla',
-    'Aïn Fakroun',
-    'Aïn Oulmene',
-    'Aïn M\'lila',
-    'Aïn Sefra',
-    'Aïn Témouchent',
-    'Aïn Touta',
-    'Akbou',
-    'Azzaba',
-    'Berrouaghia',
-    'Bir el-Ater',
-    'Boufarik',
-    'Bouira',
-    'Chelghoum Laid',
-    'Cheria',
-    'Chettia',
-    'El Bayadh',
-    'El Guerrara',
-    'El-Khroub',
-    'Frenda',
-    'Ferdjioua',
-    'Ghardaïa',
-    'Hassi Bahbah',
-    'Khemis Miliana',
-    'Ksar Chellala',
-    'Ksar Boukhari',
-    'Lakhdaria',
-    'Larbaâ',
-  ];
+  // Specialties from constants
+
+  List<String> get specialties => AppConstants.specialties;
+
+  // Algerian cities from constants
+
+  List<String> get algerianCities => AppConstants.algerianCities;
 
   // ──────────────────────────────────────────────────────────────────────────
+
   // Public methods
+
   // ──────────────────────────────────────────────────────────────────────────
   Future<void> pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -255,15 +198,34 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   // ──────────────────────────────────────────────────────────────────────────
   // Submission with safety checks - Returns success/failure
   // ──────────────────────────────────────────────────────────────────────────
+  Future<File?> _compressImage(File file) async {
+    final tempDir = await getTemporaryDirectory();
+    final targetPath =
+        '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      quality: 80,
+      minWidth: 800,
+      minHeight: 800,
+      format: CompressFormat.jpeg,
+    );
+
+    return result != null ? File(result.path) : null;
+  }
+
   Future<String?> _uploadImage() async {
     if (pickedImage == null) return null;
 
-    final file = pickedImage!;
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.png';
+    final compressedFile = await _compressImage(pickedImage!);
+    if (compressedFile == null) return null;
+
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
     try {
       await Supabase.instance.client.storage
           .from('eyadati')
-          .upload(fileName, file);
+          .upload(fileName, compressedFile);
       final urlResponse = Supabase.instance.client.storage
           .from('eyadati')
           .getPublicUrl(fileName);
@@ -276,7 +238,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   final FirebaseAuth auth;
 
   ClinicOnboardingProvider() : auth = FirebaseAuth.instance;
-  
+
   // ... (rest of the provider properties) ...
 
   Future<bool> validateAndSubmit(BuildContext context) async {
@@ -299,30 +261,24 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     // Validate time logic
     if (openingMinutes == null || closingMinutes == null) {
       if (!context.mounted) return false;
-      _showSnackBar(context, "Please select opening and closing times".tr());
+      _showSnackBar(context, "please_select_opening_and_closing_times".tr());
       return false;
     }
     if (openingMinutes! >= closingMinutes!) {
       if (!context.mounted) return false;
-      _showSnackBar(context, "Opening time must be before closing time".tr());
+      _showSnackBar(context, "opening_time_error".tr());
       return false;
     }
     if (breakStartMinutes != null && breakEndMinutes != null) {
       if (breakStartMinutes! >= breakEndMinutes!) {
         if (!context.mounted) return false;
-        _showSnackBar(
-          context,
-          "Break start time must be before break end time".tr(),
-        );
+        _showSnackBar(context, "break_time_error".tr());
         return false;
       }
       if (breakStartMinutes! < openingMinutes! ||
           breakEndMinutes! > closingMinutes!) {
         if (!context.mounted) return false;
-        _showSnackBar(
-          context,
-          "Break times must be within working hours".tr(),
-        );
+        _showSnackBar(context, "break_within_working_hours".tr());
         return false;
       }
     }
@@ -331,10 +287,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     final duration = int.tryParse(durationController.text);
     if (duration == null || duration <= 0) {
       if (!context.mounted) return false;
-      _showSnackBar(
-        context,
-        "Appointment duration must be a positive number".tr(),
-      );
+      _showSnackBar(context, "duration_positive_error".tr());
       return false;
     }
 
@@ -357,7 +310,10 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     if (!agreeToTerms) {
       // New validation for agreeToTerms
       if (!context.mounted) return false;
-      _showSnackBar(context, "Please agree to the terms and privacy policy".tr());
+      _showSnackBar(
+        context,
+        "Please agree to the terms and privacy policy".tr(),
+      );
       return false;
     }
 
@@ -387,16 +343,20 @@ class ClinicOnboardingProvider extends ChangeNotifier {
       if (user == null) {
         throw Exception("user_creation_failed".tr());
       }
-      
+
       // Step 2: Create Firestore Document
       // Get ConnectivityService before any async calls that might invalidate context
-      if (!context.mounted) return false; // Ensure context is mounted before accessing provider
+      if (!context.mounted)
+        return false; // Ensure context is mounted before accessing provider
       final connectivityService = Provider.of<ConnectivityService>(
         context,
         listen: false,
       );
+      // Sort working days before saving
+      workingDays.sort();
+
       try {
-          await ClinicFirestore(
+        await ClinicFirestore(
           connectivityService: connectivityService,
         ).addClinic(
           nameController.text.trim(),
@@ -413,12 +373,13 @@ class ClinicOnboardingProvider extends ChangeNotifier {
           breakStartMinutes ?? 0,
           breakEndMinutes ?? 0,
           addressController.text.trim(),
+          extractedLatitude,
+          extractedLongitude,
         );
       } catch (e) {
-          await user.delete();
-          throw Exception("failed_to_save_clinic_data".tr());
+        await user.delete();
+        throw Exception("failed_to_save_clinic_data".tr());
       }
-
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('role', 'clinic');
@@ -437,9 +398,9 @@ class ClinicOnboardingProvider extends ChangeNotifier {
 
   void _showSnackBar(BuildContext context, String message) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -460,6 +421,4 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     phoneController.dispose();
     super.dispose();
   }
-
-
 }

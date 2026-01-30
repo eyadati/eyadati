@@ -31,13 +31,26 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class Initializer extends StatelessWidget {
+class Initializer extends StatefulWidget {
   const Initializer({super.key});
+
+  @override
+  State<Initializer> createState() => _InitializerState();
+}
+
+class _InitializerState extends State<Initializer> {
+  late Future<Widget> _decisionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _decisionFuture = decidePage(context);
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Widget>(
-      future: decidePage(context),
+      future: _decisionFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(

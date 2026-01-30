@@ -2,10 +2,13 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/FCM/notificationsService.dart';
+import 'package:eyadati/NavBarUi/ClinicNavBar.dart';
 import 'package:eyadati/clinic/clinicSettingsPage.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:eyadati/utils/connectivity_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_lucide_animated/flutter_lucide_animated.dart';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -16,7 +19,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 class ClinicAppointmentProvider extends ChangeNotifier {
   final String clinicId;
   DateTime selectedDate;
-  final ClinicFirestore _clinicFirestore; // Add this field
+  final ClinicFirestore _clinicFirestore;
 
   // Calendar state moved to provider
   DateTime focusedDay = DateTime.now();
@@ -26,7 +29,14 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   StreamSubscription<QuerySnapshot>? _appointmentsSubscription;
   DocumentSnapshot<Map<String, dynamic>>? _clinicData;
   DocumentSnapshot<Map<String, dynamic>>? get clinicData => _clinicData;
-  final ConnectivityService? _connectivityService; // Add this field
+  final ConnectivityService? _connectivityService;
+
+  List<QueryDocumentSnapshot> _appointments = [];
+  List<QueryDocumentSnapshot> get appointments => _appointments;
+  bool _isInitialLoading = true;
+  bool get isInitialLoading => _isInitialLoading;
+  SnapshotMetadata? _lastMetadata;
+  SnapshotMetadata? get lastMetadata => _lastMetadata;
 
   // Implement lastSyncTimestamp getter
   Future<DateTime?> get lastSyncTimestamp =>
@@ -37,38 +47,42 @@ class ClinicAppointmentProvider extends ChangeNotifier {
     DateTime? initialDate,
     ClinicFirestore? clinicFirestore,
     ConnectivityService? connectivityService,
-  })  : selectedDate = (initialDate ?? DateTime.now()),
-        focusedDay = (initialDate ?? DateTime.now()),
-        calendarFormat = CalendarFormat.month,
-        _clinicFirestore = clinicFirestore ?? ClinicFirestore(),
-        _connectivityService = connectivityService {
+  }) : selectedDate = (initialDate ?? DateTime.now()),
+       focusedDay = (initialDate ?? DateTime.now()),
+       calendarFormat = CalendarFormat.month,
+       _clinicFirestore = clinicFirestore ?? ClinicFirestore(),
+       _connectivityService = connectivityService {
     _appointmentsStream = _createAppointmentsStream();
     _listenToAppointmentsStream();
+    fetchHeatMapData(); // Initialize heatmap data
 
     _connectivityService?.addListener(_onConnectivityChange);
   }
 
   void _onConnectivityChange() {
     if (_connectivityService?.isOnline == true) {
-      // If reconnected and data might be stale (e.g., from cache), refresh
       _checkAndRefreshDataOnReconnect();
     }
   }
 
   Future<void> _checkAndRefreshDataOnReconnect() async {
     final lastSync = await lastSyncTimestamp;
-    if (lastSync != null &&
-        DateTime.now().difference(lastSync).inMinutes > 5) {
+    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) {
       refresh();
     }
   }
 
   void _listenToAppointmentsStream() {
-    _appointmentsSubscription?.cancel(); // Cancel previous subscription
+    _appointmentsSubscription?.cancel();
     _appointmentsSubscription = _appointmentsStream.listen((snapshot) {
-      // No specific logic needed here for now, as the StreamBuilder in the UI
-      // directly consumes the stream. This primarily ensures the subscription
-      // is active and managed by the provider for proper disposal.
+      _appointments = snapshot.docs;
+      _lastMetadata = snapshot.metadata;
+      _isInitialLoading = false;
+
+      // Update heatmap automatically when appointments change (smooth refresh)
+      fetchHeatMapData(silent: true);
+
+      notifyListeners();
     });
   }
 
@@ -101,45 +115,82 @@ class ClinicAppointmentProvider extends ChangeNotifier {
     return doc;
   }
 
-  /// Fetches monthly appointment data for calendar markers
-  Future<Map<DateTime, int>> getHeatMapData() async {
-    final now = DateTime.now();
-    final firstDay = DateTime(now.year, now.month, 1);
-    final lastDay = DateTime(now.year, now.month + 1, 0);
+  Map<DateTime, int> _heatMapData = {};
+  Map<DateTime, int> get heatMapData => _heatMapData;
+  bool _isLoadingHeatMap = false;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('clinics')
-        .doc(clinicId)
-        .collection('appointments')
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(firstDay))
-        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(lastDay))
-        .get();
+  /// Fetches appointment counts for the visible calendar range
+  Future<void> fetchHeatMapData({bool silent = false}) async {
+    if (_isLoadingHeatMap) return;
+    _isLoadingHeatMap = true;
+    if (!silent) notifyListeners();
 
-    final heatMapData = <DateTime, int>{};
-    for (var doc in snapshot.docs) {
-      final appointmentDate = (doc.data()['date'] as Timestamp).toDate();
-      final dateKey = DateTime(
-        appointmentDate.year,
-        appointmentDate.month,
-        appointmentDate.day,
-      );
-      heatMapData[dateKey] = (heatMapData[dateKey] ?? 0) + 1;
+    final startOfWeek = focusedDay.subtract(
+      Duration(days: focusedDay.weekday - 1),
+    );
+    final endOfWeek = startOfWeek.add(const Duration(days: 6));
+
+    final start = DateTime(
+      startOfWeek.year,
+      startOfWeek.month,
+      startOfWeek.day,
+    );
+    final end = DateTime(
+      endOfWeek.year,
+      endOfWeek.month,
+      endOfWeek.day,
+      23,
+      59,
+      59,
+    );
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('clinics')
+          .doc(clinicId)
+          .collection('appointments')
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .get();
+
+      final newData = <DateTime, int>{};
+      for (var doc in snapshot.docs) {
+        final appointmentDate = (doc.data()['date'] as Timestamp).toDate();
+        final dateKey = DateTime(
+          appointmentDate.year,
+          appointmentDate.month,
+          appointmentDate.day,
+        );
+        newData[dateKey] = (newData[dateKey] ?? 0) + 1;
+      }
+
+      _heatMapData = newData;
+    } catch (e) {
+      debugPrint("Error fetching heatmap data: $e");
+    } finally {
+      _isLoadingHeatMap = false;
+      notifyListeners();
     }
-    return heatMapData;
   }
 
   /// Updates the selected date and refreshes appointment stream
   void updateSelectedDate(DateTime date) {
     selectedDate = date;
     focusedDay = date;
+
+    // Smooth transition: keep old data until new stream emits
+    // We don't set _isInitialLoading = true here to avoid the full-page spinner
+
     _appointmentsStream = _createAppointmentsStream();
-    _listenToAppointmentsStream(); // Re-subscribe to the new stream
+    _listenToAppointmentsStream();
+    fetchHeatMapData(silent: true);
     notifyListeners();
   }
 
-  /// Updates calendar focus day
+  /// Updates calendar focus day (e.g. on swipe)
   void updateFocusedDay(DateTime day) {
     focusedDay = day;
+    fetchHeatMapData(silent: true);
     notifyListeners();
   }
 
@@ -152,6 +203,7 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   Future<void> refresh() async {
     _appointmentsStream = _createAppointmentsStream();
     _listenToAppointmentsStream();
+    // We don't clear data immediately to allow "smooth" transition
     notifyListeners();
   }
 
@@ -159,9 +211,8 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   Future<void> cancelAppointment(
     String appointmentId,
     Map<String, dynamic> appointmentData,
-    BuildContext context,
   ) async {
-    await ClinicFirestore().cancelAppointment(appointmentId, clinicId, context);
+    await ClinicFirestore().cancelAppointment(appointmentId, clinicId);
 
     if (appointmentData['FCM'] != null) {
       await NotificationService().sendDirectNotification(
@@ -176,7 +227,9 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   @override
   void dispose() {
     _appointmentsSubscription?.cancel();
-    _connectivityService?.removeListener(_onConnectivityChange); // Remove listener
+    _connectivityService?.removeListener(
+      _onConnectivityChange,
+    ); // Remove listener
     super.dispose();
   }
 
@@ -210,11 +263,17 @@ class ClinicAppointments extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) {
-        final connectivityService = Provider.of<ConnectivityService>(context, listen: false);
+        final connectivityService = Provider.of<ConnectivityService>(
+          context,
+          listen: false,
+        );
         return ClinicAppointmentProvider(
           clinicId: clinicId,
-          clinicFirestore: ClinicFirestore(connectivityService: connectivityService),
-          connectivityService: connectivityService, // Pass connectivityService here
+          clinicFirestore: ClinicFirestore(
+            connectivityService: connectivityService,
+          ),
+          connectivityService:
+              connectivityService, // Pass connectivityService here
         );
       },
       child: const _ClinicAppointmentsView(),
@@ -254,14 +313,15 @@ class _ClinicAppointmentsViewState extends State<_ClinicAppointmentsView>
   Future<void> _checkAndRefreshData() async {
     final provider = context.read<ClinicAppointmentProvider>();
     final lastSync = await provider.lastSyncTimestamp;
-    if (lastSync != null &&
-        DateTime.now().difference(lastSync).inMinutes > 5) {
+    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) {
       provider.refresh();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final navProvider = context.watch<CliniNavBarProvider>();
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -269,25 +329,57 @@ class _ClinicAppointmentsViewState extends State<_ClinicAppointmentsView>
         centerTitle: true,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
-        actions: [
-          IconButton(
-            onPressed: () => showModalBottomSheet(
-              isScrollControlled: true,
-              context: context,
-              builder: (context) {
-                return SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.9,
-                  child: Clinicsettings(),
-                );
-              },
-            ),
-            icon: Icon(
-              LucideIcons.settings,
-              
-            ),
-          ),
-        ],
-      ),
+                leading: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    LucideAnimatedIcon(
+                      icon: bell,
+                      trigger: navProvider.unreadCount > 0
+                          ? AnimationTrigger.loop
+                          : AnimationTrigger.onTap,
+                      onTap: () {
+                        showMaterialModalBottomSheet(
+                          context: context,
+                          
+                          backgroundColor: Colors.transparent,
+                          builder: (context) =>
+                              NotificationCenter(clinicUid: navProvider.clinicUid),
+                        );
+                      },
+                    ),
+                    if (navProvider.unreadCount > 0)
+                      Positioned(
+                        right: 12,
+                        top: 12,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 8,
+                            minHeight: 8,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        
+                actions: [
+                  LucideAnimatedIcon(
+                    icon: settings,
+                    onTap: () => showMaterialModalBottomSheet(
+                      context: context,
+                      builder: (context) {
+                        return SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.9,
+                          child: Clinicsettings(),
+                        );
+                      },
+                    ),
+                  ),
+                ],      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -315,40 +407,19 @@ class _NormalCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.read<ClinicAppointmentProvider>();
-
-    return FutureBuilder<Map<DateTime, int>>(
-      future: provider.getHeatMapData(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          debugPrint('Calendar error: ${snapshot.error}');
-          return Center(
-            child: Icon(
-              LucideIcons.alertTriangle,
-              color: Theme.of(context).colorScheme.error,
-            ),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        return _CalendarContent(appointmentCounts: snapshot.data!);
-      },
-    );
+    // Just pass through, the _CalendarContent will consume the data from provider
+    return const _CalendarContent();
   }
 }
 
 /// Provider-based calendar content (StatelessWidget)
 class _CalendarContent extends StatelessWidget {
-  final Map<DateTime, int> appointmentCounts;
-
-  const _CalendarContent({required this.appointmentCounts});
+  const _CalendarContent();
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ClinicAppointmentProvider>();
+    final appointmentCounts = provider.heatMapData;
 
     return TableCalendar(
       locale: context.locale.toString(),
@@ -361,8 +432,11 @@ class _CalendarContent extends StatelessWidget {
       onDaySelected: (selectedDay, focusedDay) {
         if (!isSameDay(provider.selectedDate, selectedDay)) {
           provider.updateSelectedDate(selectedDay);
-          provider.updateFocusedDay(focusedDay);
+          // provider.updateFocusedDay(focusedDay); // Already handled in updateSelectedDate
         }
+      },
+      onPageChanged: (focusedDay) {
+        provider.updateFocusedDay(focusedDay);
       },
 
       eventLoader: (day) {
@@ -382,7 +456,7 @@ class _CalendarContent extends StatelessWidget {
         ),
       ),
 
-      headerStyle: HeaderStyle(titleCentered: true),
+      headerStyle: const HeaderStyle(titleCentered: true),
     );
   }
 }
@@ -395,125 +469,119 @@ class _AppointmentsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<ClinicAppointmentProvider>();
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: provider.appointmentsStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          debugPrint('Appointments error: ${snapshot.error}');
-          return Center(
-            child: Text(
-              'error_loading_appointments'.tr(),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+    if (provider.isInitialLoading && provider.appointments.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (provider.appointments.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 16),
+            Text(
+              'no_appointments_for_this_day'.tr(),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 16,
+              ),
             ),
-          );
-        }
+            // Display last sync timestamp here
+            FutureBuilder<DateTime?>(
+              future: provider.lastSyncTimestamp,
+              builder: (context, timestampSnapshot) {
+                if (timestampSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const SizedBox.shrink();
+                }
+                if (timestampSnapshot.hasData &&
+                    timestampSnapshot.data != null) {
+                  final formattedTime = DateFormat.yMd(
+                    context.locale.toString(),
+                  ).add_Hms().format(timestampSnapshot.data!);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'last_synced_at'.tr(args: [formattedTime]),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
+        ),
+      );
+    }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    final appointments = provider.appointments;
+    final metadata = provider.lastMetadata;
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
+    return Column(
+      children: [
+        if (metadata != null &&
+            (metadata.isFromCache || metadata.hasPendingWrites))
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 16),
-                Text(
-                  'no_appointments_for_this_day'.tr(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 16,
-                  ),
-                ),
-                // Display last sync timestamp here
-                FutureBuilder<DateTime?>(
-                  future: provider.lastSyncTimestamp,
-                  builder: (context, timestampSnapshot) {
-                    if (timestampSnapshot.connectionState == ConnectionState.waiting) {
-                      return const SizedBox.shrink();
-                    }
-                    if (timestampSnapshot.hasData && timestampSnapshot.data != null) {
-                      final formattedTime = DateFormat.yMd(context.locale.toString()).add_Hms().format(timestampSnapshot.data!);
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'last_synced_at'.tr(args: [formattedTime]),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
-            ),
-          );
-        }
-
-        final appointments = snapshot.data!.docs;
-        final metadata = snapshot.data!.metadata;
-
-        return Column(
-          children: [
-            if (metadata.isFromCache || metadata.hasPendingWrites)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (metadata.isFromCache)
-                      Tooltip(
-                        message: 'offline_mode_data_from_cache'.tr(),
-                        child: Icon(
-                          LucideIcons.cloudOff,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    if (metadata.hasPendingWrites) ...[
-                      const SizedBox(width: 8),
-                      Tooltip(
-                        message: 'local_changes_pending_sync'.tr(),
-                        child: Icon(
-                          LucideIcons.rotateCcw,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            Expanded( // Use Expanded to give RefreshIndicator flexible height
-              child: RefreshIndicator(
-                onRefresh: provider.refresh, // Connect to the refresh method
-                child: Container(
-                  padding: EdgeInsets.only(top: 13),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(13),
-                      topRight: Radius.circular(13),
+                if (metadata.isFromCache)
+                  Tooltip(
+                    message: 'offline_mode_data_from_cache'.tr(),
+                    child: Icon(
+                      LucideIcons.cloudOff,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    // Remove NeverScrollableScrollPhysics when RefreshIndicator is used
-                    // physics: const NeverScrollableScrollPhysics(),
-                    itemCount: appointments.length,
-                    itemBuilder: (context, index) {
-                      final doc = appointments[index];
-                      final appointment = doc.data() as Map<String, dynamic>;
-                      final appointmentId = doc.id;
+                if (metadata.hasPendingWrites) ...[
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'local_changes_pending_sync'.tr(),
+                    child: Icon(
+                      LucideIcons.rotateCcw,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: provider.refresh,
+            child: Container(
+              padding: const EdgeInsets.only(top: 13),
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(13),
+                  topRight: Radius.circular(13),
+                ),
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: appointments.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == appointments.length) {
+                    return const SizedBox(
+                      height: 100,
+                    ); // Space for Floating NavBar
+                  }
+                  final doc = appointments[index];
+                  final appointment = doc.data() as Map<String, dynamic>;
+                  final appointmentId = doc.id;
 
-                  final clinicDuration = provider
-                      .getClinicDuration(); // Get duration from provider
                   final slot = (appointment['date'] as Timestamp).toDate();
-                  final slotEnd = slot.add(Duration(minutes: clinicDuration));
-                  final timeFormatted = DateFormat('HH:mm', context.locale.toString()).format(slot);
-                  final timeEndFormatter = DateFormat('HH:mm', context.locale.toString()).format(slotEnd);
+                  final timeFormatted = DateFormat(
+                    'HH:mm',
+                    context.locale.toString(),
+                  ).format(slot);
                   final name = appointment['userName'] ?? 'Unknown';
                   final phone = appointment['phone'] ?? 'No phone';
 
@@ -525,11 +593,56 @@ class _AppointmentsPanel extends StatelessWidget {
                       children: [
                         IconButton(
                           onPressed: () async {
-                            await provider.cancelAppointment(
-                              appointmentId,
-                              appointment,
-                              context,
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text('cancel_appointment'.tr()),
+                                content: Text(
+                                  'are_you_sure_to_cancel_appointment'.tr(),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: Text('no'.tr()),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: Text(
+                                      'yes'.tr(),
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             );
+
+                            if (confirmed != true) return;
+
+                            try {
+                              await provider.cancelAppointment(
+                                appointmentId,
+                                appointment,
+                              );
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'appointment_cancelled_success'.tr(),
+                                  ),
+                                ),
+                              );
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.toString())),
+                              );
+                            }
                           },
                           icon: Icon(
                             LucideIcons.xCircle,
@@ -546,14 +659,20 @@ class _AppointmentsPanel extends StatelessWidget {
                           horizontal: 12,
                           vertical: 4,
                         ),
-
                         child: Row(
                           children: [
                             SizedBox(
-                              width: 50,
+                              width: 80,
                               child: Padding(
                                 padding: const EdgeInsets.all(8),
-                                child: Center(child: Text("$timeFormatted")),
+                                child: Center(
+                                  child: Text(
+                                    timeFormatted,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                             Expanded(
@@ -562,7 +681,7 @@ class _AppointmentsPanel extends StatelessWidget {
                                   LucideIcons.chevronLeft,
                                   color: Theme.of(
                                     context,
-                                  ).colorScheme.onSurface,
+                                  ).colorScheme.onSurface.withAlpha(100),
                                 ),
                                 title: Text(name),
                                 subtitle: Text(phone),
@@ -578,9 +697,7 @@ class _AppointmentsPanel extends StatelessWidget {
             ),
           ),
         ),
-          ],
-        );
-      },
+      ],
     );
   }
 }

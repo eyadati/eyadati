@@ -1,13 +1,24 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-
-// Supabase client
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.42.0';
-
+import admin from "npm:firebase-admin@12.0.0";
 
 // Chargily Pay secret key for webhook verification
 const CHARGILY_WEBHOOK_SECRET = Deno.env.get('CHARGILY_WEBHOOK_SECRET');
 const FIREBASE_PROJECT_ID = Deno.env.get('FIREBASE_PROJECT_ID');
 const FIREBASE_SERVICE_ACCOUNT_KEY = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_KEY');
+
+// Initialize Firebase Admin once
+if (!admin.apps.length && FIREBASE_SERVICE_ACCOUNT_KEY) {
+  try {
+    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: FIREBASE_PROJECT_ID,
+    });
+    console.log("Firebase Admin initialized successfully.");
+  } catch (e) {
+    console.error("Error initializing Firebase Admin:", e.message);
+  }
+}
 
 serve(async (req) => {
   if (req.method !== 'POST') {
@@ -16,12 +27,17 @@ serve(async (req) => {
 
   const signature = req.headers.get('chargily-signature');
   if (!signature) {
+    console.error('Missing chargily-signature header');
     return new Response('No signature header', { status: 400 });
   }
 
-  const payloadBuffer = new TextEncoder().encode(await req.text());
+  const rawBody = await req.text();
+  if (!rawBody) {
+    console.error('Empty request body');
+    return new Response('Empty body', { status: 400 });
+  }
 
-  // Verify webhook signature
+  // 1. Verify webhook signature (Essential for security)
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(CHARGILY_WEBHOOK_SECRET),
@@ -33,86 +49,57 @@ serve(async (req) => {
   const hmacBuffer = await crypto.subtle.sign(
     'HMAC',
     key,
-    payloadBuffer
+    new TextEncoder().encode(rawBody)
   );
 
   const digest = Array.from(new Uint8Array(hmacBuffer))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 
-
   if (digest !== signature) {
-    console.error('Webhook signature verification failed.');
+    console.error('Webhook signature verification failed. Computed:', digest, 'Received:', signature);
     return new Response('Invalid signature', { status: 403 });
   }
 
-  const payloadText = new TextDecoder().decode(payloadBuffer);
-  const event = JSON.parse(payloadText);
+  // 2. Parse event
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch (e) {
+    console.error('Failed to parse JSON body:', e.message);
+    return new Response('Invalid JSON', { status: 400 });
+  }
 
+  // 3. Process checkout.paid
   if (event.type === 'checkout.paid') {
     const checkoutData = event.data;
     const clinicId = checkoutData.metadata?.clinic_id;
-    const doctorCount = checkoutData.metadata?.doctor_count;
+    const doctorCountStr = checkoutData.metadata?.doctor_count;
 
-    if (!clinicId || doctorCount === undefined) {
-      console.error('Missing clinic_id or doctor_count in checkout metadata.');
+    if (!clinicId || doctorCountStr === undefined) {
+      console.error('Missing metadata in checkout.paid event. Metadata:', JSON.stringify(checkoutData.metadata));
       return new Response('Missing metadata', { status: 400 });
     }
 
     try {
-      const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY);
-
-      // Authenticate with Firebase using service account to get an access token
-      const tokenResponse = await fetch(
-        `https://accounts.google.com/o/oauth2/token`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-            assertion: await signJwt(serviceAccount),
-          }).toString(),
-        },
-      );
-
-      if (!tokenResponse.ok) {
-        throw new Error(`Failed to get Firebase access token: ${await tokenResponse.text()}`);
-      }
-      const tokenData = await tokenResponse.json();
-      const accessToken = tokenData.access_token;
-
-      const firestoreApiUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/clinics/${clinicId}`;
-
+      const db = admin.firestore();
+      const doctorCount = parseInt(doctorCountStr);
+      
       const now = new Date();
       const subscriptionEndDate = new Date(now);
       subscriptionEndDate.setDate(now.getDate() + 30); // 30 days from now
 
-      const updatePayload = {
-        fields: {
-          firstMonthFreeTrial: { booleanValue: false },
-          freeTrialEnded: { booleanValue: true },
-          subscriptionStartDate: { timestampValue: now.toISOString() },
-          subscriptionEndDate: { timestampValue: subscriptionEndDate.toISOString() },
-          staff: { integerValue: doctorCount.toString() },
-        },
-      };
+      console.log(`Updating clinic ${clinicId} with doctor count ${doctorCount}...`);
 
-      const firestoreResponse = await fetch(`${firestoreApiUrl}?updateMask.fieldPaths=firstMonthFreeTrial,freeTrialEnded,subscriptionStartDate,subscriptionEndDate,staff`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(updatePayload),
+      await db.collection('clinics').doc(clinicId).update({
+        firstMonthFreeTrial: false,
+        freeTrialEnded: true,
+        subscriptionStartDate: admin.firestore.FieldValue.serverTimestamp(),
+        subscriptionEndDate: admin.firestore.Timestamp.fromDate(subscriptionEndDate),
+        staff: doctorCount,
       });
 
-      if (!firestoreResponse.ok) {
-        throw new Error(`Failed to update Firestore document: ${await firestoreResponse.text()}`);
-      }
-
-      console.log(`Clinic ${clinicId} subscription updated successfully.`);
+      console.log(`Clinic ${clinicId} subscription updated successfully via Admin SDK.`);
       return new Response('Webhook received and processed', { status: 200 });
     } catch (error) {
       console.error(`Error updating clinic ${clinicId}: ${error.message}`);
@@ -122,53 +109,3 @@ serve(async (req) => {
 
   return new Response('Unhandled event type', { status: 200 });
 });
-
-async function signJwt(serviceAccount: any): Promise<string> {
-  const header = {
-    alg: 'RS256',
-    typ: 'JWT',
-  };
-
-  const now = Math.floor(Date.now() / 1000);
-  const claims = {
-    iss: serviceAccount.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-platform',
-    aud: 'https://accounts.google.com/o/oauth2/token',
-    exp: now + 3600, // 1 hour from now
-    iat: now,
-  };
-
-  const textEncoder = new TextEncoder();
-  const encodedHeader = base64url(textEncoder.encode(JSON.stringify(header)));
-  const encodedClaims = base64url(textEncoder.encode(JSON.stringify(claims)));
-
-  const signatureInput = `${encodedHeader}.${encodedClaims}`;
-  const privateKey = await crypto.subtle.importKey(
-    'pkcs8',
-    textEncoder.encode(serviceAccount.private_key),
-    {
-      name: 'RSASSA-PKCS1-V1_5',
-      hash: 'SHA-256',
-    },
-    false,
-    ['sign'],
-  );
-
-  const signature = await crypto.subtle.sign(
-    { name: 'RSASSA-PKCS1-V1_5', saltLength: 32 },
-    privateKey,
-    textEncoder.encode(signatureInput),
-  );
-
-  const encodedSignature = base64url(new Uint8Array(signature));
-
-  return `${signatureInput}.${encodedSignature}`;
-}
-
-function base64url(array: Uint8Array): string {
-  return btoa(String.fromCharCode(...array))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-

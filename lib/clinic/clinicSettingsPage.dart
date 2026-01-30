@@ -1,15 +1,16 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eyadati/chargili/paiment.dart';
 import 'package:eyadati/clinic/clinicEditeProfile.dart';
 import 'package:eyadati/flow.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:settings_ui/settings_ui.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:eyadati/Themes/ThemeProvider.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:eyadati/utils/markdown_viewer_screen.dart'; // Import the MarkdownViewerScreen
 import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
@@ -66,17 +67,18 @@ class Clinicsettings extends StatelessWidget {
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-        
           centerTitle: true,
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         ),
-        body: Consumer<ClinicsettingProvider>(
-          builder: (context, clinicSettingProvider, child) {
+        body: Builder(
+          builder: (context) {
+            final clinicSettingProvider = context
+                .watch<ClinicsettingProvider>();
+
             return Column(
               children: [
                 SizedBox(height: 20),
                 FutureBuilder<Map<String, dynamic>?>(
-                  
                   future: clinicUid != null
                       ? clinicSettingProvider._clinicFirestore.getClinicData(
                           clinicUid,
@@ -94,7 +96,9 @@ class Clinicsettings extends StatelessWidget {
                         snapshot.data!['picUrl'] != null) {
                       return CircleAvatar(
                         radius: 50,
-                        backgroundImage: CachedNetworkImageProvider(snapshot.data!['picUrl']),
+                        backgroundImage: CachedNetworkImageProvider(
+                          snapshot.data!['picUrl'],
+                        ),
                       );
                     } else {
                       return CircleAvatar(
@@ -113,7 +117,8 @@ class Clinicsettings extends StatelessWidget {
                           SettingsTile.navigation(
                             title: Text("edit_profile".tr()),
                             leading: Icon(LucideIcons.user),
-                            onPressed: (_) => showModalBottomSheet(
+                            onPressed: (_) => showMaterialModalBottomSheet(
+                              expand: true,
                               context: context,
                               builder: (_) {
                                 return ClinicEditProfilePage();
@@ -147,7 +152,9 @@ class Clinicsettings extends StatelessWidget {
                                                   setState(() {
                                                     selectedLocale = value;
                                                   });
-                                                  await context.setLocale(value);
+                                                  await context.setLocale(
+                                                    value,
+                                                  );
                                                   if (!context.mounted) return;
                                                   Navigator.pop(context);
                                                 }
@@ -165,7 +172,9 @@ class Clinicsettings extends StatelessWidget {
                                                   setState(() {
                                                     selectedLocale = value;
                                                   });
-                                                  await context.setLocale(value);
+                                                  await context.setLocale(
+                                                    value,
+                                                  );
                                                   if (!context.mounted) return;
                                                   Navigator.pop(context);
                                                 }
@@ -183,7 +192,9 @@ class Clinicsettings extends StatelessWidget {
                                                   setState(() {
                                                     selectedLocale = value;
                                                   });
-                                                  await context.setLocale(value);
+                                                  await context.setLocale(
+                                                    value,
+                                                  );
                                                   if (!context.mounted) return;
                                                   Navigator.pop(context);
                                                 }
@@ -209,12 +220,90 @@ class Clinicsettings extends StatelessWidget {
                           SettingsTile.navigation(
                             title: Text("subscription".tr()),
                             leading: Icon(LucideIcons.user),
-                            onPressed: (_) => showModalBottomSheet(
+                            onPressed: (_) => showMaterialModalBottomSheet(
+                              expand: true,
                               context: context,
                               builder: (_) {
                                 return SubscribeScreen();
                               },
                             ),
+                          ),
+                          SettingsTile.navigation(
+                            title: Text("subscription_info".tr()),
+                            leading: Icon(LucideIcons.info),
+                            onPressed: (context) async {
+                              final data = await clinicSettingProvider
+                                  ._clinicFirestore
+                                  .getClinicData(clinicUid!);
+                              if (data == null || !context.mounted) return;
+
+                              final endDate =
+                                  (data['subscriptionEndDate'] as Timestamp?)
+                                      ?.toDate();
+                              final staffCount = data['staff'] ?? 1;
+                              final formattedDate = endDate != null
+                                  ? DateFormat.yMMMMd(
+                                      context.locale.toString(),
+                                    ).format(endDate)
+                                  : 'n/a'.tr();
+
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text("subscription_info".tr()),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "${"subscription_end".tr()}: $formattedDate",
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        "${"number_of_doctors".tr()}: $staffCount",
+                                      ),
+                                    ],
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: Text("close".tr()),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          SettingsTile.navigation(
+                            title: Text("reset_password".tr()),
+                            leading: const Icon(LucideIcons.lock),
+                            onPressed: (context) async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null && user.email != null) {
+                                try {
+                                  await FirebaseAuth.instance
+                                      .sendPasswordResetEmail(
+                                        email: user.email!,
+                                      );
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'password_reset_email_sent'.tr(),
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('error_generic'.tr()),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                           ),
                           SettingsTile.switchTile(
                             onToggle: (value) {
@@ -223,19 +312,6 @@ class Clinicsettings extends StatelessWidget {
                             initialValue: clinicSettingProvider.isPaused,
                             title: Text("pause_profile".tr()),
                             leading: Icon(LucideIcons.pauseCircle),
-                          ),
-                          SettingsTile.switchTile(
-                            onToggle: (value) {
-                              Provider.of<ThemeProvider>(
-                                context,
-                                listen: false,
-                              ).toggleTheme();
-                            },
-                            initialValue: Provider.of<ThemeProvider>(
-                              context,
-                            ).isDarkMode,
-                            title: Text("dark_mode".tr()),
-                            leading: Icon(LucideIcons.moon),
                           ),
                           SettingsTile.navigation(
                             title: Text("qr_code".tr()),
@@ -277,9 +353,10 @@ class Clinicsettings extends StatelessWidget {
                             leading: Icon(LucideIcons.globe),
                             onPressed: (_) {
                               FirebaseAuth.instance.signOut();
-                              Navigator.pushReplacement(
+                              Navigator.pushAndRemoveUntil(
                                 context,
                                 MaterialPageRoute(builder: (ctx) => intro(ctx)),
+                                (route) => false,
                               );
                             },
                           ),
@@ -359,7 +436,6 @@ class Clinicsettings extends StatelessWidget {
                                           try {
                                             await ClinicFirestore()
                                                 .deleteClinicAccount(
-                                                  context,
                                                   passwordController
                                                       .text, // Renamed
                                                 );
@@ -377,7 +453,18 @@ class Clinicsettings extends StatelessWidget {
                                               (route) => false,
                                             );
                                           } catch (e) {
-                                            // Error handling is already in deleteClinicAccount
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'error_deleting_account'.tr(
+                                                    args: [e.toString()],
+                                                  ),
+                                                ),
+                                              ),
+                                            );
                                           }
                                         },
                                         style: ElevatedButton.styleFrom(

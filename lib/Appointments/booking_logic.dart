@@ -28,7 +28,7 @@ class BookingLogic extends ChangeNotifier {
           .map((doc) => {"uid": doc.id, ...doc.data()})
           .toList();
     } catch (e) {
-      debugPrint("Error fetching clinics: $e".tr());
+      debugPrint("error_fetching_clinics".tr(args: [e.toString()]));
       return [];
     }
   }
@@ -64,7 +64,10 @@ class BookingLogic extends ChangeNotifier {
       final openingMinutes = parseInt(clinicData["openingAt"], 0);
       final closingMinutes = parseInt(clinicData["closingAt"], 0);
       final breakStartMinutes = parseInt(clinicData["breakStart"], 0);
-      final breakEndMinutes = parseInt(clinicData["breakEnd"] ?? clinicData["break"], 0);
+      final breakEndMinutes = parseInt(
+        clinicData["breakEnd"] ?? clinicData["break"],
+        0,
+      );
 
       // Check if clinic is open
       if (!workingDays.contains(day.weekday)) return [];
@@ -94,13 +97,14 @@ class BookingLogic extends ChangeNotifier {
       final bookedSlots = <DateTime, int>{};
       for (var doc in dayAppointments.docs) {
         final appointmentTime = (doc.data()["date"] as Timestamp).toDate();
-        final slotHour = DateTime(
+        final slotKey = DateTime(
           appointmentTime.year,
           appointmentTime.month,
           appointmentTime.day,
           appointmentTime.hour,
+          appointmentTime.minute,
         );
-        bookedSlots[slotHour] = (bookedSlots[slotHour] ?? 0) + 1;
+        bookedSlots[slotKey] = (bookedSlots[slotKey] ?? 0) + 1;
       }
 
       final now = DateTime.now();
@@ -141,7 +145,7 @@ class BookingLogic extends ChangeNotifier {
 
       return availableSlots;
     } catch (e) {
-      debugPrint("Slot generation error: $e".tr());
+      debugPrint("error_generic".tr(args: [e.toString()]));
       return [];
     }
   }

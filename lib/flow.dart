@@ -69,27 +69,28 @@ Widget intro(BuildContext context) {
                       title: Text("language".tr()),
                       content: StatefulBuilder(
                         builder: (BuildContext context, StateSetter setState) {
-                                                                  Locale selectedLocale = context.locale;                          return Column(
+                          Locale selectedLocale = context.locale;
+                          return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                                                                                                                                                                                                  // ignore: deprecated_member_use
-                                                                                                                                                                                                  RadioListTile<Locale>(
-                                                                                                                                                                                                    title: const Text('English'),
-                                                                                                                                                                                                    value: const Locale('en'),
-                                                                                                                                                                                                    // ignore: deprecated_member_use
-                                                                                                                                                                                                    groupValue: selectedLocale,
-                                                                                                                                                                                                    // ignore: deprecated_member_use
-                                                                                                                                                                                                    onChanged: (Locale? value) async {
-                                                                                                                                                                if (value != null) {
-                                                                                                                                                                  setState(() {
-                                                                                                                                                                    selectedLocale = value;
-                                                                                                                                                                  });
-                                                                                                                                                                  await context.setLocale(value);
-                                                                                                                                                                  if (!context.mounted) return;
-                                                                                                                                                                  Navigator.pop(context);
-                                                                                                                                                                }
-                                                                                                                                                              },
-                                                                                                                                                            ),                              // ignore: deprecated_member_use
+                              // ignore: deprecated_member_use
+                              RadioListTile<Locale>(
+                                title: const Text('English'),
+                                value: const Locale('en'),
+                                // ignore: deprecated_member_use
+                                groupValue: selectedLocale,
+                                // ignore: deprecated_member_use
+                                onChanged: (Locale? value) async {
+                                  if (value != null) {
+                                    setState(() {
+                                      selectedLocale = value;
+                                    });
+                                    await context.setLocale(value);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  }
+                                },
+                              ), // ignore: deprecated_member_use
                               RadioListTile<Locale>(
                                 title: const Text('Français'),
                                 value: const Locale('fr'),

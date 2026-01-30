@@ -1,17 +1,20 @@
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/Appointments/slotsUi.dart';
+import 'package:eyadati/NavBarUi/UserNavBar.dart';
+import 'package:eyadati/utils/constants.dart';
+import 'package:eyadati/utils/location_helper.dart';
+import 'package:eyadati/utils/skeletons.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:marquee/marquee.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:geolocator/geolocator.dart'; // Import geolocator
-import 'package:google_maps_url_extractor/url_extractor.dart'; // Import GoogleMapsUrlExtractor
-import 'package:eyadati/utils/location_helper.dart'; // Import LocationHelper
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:eyadati/NavBarUi/UserNavBar.dart';
+import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
 
 class ClinicSearchProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
@@ -21,230 +24,209 @@ class ClinicSearchProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   String? _userCity;
-  Position? _currentLocation; // New: Store user's current location
+  Position? _currentLocation;
 
   // Filter states
   String _searchQuery = '';
-  String? _selectedCity; // null means user's city
-  String? _selectedSpecialty; // null means all specialties
+  String? _selectedCity;
+  String? _selectedSpecialty;
+
+  // Pagination
+  DocumentSnapshot? _lastDocument;
+  bool _hasMore = true;
+  static const int _limit = 15;
 
   Timer? _debounceTimer;
+  bool _isLocationLoading = false;
 
   ClinicSearchProvider({required this.firestore, required this.auth}) {
     _initialize();
   }
 
   // Getters
-
-  // Static data
-  static const List<String> specialtiesList = [
-    'general_medicine',
-    'pediatrics',
-    'gynecology',
-    'dermatology',
-    'dentistry',
-    'orthopedics',
-    'ophthalmology',
-    'ent',
-    'cardiology',
-    'psychiatry',
-    'psychology',
-    'physiotherapy',
-    'nutrition',
-    'neurology',
-    'gastroenterology',
-    'urology',
-    'pulmonology',
-    'endocrinology',
-    'rheumatology',
-    'oncology',
-    'surgery',
-    'radiology',
-    'laboratory_services',
-    'nephrology',
-  ];
-
-  static const List<String> algerianCitiesList = [
-    'Algiers',
-    'Oran',
-    'Constantine',
-    'Annaba',
-    'Blida',
-    'Batna',
-    'Djelfa',
-    'Sétif',
-    'Sidi Bel Abbès',
-    'Biskra',
-    'Tébessa',
-    'Skikda',
-    'Tiaret',
-    'Béjaïa',
-    'Tlemcen',
-    'Béchar',
-    'Mostaganem',
-    'Bordj Bou Arreridj',
-    'Chlef',
-    'Souk Ahras',
-    'El Eulma',
-    'Médéa',
-    'Tizi Ouzou',
-    'Jijel',
-    'Laghouat',
-    'El Oued',
-    'Ouargla',
-    'M\'Sila',
-    'Relizane',
-    'Saïda',
-    'Bou Saâda',
-    'Guelma',
-    'Aïn Beïda',
-    'Maghnia',
-    'Mascara',
-    'Khenchela',
-    'Barika',
-    'Messaad',
-    'Aflou',
-    'Aïn Oussara',
-    'Adrar',
-    'Aïn Defla',
-    'Aïn Fakroun',
-    'Aïn Oulmene',
-    'Aïn M\'lila',
-    'Aïn Sefra',
-    'Aïn Témouchent',
-    'Aïn Touta',
-    'Akbou',
-    'Azzaba',
-    'Berrouaghia',
-    'Bir el-Ater',
-    'Boufarik',
-    'Bouira',
-    'Chelghoum Laid',
-    'Cheria',
-    'Chettia',
-    'El Bayadh',
-    'El Guerrara',
-    'El-Khroub',
-    'Frenda',
-    'Ferdjioua',
-    'Ghardaïa',
-    'Hassi Bahbah',
-    'Khemis Miliana',
-    'Ksar Chellala',
-    'Ksar Boukhari',
-    'Lakhdaria',
-    'Larbaâ',
-  ];
+  List<Map<String, dynamic>> get currentClinics => _currentClinics;
+  bool get isLoading => _isLoading;
+  bool get isLocationLoading => _isLocationLoading;
+  bool get isLocationEnabled => _currentLocation != null;
+  bool get hasMore => _hasMore;
+  String? get error => _error;
+  String? get userCity => _userCity;
+  String? get selectedCity => _selectedCity;
+  String? get selectedSpecialty => _selectedSpecialty;
+  String get searchQuery => _searchQuery;
+  List<String> get specialtiesList => AppConstants.specialties;
+  List<String> get algerianCitiesList => AppConstants.algerianCities;
 
   Future<void> _initialize() async {
     try {
       final user = auth.currentUser;
       if (user == null) return;
 
-      // Try to get current location
-      try {
-        _currentLocation = await LocationHelper.getCurrentLocation();
-        debugPrint(
-          "Current location: ${_currentLocation?.latitude}, ${_currentLocation?.longitude}",
-        );
-      } catch (e) {
-        debugPrint("Error getting current location: $e");
-        // Don't block if location fails, continue without it.
-      }
+      // Proactively request location on init to show distance
+      await requestLocation(silent: true);
 
-      final doc = await firestore
-          .collection("users")
-          .doc(user.uid)
-          .get(GetOptions(source: Source.server));
+      final doc = await firestore.collection("users").doc(user.uid).get();
       _userCity = doc.data()?["city"]?.toString();
-
-      if (_userCity != null) {
-        await fetchClinics();
-        debugPrint(_userCity);
-      }
+      notifyListeners();
     } catch (e) {
-      debugPrint("Error initializing: $e");
+      debugPrint("Init error: $e");
     }
   }
 
-  List<Map<String, dynamic>> get currentClinics => _currentClinics;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
-  String? get userCity => _userCity;
-  String? get selectedCity => _selectedCity;
-  String? get selectedSpecialty => _selectedSpecialty;
-  String get searchQuery => _searchQuery;
+  Future<void> requestLocation({bool silent = false}) async {
+    if (!silent) {
+      _isLocationLoading = true;
+      notifyListeners();
+    }
 
-  Future<void> fetchClinics() async {
-    if (_isLoading) return;
+    try {
+      _currentLocation = await LocationHelper.getCurrentLocation();
+      if (_currentLocation != null && !silent) {
+        // Refresh clinics with distance if requested manually
+        fetchClinics();
+      }
+    } catch (e) {
+      _error = e.toString();
+      debugPrint("Location error: $e");
+    } finally {
+      if (!silent) {
+        _isLocationLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> fetchClinics({bool isNextPage = false}) async {
+    // If it's a fresh search, we allow it even if something is loading
+    // to prevent the "stuck" feeling.
+    if (isNextPage && (_isLoading || !_hasMore)) return;
 
     final cityToQuery = _selectedCity ?? _userCity;
-    if (cityToQuery == null) return;
+
+    // We need either a city OR a location to search
+    if (cityToQuery == null && _currentLocation == null) return;
 
     _isLoading = true;
     _error = null;
+    if (!isNextPage) {
+      _currentClinics = []; // Clear for fresh search
+      _lastDocument = null;
+      _hasMore = true;
+    }
     notifyListeners();
 
     try {
-      Query<Map<String, dynamic>> baseQuery = firestore
-          .collection("clinics")
-          .where("city", isEqualTo: cityToQuery);
+      List<Map<String, dynamic>> fetchedClinics = [];
 
-      if (_selectedSpecialty != null) {
-        baseQuery = baseQuery.where("specialty", isEqualTo: _selectedSpecialty);
-      }
-
-      final querySnapshot = await baseQuery.get();
-
-      List<Map<String, dynamic>> fetchedClinics = querySnapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
-
-      // Client-side filtering for search query
-      if (_searchQuery.isNotEmpty) {
-        fetchedClinics = fetchedClinics.where((clinic) {
-          final clinicName = clinic['clinicName'] as String?;
-          return clinicName != null &&
-              clinicName.toLowerCase().contains(_searchQuery.toLowerCase());
-        }).toList();
-      }
-
-      if (_currentLocation != null) {
-        for (var clinic in fetchedClinics) {
-          final mapsLink = clinic['mapsLink'] as String?;
-          if (mapsLink != null && mapsLink.isNotEmpty) {
-            final coordinates = GoogleMapsUrlExtractor.extractCoordinates(
-              mapsLink,
+      // Logic: If 'Nearby First' is active AND we don't have a specific city override,
+      // or if we just want to prioritize proximity.
+      if (_currentLocation != null && _selectedCity == null) {
+        // GEO-QUERY: Find anything within 100km of the user
+        final center = GeoFirePoint(
+          GeoPoint(_currentLocation!.latitude, _currentLocation!.longitude),
+        );
+        final GeoCollectionReference<Map<String, dynamic>> geoRef =
+            GeoCollectionReference<Map<String, dynamic>>(
+              firestore.collection('clinics'),
             );
-            if (coordinates != null) {
-              final clinicLat = coordinates['latitude'];
-              final clinicLon = coordinates['longitude'];
-              if (clinicLat != null && clinicLon != null) {
-                final distance = await LocationHelper.calculateDistance(
-                  _currentLocation!.latitude,
-                  _currentLocation!.longitude,
-                  clinicLat,
-                  clinicLon,
-                );
-                clinic['distance'] = distance;
-              }
+
+        // GeoQuery fetches everything in range, we'll filter specialty manually
+        final geoDocs = await geoRef.fetchWithin(
+          center: center,
+          radiusInKm: 100, // Increased radius
+          field: 'position',
+          geopointFrom: (data) =>
+              (data['position'] as Map<String, dynamic>)['geopoint']
+                  as GeoPoint,
+          strictMode: true,
+        );
+
+        fetchedClinics = geoDocs
+            .cast<GeoDocumentSnapshot<Map<String, dynamic>>>()
+            .map((doc) {
+              final data = doc.documentSnapshot.data()!;
+              return {
+                'id': doc.documentSnapshot.id,
+                ...data,
+                'distance': doc.distanceFromCenterInKm * 1000,
+              };
+            })
+            .toList();
+
+        // Filter by specialty if selected
+        if (_selectedSpecialty != null) {
+          fetchedClinics = fetchedClinics
+              .where((c) => c['specialty'] == _selectedSpecialty)
+              .toList();
+        }
+
+        // Distance is already sorted by fetchWithin
+        _hasMore = false;
+      } else {
+        // STANDARD QUERY: Search by City (with client-side distance calc)
+        Query<Map<String, dynamic>> query = firestore
+            .collection("clinics")
+            .where("city", isEqualTo: cityToQuery);
+
+        if (_selectedSpecialty != null) {
+          query = query.where("specialty", isEqualTo: _selectedSpecialty);
+        }
+
+        if (isNextPage && _lastDocument != null) {
+          query = query.startAfterDocument(_lastDocument!);
+        }
+
+        final snapshot = await query.limit(_limit).get();
+        if (snapshot.docs.length < _limit) _hasMore = false;
+        if (snapshot.docs.isNotEmpty) _lastDocument = snapshot.docs.last;
+
+        fetchedClinics = snapshot.docs.map((doc) {
+          final data = doc.data();
+          double? dist;
+          if (_currentLocation != null && data['position'] != null) {
+            final geoPoint =
+                (data['position'] as Map<String, dynamic>)['geopoint']
+                    as GeoPoint?;
+            if (geoPoint != null) {
+              dist = Geolocator.distanceBetween(
+                _currentLocation!.latitude,
+                _currentLocation!.longitude,
+                geoPoint.latitude,
+                geoPoint.longitude,
+              );
             }
           }
+          return {'id': doc.id, ...data, if (dist != null) 'distance': dist};
+        }).toList();
+
+        // If we have location, sort the city results by distance
+        if (_currentLocation != null) {
+          fetchedClinics.sort(
+            (a, b) =>
+                (a['distance'] ?? 999999).compareTo(b['distance'] ?? 999999),
+          );
         }
-        fetchedClinics.sort((a, b) {
-          final distA = a['distance'] as double?;
-          final distB = b['distance'] as double?;
-          if (distA == null && distB == null) return 0;
-          if (distA == null) return 1;
-          if (distB == null) return -1;
-          return distA.compareTo(distB);
-        });
       }
 
-      _currentClinics = fetchedClinics;
+      // Final Search Text Filter
+      if (_searchQuery.isNotEmpty) {
+        fetchedClinics = fetchedClinics
+            .where(
+              (c) => (c['clinicName'] as String).toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              ),
+            )
+            .toList();
+      }
+
+      if (isNextPage) {
+        _currentClinics.addAll(fetchedClinics);
+      } else {
+        _currentClinics = fetchedClinics;
+      }
     } catch (e) {
-      _error = "Failed to load clinics. Please try again.".tr();
-      debugPrint("Firestore error: $e");
+      _error = "error_fetching_clinics".tr(args: [e.toString()]);
+      debugPrint("Fetch error: $e");
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -254,6 +236,8 @@ class ClinicSearchProvider extends ChangeNotifier {
   void applyFilters({String? city, String? specialty}) {
     _selectedCity = city;
     _selectedSpecialty = specialty;
+    _lastDocument = null;
+    _hasMore = true;
     fetchClinics();
   }
 
@@ -261,6 +245,8 @@ class ClinicSearchProvider extends ChangeNotifier {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       _searchQuery = query;
+      _lastDocument = null;
+      _hasMore = true;
       fetchClinics();
     });
   }
@@ -269,6 +255,8 @@ class ClinicSearchProvider extends ChangeNotifier {
     _selectedCity = null;
     _selectedSpecialty = null;
     _searchQuery = '';
+    _lastDocument = null;
+    _hasMore = true;
     fetchClinics();
   }
 
@@ -279,26 +267,127 @@ class ClinicSearchProvider extends ChangeNotifier {
   }
 }
 
-class ClinicFilterBottomSheet extends StatelessWidget {
-  static Future<bool?> show(BuildContext context) {
-    return showMaterialModalBottomSheet<bool>(
-      context: context,
+// ================ UI COMPONENTS ================
 
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (_) => ChangeNotifierProvider(
-        create: (_) => ClinicSearchProvider(
-          firestore: FirebaseFirestore.instance,
-          auth: FirebaseAuth.instance,
-        ),
-        child: const _ClinicBottomSheetContent(),
+class ClinicFilterBottomSheet extends StatelessWidget {
+  static Future<bool?> show(
+    BuildContext context,
+    UserNavBarProvider userNavBarProvider,
+  ) async {
+    final provider = ClinicSearchProvider(
+      firestore: FirebaseFirestore.instance,
+      auth: FirebaseAuth.instance,
+    );
+
+    final bool? shouldShowList = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: provider),
+          ChangeNotifierProvider.value(value: userNavBarProvider),
+        ],
+        child: _InitialFilterDialog(provider: provider),
       ),
     );
+
+    if (shouldShowList == true && context.mounted) {
+      return showMaterialModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        builder: (_) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: provider),
+            ChangeNotifierProvider.value(value: userNavBarProvider),
+          ],
+          child: const _ClinicBottomSheetContent(),
+        ),
+      );
+    }
+    return false;
   }
 
   const ClinicFilterBottomSheet({super.key});
-
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _InitialFilterDialog extends StatefulWidget {
+  final ClinicSearchProvider provider;
+  const _InitialFilterDialog({required this.provider});
+
+  @override
+  State<_InitialFilterDialog> createState() => _InitialFilterDialogState();
+}
+
+class _InitialFilterDialogState extends State<_InitialFilterDialog> {
+  String? _tempCity;
+  String? _tempSpecialty;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<ClinicSearchProvider>();
+    if (_tempCity == null && provider.userCity != null)
+      _tempCity = provider.userCity;
+
+    return AlertDialog(
+      title: Text('find_clinics'.tr()),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('please_select_filters_to_find_clinics'.tr()),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _tempCity,
+            decoration: InputDecoration(
+              labelText: "city".tr(),
+              prefixIcon: const Icon(LucideIcons.mapPin),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            items: provider.algerianCitiesList
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
+            onChanged: (val) => setState(() => _tempCity = val),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _tempSpecialty,
+            decoration: InputDecoration(
+              labelText: "specialty".tr(),
+              prefixIcon: const Icon(LucideIcons.stethoscope),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            items: provider.specialtiesList
+                .map((s) => DropdownMenuItem(value: s, child: Text(s.tr())))
+                .toList(),
+            onChanged: (val) => setState(() => _tempSpecialty = val),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text('cancel'.tr()),
+        ),
+        ElevatedButton(
+          onPressed: (_tempCity != null && _tempSpecialty != null)
+              ? () {
+                  provider.applyFilters(
+                    city: _tempCity,
+                    specialty: _tempSpecialty,
+                  );
+                  Navigator.pop(context, true);
+                }
+              : null,
+          child: Text('search'.tr()),
+        ),
+      ],
+    );
+  }
 }
 
 class _ClinicBottomSheetContent extends StatelessWidget {
@@ -306,29 +395,32 @@ class _ClinicBottomSheetContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ClinicSearchProvider>(
-      builder: (context, provider, _) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          maxChildSize: 0.95,
-          minChildSize: 0.5,
-          expand: false,
-          builder: (context, scrollController) {
-            return SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(context, provider),
-                  Expanded(
-                    child: _buildClinicList(
-                      context,
-                      provider,
-                      scrollController,
-                    ),
-                  ),
-                ],
+    final provider = context.watch<ClinicSearchProvider>();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      expand: false,
+      builder: (context, scrollController) {
+        return SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context, provider),
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification.metrics.pixels >=
+                        notification.metrics.maxScrollExtent * 0.9) {
+                      provider.fetchClinics(isNextPage: true);
+                    }
+                    return false;
+                  },
+                  child: _buildClinicList(context, provider, scrollController),
+                ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
@@ -336,55 +428,76 @@ class _ClinicBottomSheetContent extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context, ClinicSearchProvider provider) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-
-      child: Row(
+      padding: const EdgeInsets.all(8),
+      child: Column(
         children: [
-          IconButton(
-            onPressed: () => _showFilterDialog(context, provider),
-            icon: const Icon(LucideIcons.slidersHorizontal, size: 25),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  if (provider.selectedSpecialty != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Chip(
-                        label: Text(
-                          provider.selectedSpecialty!.tr(),
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onPrimaryContainer,
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _showFilterDialog(context, provider),
+                icon: const Icon(LucideIcons.slidersHorizontal),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (provider.selectedSpecialty != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Chip(
+                            label: Text(provider.selectedSpecialty!.tr()),
                           ),
                         ),
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer,
-                        onDeleted: () => provider.applyFilters(specialty: null),
+                      if (provider.selectedCity != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Chip(label: Text(provider.selectedCity!)),
+                        ),
+                      ActionChip(
+                        avatar: provider.isLocationLoading
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                LucideIcons.mapPin,
+                                size: 16,
+                                color: provider.isLocationEnabled
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                        label: Text(
+                          provider.isLocationEnabled
+                              ? 'nearby_sorted'.tr()
+                              : 'sort_by_distance'.tr(),
+                        ),
+                        onPressed: () => provider.requestLocation(),
                       ),
-                    ),
-                  if (provider.selectedCity != null &&
-                      provider.selectedCity != provider.userCity)
-                    Chip(
-                      label: Text(provider.selectedCity!),
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      labelStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
-                      onDeleted: () => provider.applyFilters(city: null),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (provider.isLocationEnabled)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'showing_closest_clinics_first'.tr(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -393,359 +506,236 @@ class _ClinicBottomSheetContent extends StatelessWidget {
   Widget _buildClinicList(
     BuildContext context,
     ClinicSearchProvider provider,
-    ScrollController scrollController,
+    ScrollController controller,
   ) {
     if (provider.isLoading && provider.currentClinics.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (provider.error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.alertTriangle,
-              size: 64,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              provider.error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.onError),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => provider.fetchClinics(),
-              icon: const Icon(LucideIcons.refreshCcw),
-              label: Text("Retry".tr()),
-            ),
-          ],
-        ),
+      return ListView.builder(
+        itemCount: 5,
+        itemBuilder: (_, __) => const ClinicCardSkeleton(),
       );
     }
 
-    final clinics = provider.currentClinics;
-
-    if (clinics.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.search,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "No clinics found".tr(),
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-      );
+    if (provider.currentClinics.isEmpty) {
+      return Center(child: Text('no_clinics_found'.tr()));
     }
 
     return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(
-        0,
-        12,
-        0,
-        0,
-      ), // Remove bottom padding here
-      itemCount: clinics.length + 1, // Add 1 for the SizedBox
+      controller: controller,
+      itemCount: provider.currentClinics.length + (provider.hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == clinics.length) {
-          // This is the last item, add the SizedBox
-          return SizedBox(height: 92 + MediaQuery.of(context).padding.bottom);
+        if (index == provider.currentClinics.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
-        final clinicData = clinics[index];
-        final distance = clinicData['distance'] as double?;
-        return _ClinicCard(clinic: clinicData, distance: distance);
-      },
-    );
-  }
-
-  void _showFilterDialog(BuildContext context, ClinicSearchProvider provider) {
-    String? tempCity = provider.selectedCity;
-    String? tempSpecialty = provider.selectedSpecialty;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('Select Filters'.tr()),
-              contentPadding: const EdgeInsets.all(16),
-              content: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.9,
-                  maxHeight: 400,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildCityDropdown(tempCity, (value) {
-                      setState(() => tempCity = value);
-                    }, provider),
-                    const SizedBox(height: 16),
-                    _buildSpecialtyDropdown(tempSpecialty, (value) {
-                      setState(() => tempSpecialty = value);
-                    }),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel'.tr()),
-                ),
-                TextButton(
-                  onPressed: () {
-                    provider.clearFilters();
-                    Navigator.pop(context);
-                  },
-                  child: Text('Clear All'.tr()),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    provider.applyFilters(
-                      city: tempCity,
-                      specialty: tempSpecialty,
-                    );
-                    Navigator.pop(context);
-                  },
-                  child: Text('Apply'.tr()),
-                ),
-              ],
-            );
-          },
+        final clinic = provider.currentClinics[index];
+        return _ClinicCard(
+          clinic: clinic,
+          distance: clinic['distance'] as double?,
         );
       },
     );
   }
 
-  Widget _buildCityDropdown(
-    String? currentValue,
-    ValueChanged<String?> onChanged,
-    ClinicSearchProvider provider,
-  ) {
-    return DropdownButtonFormField<String>(
-      initialValue: currentValue,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: "City".tr(),
-        prefixIcon: const Icon(LucideIcons.mapPin),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      items: [
-        DropdownMenuItem(
-          value: null,
-          child: Text('${provider.userCity} (Your City)'),
-        ),
-        ...ClinicSearchProvider.algerianCitiesList
-            .where((city) => city != provider.userCity)
-            .map((city) => DropdownMenuItem(value: city, child: Text(city))),
-      ],
-      onChanged: onChanged,
-    );
-  }
+  void _showFilterDialog(BuildContext context, ClinicSearchProvider provider) {
+    String? tCity = provider.selectedCity;
+    String? tSpec = provider.selectedSpecialty;
 
-  Widget _buildSpecialtyDropdown(
-    String? currentValue,
-    ValueChanged<String?> onChanged,
-  ) {
-    return DropdownButtonFormField<String>(
-      initialValue: currentValue,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: "Specialty".tr(),
-        prefixIcon: const Icon(LucideIcons.stethoscope),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      items: [
-        DropdownMenuItem(
-          value: null,
-          child: Text('All Specialties'.tr(), overflow: TextOverflow.ellipsis),
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('select_filters'.tr()),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: tCity,
+                items: provider.algerianCitiesList
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: (v) => setState(() => tCity = v),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: tSpec,
+                items: provider.specialtiesList
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s.tr())))
+                    .toList(),
+                onChanged: (v) => setState(() => tSpec = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('cancel'.tr()),
+            ),
+            ElevatedButton(
+              onPressed: (tCity != null && tSpec != null)
+                  ? () {
+                      provider.applyFilters(city: tCity, specialty: tSpec);
+                      Navigator.pop(ctx);
+                    }
+                  : null,
+              child: Text('apply'.tr()),
+            ),
+          ],
         ),
-        ...ClinicSearchProvider.specialtiesList.map((specialty) {
-          return DropdownMenuItem(
-            value: specialty,
-            child: Text(specialty.tr(), overflow: TextOverflow.ellipsis),
-          );
-        }),
-      ],
-      onChanged: onChanged,
+      ),
     );
   }
 }
 
 class _ClinicCard extends StatelessWidget {
   final Map<String, dynamic> clinic;
-  final double? distance; // New: Distance parameter
+  final double? distance;
 
-  const _ClinicCard({
-    required this.clinic,
-    this.distance,
-  }); // Updated constructor
+  const _ClinicCard({required this.clinic, this.distance});
 
   @override
   Widget build(BuildContext context) {
+    final navProvider = context.watch<UserNavBarProvider>();
     final picUrl = clinic['picUrl'] as String?;
-    ImageProvider? backgroundImage;
-    if (picUrl != null) {
-      if (picUrl.startsWith('http')) {
-        backgroundImage = CachedNetworkImageProvider(picUrl);
-      } else {
-        backgroundImage = AssetImage(picUrl);
-      }
-    }
+    final image = (picUrl != null && picUrl.startsWith('http'))
+        ? CachedNetworkImageProvider(picUrl)
+        : (picUrl != null ? AssetImage(picUrl) : null) as ImageProvider?;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      child: Column(
+      child: Stack(
         children: [
-          ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: CircleAvatar(
-              radius: 45,
-              backgroundImage: backgroundImage,
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.primary.withAlpha((255 * 0.1).round()),
-              child: picUrl == null
-                  ? Icon(LucideIcons.home) // Placeholder icon
-                  : null,
-            ),
-            title: Text(
-              clinic["clinicName"] ?? "Unnamed Clinic".tr(),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: Consumer<UserNavBarProvider>(
-              builder: (context, userNavBarProvider, child) {
-                // We need to fetch the favorite clinics from UserNavBarProvider
-                // and check if the current clinic is in that list.
-                // Since favoriteClinicsStream now emits List<Map<String, dynamic>>,
-                // we need to adapt this.
-                return StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: userNavBarProvider.favoriteClinicsStream,
-                  builder: (context, snapshot) {
-                    bool isFavorite = false;
-                    if (snapshot.hasData) {
-                      isFavorite = snapshot.data!.any(
-                        (favClinic) => favClinic['uid'] == clinic['id'],
-                      );
-                    }
-                    return IconButton(
-                      icon: Icon(
-                        isFavorite ? LucideIcons.heart : LucideIcons.heart,
-                        color: isFavorite
-                            ? Theme.of(context).colorScheme.error
-                            : null,
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 40,
+                      backgroundImage: image,
+                      child: picUrl == null
+                          ? const Icon(LucideIcons.home)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: 25,
+                            child: Marquee(
+                              text:
+                                  clinic['clinicName'] ?? 'unnamed_clinic'.tr(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              scrollAxis: Axis.horizontal,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              blankSpace: 20.0,
+                              velocity: 30.0,
+                              pauseAfterRound: const Duration(seconds: 2),
+                              startPadding: 0.0,
+                              accelerationDuration: const Duration(seconds: 1),
+                              accelerationCurve: Curves.linear,
+                              decelerationDuration: const Duration(
+                                milliseconds: 500,
+                              ),
+                              decelerationCurve: Curves.easeOut,
+                            ),
+                          ),
+                          Text(
+                            (clinic['specialty'] as String?)?.tr() ??
+                                'general'.tr(),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(
+                                LucideIcons.mapPin,
+                                size: 14,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: SizedBox(
+                                  height: 20,
+                                  child: Marquee(
+                                    text:
+                                        "${clinic['address'] ?? ''}, ${clinic['city'] ?? ''}",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                                    scrollAxis: Axis.horizontal,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    blankSpace: 20.0,
+                                    velocity: 25.0,
+                                    pauseAfterRound: const Duration(seconds: 2),
+                                    startPadding: 0.0,
+                                    accelerationDuration: const Duration(
+                                      seconds: 1,
+                                    ),
+                                    accelerationCurve: Curves.linear,
+                                    decelerationDuration: const Duration(
+                                      milliseconds: 500,
+                                    ),
+                                    decelerationCurve: Curves.easeOut,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (distance != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2.0),
+                              child: Text(
+                                '${(distance! / 1000).toStringAsFixed(1)} km',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      onPressed: () {
-                        userNavBarProvider.toggleFavorite(clinic['id']);
-                      },
-                    );
-                  },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 45),
+                  ),
+                  onPressed: () => SlotsUi.showModalSheet(context, clinic),
+                  child: Text('book_appointment'.tr()),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: navProvider.favoriteClinicsStream,
+              builder: (context, snapshot) {
+                final isFav =
+                    snapshot.hasData &&
+                    snapshot.data!.any((c) => c['uid'] == clinic['id']);
+                return IconButton(
+                  icon: Icon(
+                    Icons.favorite,
+                    color: isFav ? Colors.red : Colors.grey.withAlpha(100),
+                  ),
+                  onPressed: () => navProvider.toggleFavorite(clinic['id']),
                 );
               },
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    clinic["specialty"] ?? "General".tr(),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        LucideIcons.mapPin,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          clinic["address"] ?? clinic["city"] ?? "",
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (distance != null) // Display distance if available
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        '${(distance! / 1000).toStringAsFixed(1)} km', // Convert meters to km
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.secondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            /*if (booked == true && context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const Userhome()),
-                  (route) => false,
-                );
-              }*/
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final booked = await SlotsUi.showModalSheet(context, clinic);
-                  if (booked == true && context.mounted) {
-                    Navigator.of(context).pop(true);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                icon: Text(
-                  "book_appointment".tr(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                label: const Icon(LucideIcons.chevronRight, size: 20),
-              ),
             ),
           ),
         ],
