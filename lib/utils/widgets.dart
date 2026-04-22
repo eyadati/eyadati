@@ -157,73 +157,87 @@ class ClinicCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 45),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 45),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            Future.delayed(Duration.zero, () {
+                              if (context.mounted) {
+                                SlotsUi.showModalSheet(context, clinic);
+                              }
+                            });
+                          },
+                          child: Text('book_appointment'.tr()),
+                        ),
                       ),
-                    ),
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      SlotsUi.showModalSheet(context, clinic);
-                    },
-                    child: Text('book_appointment'.tr()),
+                      if (showFavoriteButton) ...[
+                        const SizedBox(width: 8),
+                        Builder(
+                          builder: (context) {
+                            final clinicId = (clinic['id'] ?? clinic['uid']).toString();
+                            final isFav = navProvider.isFavorite(clinicId);
+
+                            return Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: isFav 
+                                    ? Colors.red.withAlpha(50) 
+                                    : Theme.of(context).colorScheme.outlineVariant,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: IconButton(
+                                icon: Icon(
+                                  isFav ? Icons.favorite : Icons.favorite_border,
+                                  color: isFav ? Colors.red : Colors.grey,
+                                ),
+                                onPressed: () async {
+                                  try {
+                                    HapticFeedback.mediumImpact();
+                                    await navProvider.toggleFavorite(clinicId);
+                                    if (!context.mounted) return;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          isFav
+                                              ? 'removed_from_favorites'.tr()
+                                              : 'added_to_favorites'.tr(),
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'error_generic'.tr(args: [e.toString()]),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
             ),
-            if (showFavoriteButton)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Builder(
-                  builder: (context) {
-                    final clinicId = (clinic['id'] ?? clinic['uid']).toString();
-                    final isFav = navProvider.isFavorite(clinicId);
-
-                    return IconButton(
-                      icon: Icon(
-                        Icons.favorite,
-                        color: isFav ? Colors.red : Colors.grey.withAlpha(100),
-                      ),
-                      onPressed: () async {
-                        try {
-                          HapticFeedback.mediumImpact();
-                          await navProvider.toggleFavorite(clinicId);
-                          if (!context.mounted) return;
-
-                          // After toggle, isFav reflects the OLD state because it's captured in this closure
-                          // or if we use isFav directly, it's what was current during build.
-                          // Actually, the provider will notify and the widget will rebuild,
-                          // but for the snackbar, we should use the state we just transitioned FROM.
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                isFav
-                                    ? 'removed_from_favorites'.tr()
-                                    : 'added_to_favorites'.tr(),
-                              ),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        } catch (e) {
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'error_generic'.tr(args: [e.toString()]),
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
           ],
         ),
       ),

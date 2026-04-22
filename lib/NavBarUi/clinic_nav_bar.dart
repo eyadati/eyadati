@@ -26,6 +26,7 @@ class CliniNavBarProvider extends ChangeNotifier {
   int get unreadCount => _unreadCount;
   StreamSubscription? _notifSubscription;
   StreamSubscription? _clinicSubscription;
+  StreamSubscription? _feesSubscription;
 
   Clinic? _clinic;
   bool _isLoadingClinic = true;
@@ -41,6 +42,16 @@ class CliniNavBarProvider extends ChangeNotifier {
     _clinicSubscription = AppStartupService().clinicStream.listen((clinic) {
       _clinic = clinic;
       if (_clinic != null) {
+        // Stop old fee listener if exists
+        _feesSubscription?.cancel();
+        
+        // Start reactive fee counter
+        _feesSubscription = PaymentService.listenAndSync(
+          clinicUid: clinicUid,
+          startDate: _clinic!.subscriptionStartDate,
+          endDate: _clinic!.subscriptionEndDate,
+        );
+        
         _syncAppointmentCountIfNeeded();
       }
       _isLoadingClinic = false;
@@ -89,38 +100,20 @@ class CliniNavBarProvider extends ChangeNotifier {
   void dispose() {
     _notifSubscription?.cancel();
     _clinicSubscription?.cancel();
+    _feesSubscription?.cancel();
     AppointmentSimulator.stopSimulation();
     super.dispose();
   }
 }
 
-// ✅ Using StatefulWidget to persist provider instance
-class FloatingBottomNavBar extends StatefulWidget {
+// ✅ Simplified: Expects Provider from above
+class FloatingBottomNavBar extends StatelessWidget {
   const FloatingBottomNavBar({super.key});
-  @override
-  State<FloatingBottomNavBar> createState() => _FloatingBottomNavBarState();
-}
-
-class _FloatingBottomNavBarState extends State<FloatingBottomNavBar> {
-  CliniNavBarProvider? _provider;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_provider == null) {
-      final clinicUid = FirebaseAuth.instance.currentUser!.uid;
-      _provider = CliniNavBarProvider(clinicUid);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final clinicUid = FirebaseAuth.instance.currentUser!.uid;
-
-    return ChangeNotifierProvider.value(
-      value: _provider!,
-      child: _BottomNavContent(clinicUid: clinicUid),
-    );
+    return _BottomNavContent(clinicUid: clinicUid);
   }
 }
 
@@ -151,7 +144,7 @@ class _BottomNavContent extends StatelessWidget {
       return PaymentOverlay(
         title: status['overlayTitle'],
         message: status['overlayMessage'],
-        icon: status['icon'],
+        icon: status['icon'] ?? LucideIcons.alertCircle,
         initialAmount:
             status['needsPayment'] ? (status['totalFees'] as double) : null,
       );
@@ -272,7 +265,7 @@ class NotificationCenter extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     TextButton(
-                      onPressed: () => _markAllAsRead(),
+                      onPressed: () => _markAllAsRead(context),
                       child: Text('mark_all_read'.tr()),
                     ),
                   ],
@@ -337,7 +330,14 @@ class NotificationCenter extends StatelessWidget {
                                   ),
                                 )
                               : null,
-                          onTap: () => _markAsRead(docs[index].id),
+                          onTap: () {
+                             FirebaseFirestore.instance
+                                .collection('clinics')
+                                .doc(clinicUid)
+                                .collection('appointments')
+                                .doc(docs[index].id)
+                                .update({'isRead': true});
+                          },
                         );
                       },
                     );
@@ -351,28 +351,18 @@ class NotificationCenter extends StatelessWidget {
     );
   }
 
-  Future<void> _markAsRead(String docId) async {
-    await FirebaseFirestore.instance
-        .collection('clinics')
-        .doc(clinicUid)
-        .collection('appointments')
-        .doc(docId)
-        .update({'isRead': true});
-  }
+  void _markAllAsRead(BuildContext context) async {
+     final provider = context.read<CliniNavBarProvider>();
+     final unread = provider.notifications.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return data['isRead'] == false || !data.containsKey('isRead');
+     });
 
-  Future<void> _markAllAsRead() async {
-    final batch = FirebaseFirestore.instance.batch();
-    final unread = await FirebaseFirestore.instance
-        .collection('clinics')
-        .doc(clinicUid)
-        .collection('appointments')
-        .where('isRead', isEqualTo: false)
-        .get();
-
-    for (var doc in unread.docs) {
-      batch.update(doc.reference, {'isRead': true});
-    }
-    await batch.commit();
+     final batch = FirebaseFirestore.instance.batch();
+     for (var doc in unread) {
+        batch.update(doc.reference, {'isRead': true});
+     }
+     await batch.commit();
   }
 }
 

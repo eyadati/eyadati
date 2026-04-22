@@ -4,6 +4,7 @@ import 'package:eyadati/user/UserHome.dart';
 import 'package:eyadati/user/user_login_page.dart';
 import 'package:eyadati/utils/constants.dart'; // Import constants
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:eyadati/webUI/web_ui_helper.dart';
 import 'package:flutter/material.dart'; // Added this back
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
@@ -156,14 +157,29 @@ class _UserOnboardingContent extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text("user_registration".tr())),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: provider.formKey,
-            child: Column(
+        child: FormResponsiveWrapper(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: provider.formKey,
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
+                Center(
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: 100,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'create_new_account'.tr(),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
 
                 // All fields in one column
                 _buildTextFormField(
@@ -290,6 +306,7 @@ class _UserOnboardingContent extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

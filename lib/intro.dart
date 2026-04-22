@@ -57,7 +57,7 @@ class IntroScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: Icon(
-              LucideIcons.languages,
+              LucideIcons.globe,
               color: Theme.of(context).colorScheme.primary,
             ),
             onPressed: () => _showLanguageDialog(context),
@@ -75,9 +75,7 @@ class IntroScreen extends StatelessWidget {
               Image.asset('assets/logo.png', height: 180),
               const SizedBox(height: 32),
               Text(
-                'intro_description'.tr() == 'intro_description'
-                    ? "Your healthcare journey starts here."
-                    : 'intro_description'.tr(),
+                'intro_description'.tr(),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 18,
@@ -88,9 +86,7 @@ class IntroScreen extends StatelessWidget {
               // Patient Path
               _buildPathButton(
                 context,
-                title: 'patient_side'.tr() == 'patient_side'
-                    ? "I am a Patient"
-                    : 'patient_side'.tr(),
+                title: 'patient_side'.tr(),
                 icon: LucideIcons.user,
                 onPressed: () {
                   Navigator.push(
@@ -106,9 +102,7 @@ class IntroScreen extends StatelessWidget {
               // Clinic Path
               _buildPathButton(
                 context,
-                title: 'clinic_side'.tr() == 'patient_side'
-                    ? "I am a Clinic"
-                    : 'clinic_side'.tr(),
+                title: 'clinic_side'.tr(),
                 icon: LucideIcons.stethoscope,
                 onPressed: () {
                   Navigator.push(

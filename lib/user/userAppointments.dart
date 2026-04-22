@@ -3,6 +3,7 @@ import 'package:eyadati/user/userSettingsPage.dart';
 import 'package:eyadati/user/user_appointments.dart';
 import 'package:eyadati/Appointments/clinicsList.dart';
 import 'package:eyadati/utils/connectivity_service.dart';
+import 'package:eyadati/webUI/web_ui_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
@@ -29,28 +30,25 @@ class _UserAppointmentsState extends State<UserAppointments> {
         appBar: AppBar(
           title: Image.asset('assets/logo.png', height: 120),
           centerTitle: true,
-          leading: GestureDetector(
-            child: Icon(LucideIcons.settings),
-            onTap: () => showMaterialModalBottomSheet(
+          leading: IconButton(
+            icon: const Icon(LucideIcons.settings),
+            onPressed: () => showMaterialModalBottomSheet(
               context: context,
-              builder: (context) {
-                return UserSettings();
-              },
+              builder: (context) => const UserSettings(),
             ),
           ),
-          actionsPadding: EdgeInsets.all(15),
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           actions: [
-            GestureDetector(
-              onTap: () async {
+            IconButton(
+              onPressed: () async {
                 final userNavBarProvider = context.read<UserNavBarProvider>();
                 await ClinicFilterBottomSheet.show(context, userNavBarProvider);
               },
-              child: Icon(LucideIcons.plus, size: 30),
+              icon: const Icon(LucideIcons.plus, size: 30),
             ),
           ],
         ),
-        body: SafeArea(
+        body: const SafeArea(
           child: Column(
             children: [
               SizedBox(height: 50),

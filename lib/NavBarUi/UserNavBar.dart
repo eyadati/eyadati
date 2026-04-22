@@ -1,44 +1,27 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eyadati/Appointments/slotsUi.dart';
 import 'package:eyadati/user/userAppointments.dart';
-
 import 'package:eyadati/utils/connectivity_service.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eyadati/user/userQrScannerPage.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart'; // flutter pub add flutter_floating_bottom_bar
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:deferred_indexed_stack/deferred_indexed_stack.dart'; // flutter pub add deferred_indexed_stack
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:marquee/marquee.dart';
 import 'package:eyadati/utils/skeletons.dart';
 import 'package:eyadati/NavBarUi/user_nav_bar_provider.dart';
+import 'package:eyadati/utils/widgets.dart';
 
-// ✅ Using StatefulWidget to persist provider instance
-class UserFloatingBottomNavBar extends StatefulWidget {
+// ✅ Simplified: Expects Provider from above
+class UserFloatingBottomNavBar extends StatelessWidget {
   const UserFloatingBottomNavBar({super.key});
-  @override
-  State<UserFloatingBottomNavBar> createState() =>
-      _UserFloatingBottomNavBarState();
-}
-
-class _UserFloatingBottomNavBarState extends State<UserFloatingBottomNavBar> {
-  final _provider = UserNavBarProvider(); // Created once, lives with widget
 
   @override
   Widget build(BuildContext context) {
-    // Removed the unused clinicUid variable and its initialization
-    return ChangeNotifierProvider.value(
-      value: _provider,
-      child: _BottomNavContent(),
-    );
+    return const _BottomNavContent();
   }
 }
 
 class _BottomNavContent extends StatelessWidget {
-  // Removed the unused clinicUid parameter
   const _BottomNavContent();
 
   @override
@@ -51,7 +34,6 @@ class _BottomNavContent extends StatelessWidget {
       borderRadius: BorderRadius.circular(25),
       duration: const Duration(milliseconds: 500),
       curve: Curves.decelerate,
-      showIcon: false, // Hide center icon for cleaner nav bar
       width: MediaQuery.of(context).size.width * 0.9, // Floating effect
       barColor: Theme.of(context).colorScheme.onSecondary,
       barAlignment: Alignment.bottomCenter,
@@ -65,8 +47,8 @@ class _BottomNavContent extends StatelessWidget {
               child: DeferredIndexedStack(
                 index: selectedIndex,
                 children: [
-                  DeferredTab(id: "1", child: UserAppointments()),
-                  DeferredTab(id: "2", child: FavoritScreen()),
+                  DeferredTab(id: "1", child: const UserAppointments()),
+                  DeferredTab(id: "2", child: const FavoritScreen()),
                 ],
               ),
             ),
@@ -153,7 +135,7 @@ class FavoritScreen extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(LucideIcons.qrCode),
+            icon: const Icon(LucideIcons.qrCode),
             onPressed: () {
               Navigator.push(
                 context,
@@ -217,12 +199,10 @@ class FavoritScreen extends StatelessWidget {
                   ); // Adjust height to account for floating nav bar
                 }
                 final clinic = favClinics[index];
-                final isFav = provider.isFavorite(clinic['uid']);
 
-                return _ClinicCard(
+                return ClinicCard(
                   clinic: clinic,
                   showFavoriteButton: true,
-                  isFav: isFav,
                 );
               },
             );
@@ -230,234 +210,5 @@ class FavoritScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ClinicCard extends StatelessWidget {
-  final Map<String, dynamic> clinic;
-  final bool showFavoriteButton;
-  final bool isFav;
-
-  const _ClinicCard({
-    required this.clinic,
-    required this.showFavoriteButton,
-    required this.isFav,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<UserNavBarProvider>();
-    final picUrl = clinic['picUrl'] as String?;
-
-    ImageProvider? backgroundImage;
-    if (picUrl != null) {
-      if (picUrl.startsWith('http')) {
-        backgroundImage = CachedNetworkImageProvider(picUrl);
-      } else {
-        backgroundImage = AssetImage(picUrl);
-      }
-    }
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      child: Stack(
-        children: [
-          Column(
-            children: [
-              ListTile(
-                contentPadding: const EdgeInsets.all(12),
-                leading: CircleAvatar(
-                  radius: 45,
-                  backgroundImage: backgroundImage,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withAlpha((255 * 0.1).round()),
-                  child: picUrl == null
-                      ? Icon(LucideIcons.home) // Placeholder icon
-                      : null,
-                ),
-                title: SizedBox(
-                  height: 25,
-                  child: Marquee(
-                    text: clinic["clinicName"] ?? "unnamed_clinic".tr(),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    scrollAxis: Axis.horizontal,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    blankSpace: 20.0,
-                    velocity: 30.0,
-                    pauseAfterRound: const Duration(seconds: 2),
-                  ),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        (clinic["specialty"] as String?)?.tr() ??
-                            "general".tr(),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      if (clinic['openingAt'] != null &&
-                          clinic['closingAt'] != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2.0),
-                          child: Text(
-                            '${_formatTime(clinic['openingAt'] as int)} - ${_formatTime(clinic['closingAt'] as int)}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                      if (clinic['workingDays'] != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2.0),
-                          child: Text(
-                            _formatWorkingDays(clinic['workingDays']),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      Row(
-                        children: [
-                          Icon(
-                            LucideIcons.mapPin,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: SizedBox(
-                              height: 20,
-                              child: Marquee(
-                                text: clinic["address"] ?? clinic["city"] ?? "",
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                                scrollAxis: Axis.horizontal,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                blankSpace: 20.0,
-                                velocity: 25.0,
-                                pauseAfterRound: const Duration(seconds: 2),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.only(
-                        left: 12,
-                        top: 12,
-                        bottom: 12,
-                        right: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      child: ListTile(
-                        onTap: () => SlotsUi.showModalSheet(context, clinic),
-                        titleAlignment: ListTileTitleAlignment.center,
-                        title: Center(
-                          child: Text(
-                            "book_appointment".tr(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
-                          ),
-                        ),
-                        trailing: Icon(
-                          LucideIcons.chevronRight,
-                          color: Theme.of(context).colorScheme.onPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: IconButton(
-                      icon: Icon(
-                        size: 25,
-                        LucideIcons.heart,
-                        color: isFav
-                            ? Theme.of(context).colorScheme.error
-                            : Colors.grey.withAlpha((255 * 0.4).round()),
-                      ),
-                      onPressed: () async {
-                        try {
-                          await provider.toggleFavorite(clinic['uid']);
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                isFav
-                                    ? 'removed_from_favorites'.tr()
-                                    : 'added_to_favorites'.tr(),
-                              ),
-                            ),
-                          );
-                        } catch (e) {
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('error_generic'.tr())),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTime(int minutes) {
-    final hours = (minutes ~/ 60).toString().padLeft(2, '0');
-    final mins = (minutes % 60).toString().padLeft(2, '0');
-    return '$hours:$mins';
-  }
-
-  String _formatWorkingDays(dynamic workingDaysRaw) {
-    if (workingDaysRaw == null) return '';
-    final workingDays = List<int>.from(workingDaysRaw);
-    final dayNames = [
-      'monday'.tr(),
-      'tuesday'.tr(),
-      'wednesday'.tr(),
-      'thursday'.tr(),
-      'friday'.tr(),
-      'saturday'.tr(),
-      'sunday'.tr(),
-    ];
-    return workingDays
-        .where((d) => d >= 1 && d <= 7)
-        .map((d) => dayNames[d - 1])
-        .join(', ');
   }
 }

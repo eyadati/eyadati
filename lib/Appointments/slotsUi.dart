@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:eyadati/FCM/notifications_service.dart';
 import 'package:eyadati/utils/skeletons.dart';
 
 // ================ PROVIDER ================
@@ -44,6 +46,10 @@ class SlotsUiProvider extends ChangeNotifier {
     FirebaseAuth? auth,
   }) : auth = auth ?? FirebaseAuth.instance {
     _fullClinicData = Map<String, dynamic>.from(clinic);
+    // Ensure UID is set even if not fetched from server
+    if (!_fullClinicData.containsKey('uid') && _fullClinicData.containsKey('id')) {
+      _fullClinicData['uid'] = _fullClinicData['id'];
+    }
     _initializeData();
     _loadUserData();
   }
@@ -82,10 +88,13 @@ class SlotsUiProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Ensure UID is present
+      final String? clinicUid = _fullClinicData['uid'] ?? _fullClinicData['id'];
+      if (clinicUid == null) throw Exception('clinic_not_found'.tr());
+
       // If clinic data is incomplete (e.g. from favorites snapshot), fetch the full doc
       if (!_fullClinicData.containsKey('openingAt') ||
           !_fullClinicData.containsKey('duration')) {
-        final clinicUid = _fullClinicData['uid'] ?? _fullClinicData['id'];
         final doc = await firestore
             .collection('clinics')
             .doc(clinicUid)
@@ -97,6 +106,9 @@ class SlotsUiProvider extends ChangeNotifier {
         } else {
           throw Exception('clinic_not_found'.tr());
         }
+      } else {
+        // Just ensure UID is set if we skipped fetch
+        _fullClinicData['uid'] = clinicUid;
       }
 
       await _loadSlots();
@@ -227,8 +239,15 @@ class SlotsUiProvider extends ChangeNotifier {
     // Generate all possible slots
     List<SlotInfo> generatedSlots = [];
     final staffCountValue = parseInt(data['staff'], 1);
+    final now = DateTime.now();
 
     while (currentSlot.isBefore(closingTime)) {
+      // Skip if the slot is in the past (for today)
+      if (currentSlot.isBefore(now)) {
+        currentSlot = currentSlot.add(Duration(minutes: slotDuration));
+        continue;
+      }
+
       final bookings = bookingCounts[currentSlot] ?? 0;
       final isAvailable = bookings < staffCountValue;
 
@@ -304,18 +323,22 @@ class SlotsUiProvider extends ChangeNotifier {
   }
 
   Future<void> _addAppointmentToCalendar() async {
-    if (selectedSlot == null) return;
+    if (kIsWeb || selectedSlot == null) return;
 
-    final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
+    try {
+      final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
 
-    final Event event = Event(
-      title: 'Appointment at ${clinicData['clinicName']}',
-      startDate: selectedSlot!,
-      endDate: selectedSlot!.add(Duration(minutes: slotInfo.duration)),
-      location: clinicData['address'],
-    );
+      final Event event = Event(
+        title: 'Appointment at ${clinicData['clinicName']}',
+        startDate: selectedSlot!,
+        endDate: selectedSlot!.add(Duration(minutes: slotInfo.duration)),
+        location: clinicData['address'],
+      );
 
-    await Add2Calendar.addEvent2Cal(event);
+      await Add2Calendar.addEvent2Cal(event);
+    } catch (e) {
+      debugPrint("Error adding to calendar: $e");
+    }
   }
 
   Future<bool> bookSelectedSlot({
@@ -323,57 +346,74 @@ class SlotsUiProvider extends ChangeNotifier {
     required String userPhone,
     bool addToCalendar = true,
   }) async {
-    if (selectedSlot == null) return false;
+    debugPrint("Booking started: $userName, $userPhone");
+    if (selectedSlot == null) {
+      debugPrint("Booking failed: No slot selected");
+      return false;
+    }
 
     try {
-      if (addToCalendar) {
+      if (!kIsWeb && addToCalendar) {
         try {
           await _addAppointmentToCalendar();
         } catch (e) {
           debugPrint("Error adding to calendar: $e");
-          // Do not rethrow, just log and continue with booking
         }
       }
 
+      final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
+      final slotStart = Timestamp.fromDate(selectedSlot!);
+      final slotEnd = Timestamp.fromDate(
+        selectedSlot!.add(Duration(minutes: slotInfo.duration)),
+      );
+
+      final String? clinicUid = clinicData['uid'];
+      if (clinicUid == null) {
+        throw Exception("Clinic UID is missing");
+      }
+
+      debugPrint("Checking occupancy for clinic: $clinicUid");
+      // PERFORM OCCUPANCY CHECK OUTSIDE TRANSACTION FOR WEB COMPATIBILITY
+      final querySnapshot = await firestore
+          .collection('clinics')
+          .doc(clinicUid)
+          .collection('appointments')
+          .where('date', isGreaterThanOrEqualTo: slotStart)
+          .where('date', isLessThan: slotEnd)
+          .get(const GetOptions(source: Source.server));
+
+      final staffCount = clinicData['staff'] as int? ?? 1;
+      debugPrint("Current bookings: ${querySnapshot.docs.length}, Staff: $staffCount");
+      if (querySnapshot.docs.length >= staffCount) {
+        throw Exception('slot_is_full'.tr());
+      }
+
+      final userUid = auth.currentUser?.uid;
+      if (userUid == null) {
+        throw Exception("User is not logged in");
+      }
+
+      debugPrint("Running transaction for user: $userUid");
       await firestore.runTransaction((transaction) async {
-        final slotInfo = allSlots.firstWhere((s) => s.time == selectedSlot);
-
-        final slotStart = Timestamp.fromDate(selectedSlot!);
-        final slotEnd = Timestamp.fromDate(
-          selectedSlot!.add(Duration(minutes: slotInfo.duration)),
-        );
-
-        final querySnapshot = await firestore
-            .collection('clinics')
-            .doc(clinicData['uid'])
-            .collection('appointments')
-            .where('date', isGreaterThanOrEqualTo: slotStart)
-            .where('date', isLessThan: slotEnd)
-            .get(const GetOptions(source: Source.server));
-
-        final staffCount = clinicData['staff'] as int? ?? 1;
-        if (querySnapshot.docs.length >= staffCount) {
-          throw Exception('slot_is_full'.tr());
-        }
-
         final appointmentId =
-            "${clinicData['uid']}_${auth.currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}";
+            "${clinicUid}_${userUid}_${DateTime.now().millisecondsSinceEpoch}";
 
         // Save the provided user name and phone directly into the appointment
         final appointmentData = {
-          "clinicUid": clinicData['uid'],
-          "userUid": auth.currentUser!.uid,
+          "clinicUid": clinicUid,
+          "userUid": userUid,
           "date": slotStart,
           "userName": userName,
           "phone": userPhone,
           "fcm": _userFcm,
           "createdAt": FieldValue.serverTimestamp(),
+          "isRead": false,
         };
 
         transaction.set(
           firestore
               .collection('clinics')
-              .doc(clinicData['uid'])
+              .doc(clinicUid)
               .collection('appointments')
               .doc(appointmentId),
           appointmentData,
@@ -381,17 +421,46 @@ class SlotsUiProvider extends ChangeNotifier {
         transaction.set(
           firestore
               .collection('users')
-              .doc(auth.currentUser!.uid)
+              .doc(userUid)
               .collection('appointments')
               .doc(appointmentId),
           appointmentData,
         );
+
+        // INCREMENT APPOINTMENT COUNTER FOR FEES
+        transaction.update(
+          firestore.collection('clinics').doc(clinicUid),
+          {'appointments_this_month': FieldValue.increment(1)},
+        );
       });
+
+      debugPrint("Booking transaction successful");
+
+      // Send notification to clinic
+      if (clinicData['fcm'] != null) {
+        try {
+          await NotificationService().sendDirectNotification(
+            fcmToken: clinicData['fcm'],
+            title: 'new_appointment_booked'.tr(),
+            body: 'patient_booked_appointment_at'.tr(args: [
+              userName,
+              DateFormat('HH:mm').format(selectedSlot!),
+            ]),
+            data: {
+              'type': 'new_appointment',
+              'appointmentId': "${clinicUid}_${userUid}_${DateTime.now().millisecondsSinceEpoch}", 
+            },
+          );
+        } catch (e) {
+          debugPrint("Error sending booking notification: $e");
+        }
+      }
 
       await _loadSlots();
       notifyListeners();
       return true; // Booking successful
     } catch (e) {
+      debugPrint("BOOKING ERROR: $e");
       errorMessage = 'booking_failed'.tr(args: [e.toString()]);
       notifyListeners();
       return false; // Booking failed
@@ -406,9 +475,29 @@ class SlotsUi {
     BuildContext context,
     Map<String, dynamic> clinic,
   ) {
+    if (kIsWeb && MediaQuery.of(context).size.width > 900) {
+      return showDialog<bool>(
+        context: context,
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 800),
+            child: ChangeNotifierProvider(
+              create: (_) => SlotsUiProvider(
+                clinic: clinic,
+                firestore: FirebaseFirestore.instance,
+              ),
+              child: const ClipRRect(
+                borderRadius: BorderRadius.all(Radius.circular(20)),
+                child: _SlotsDialog(),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return showMaterialModalBottomSheet(
       expand: true,
-
       context: context,
       builder: (context) => ChangeNotifierProvider(
         create: (_) => SlotsUiProvider(
@@ -417,9 +506,11 @@ class SlotsUi {
         ),
         child: SizedBox(
           height: MediaQuery.of(context).size.height,
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: const _SlotsDialog(),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: const _SlotsDialog(),
+            ),
           ),
         ),
       ),
@@ -522,17 +613,39 @@ class _SlotsDialog extends StatelessWidget {
                     keyboardType: TextInputType.phone,
                   ),
                   const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: Text('add_to_calendar'.tr()),
-                    value: addToCalendar,
-                    onChanged: (newValue) {
-                      setState(() {
-                        addToCalendar = newValue!;
-                      });
-                    },
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
+                  if (!kIsWeb)
+                    CheckboxListTile(
+                      title: Text('add_to_calendar'.tr()),
+                      value: addToCalendar,
+                      onChanged: (newValue) {
+                        setState(() {
+                          addToCalendar = newValue!;
+                        });
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withAlpha(30),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withAlpha(50)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(LucideIcons.camera, size: 18, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'take_photo_note'.tr(),
+                              style: const TextStyle(fontSize: 11, color: Colors.orangeAccent),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -585,7 +698,23 @@ class _SlotsDialog extends StatelessWidget {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('booking_success'.tr())));
-          Navigator.of(context).pop(true);
+          
+          Navigator.of(context).pop(); // Close modal
+          
+          // Suggest installation dialog
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('install_app_title'.tr()),
+              content: Text('install_app_message'.tr()),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('later'.tr()),
+                ),
+              ],
+            ),
+          );
         } else {
           ScaffoldMessenger.of(
             context,
@@ -595,32 +724,41 @@ class _SlotsDialog extends StatelessWidget {
     }
 
     return SafeArea(
-      child: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          children: [
-            _ClinicInfoCard(clinic: clinic),
-            const SizedBox(height: 10),
-            _DatePickerRow(),
-            Flexible(child: _SlotsGrid()),
-            Container(
-              margin: const EdgeInsets.all(12),
-              width: MediaQuery.of(context).size.width * 0.7,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(12),
+      child: SingleChildScrollView(
+        child: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ClinicInfoCard(clinic: clinic),
+              const SizedBox(height: 10),
+              _DatePickerRow(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: _SlotsGrid(),
               ),
-              child: TextButton(
-                onPressed: handleBookAppointment,
-                child: Text(
-                  "book_appointment".tr(),
-                  style: const TextStyle(
-                    color: Colors.white,
+              const SizedBox(height: 20),
+              Container(
+                margin: const EdgeInsets.all(12),
+                width: MediaQuery.of(context).size.width * 0.7,
+                constraints: const BoxConstraints(maxWidth: 400),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextButton(
+                  onPressed: handleBookAppointment,
+                  child: Text(
+                    "book_appointment".tr(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
@@ -729,6 +867,8 @@ class _ClinicInfoCard extends StatelessWidget {
 }
 
 class _DatePickerRow extends StatelessWidget {
+  const _DatePickerRow({super.key});
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SlotsUiProvider>();
@@ -791,6 +931,8 @@ class _DatePickerRow extends StatelessWidget {
 }
 
 class _SlotsGrid extends StatelessWidget {
+  const _SlotsGrid({super.key});
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SlotsUiProvider>();

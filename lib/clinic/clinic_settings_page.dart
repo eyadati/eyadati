@@ -10,8 +10,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
-import 'package:eyadati/utils/markdown_viewer_screen.dart'; // Import the MarkdownViewerScreen
-import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
+import 'package:eyadati/utils/markdown_viewer_screen.dart'; 
+import 'package:eyadati/utils/connectivity_service.dart'; 
 import 'package:eyadati/intro.dart';
 import 'package:eyadati/Themes/ThemeProvider.dart' as theme_provider;
 
@@ -48,13 +48,25 @@ class ClinicsettingProvider extends ChangeNotifier {
   }
 }
 
-class Clinicsettings extends StatelessWidget {
+class Clinicsettings extends StatefulWidget {
   const Clinicsettings({super.key});
+
+  @override
+  State<Clinicsettings> createState() => _ClinicsettingsState();
+}
+
+class _ClinicsettingsState extends State<Clinicsettings> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final String? clinicUid = FirebaseAuth.instance.currentUser?.uid;
-    // ClinicFirestore _clinicFirestore = ClinicFirestore(); // This instance is now provided via ClinicsettingProvider
 
     return MultiProvider(
       providers: [
@@ -70,395 +82,313 @@ class Clinicsettings extends StatelessWidget {
           centerTitle: true,
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         ),
-        body: Builder(
-          builder: (context) {
-            final clinicSettingProvider = context
-                .watch<ClinicsettingProvider>();
+        body: Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          interactive: true,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: Builder(
+              builder: (context) {
+                final clinicSettingProvider = context.watch<ClinicsettingProvider>();
 
-            return Column(
-              children: [
-                SizedBox(height: 20),
-                FutureBuilder<Map<String, dynamic>?>(
-                  future: clinicUid != null
-                      ? clinicSettingProvider._clinicFirestore.getClinicData(
-                          clinicUid,
-                        )
-                      : Future.value(null),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator());
-                    } else if (snapshot.hasError) {
-                      return CircleAvatar(
-                        radius: 50,
-                        child: Icon(LucideIcons.alertCircle), // Error icon
-                      );
-                    } else if (snapshot.hasData &&
-                        snapshot.data!['picUrl'] != null) {
-                      return CircleAvatar(
-                        radius: 50,
-                        backgroundImage: CachedNetworkImageProvider(
-                          snapshot.data!['picUrl'],
+                return Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    FutureBuilder<Map<String, dynamic>?>(
+                      future: clinicUid != null
+                          ? clinicSettingProvider._clinicFirestore.getClinicData(clinicUid)
+                          : Future.value(null),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        } else if (snapshot.hasError) {
+                          return const CircleAvatar(
+                            radius: 50,
+                            child: Icon(LucideIcons.alertCircle),
+                          );
+                        } else if (snapshot.hasData && snapshot.data!['picUrl'] != null) {
+                          return CircleAvatar(
+                            radius: 50,
+                            backgroundImage: CachedNetworkImageProvider(snapshot.data!['picUrl']),
+                          );
+                        } else {
+                          return const CircleAvatar(
+                            radius: 50,
+                            child: Icon(LucideIcons.user),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SettingsList(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      lightTheme: SettingsThemeData(
+                        settingsListBackground: Theme.of(context).scaffoldBackgroundColor,
+                      ),
+                      darkTheme: SettingsThemeData(
+                        settingsListBackground: Theme.of(context).scaffoldBackgroundColor,
+                      ),
+                      sections: [
+                        SettingsSection(
+                          title: Text("appearance".tr()),
+                          tiles: [
+                            SettingsTile.switchTile(
+                              onToggle: (value) {
+                                Provider.of<theme_provider.ThemeProvider>(context, listen: false).toggleTheme();
+                              },
+                              initialValue: Provider.of<theme_provider.ThemeProvider>(context).isDarkMode,
+                              leading: const Icon(LucideIcons.moon),
+                              title: Text("dark_mode".tr()),
+                            ),
+                          ],
                         ),
-                      );
-                    } else {
-                      return CircleAvatar(
-                        radius: 50,
-                        child: Icon(LucideIcons.user), // Default icon
-                      );
-                    }
-                  },
-                ),
-                SizedBox(height: 20),
-                Expanded(
-                  child: SettingsList(
-                    lightTheme: SettingsThemeData(
-                      settingsListBackground: Theme.of(context).scaffoldBackgroundColor,
-                    ),
-                    darkTheme: SettingsThemeData(
-                      settingsListBackground: Theme.of(context).scaffoldBackgroundColor,
-                    ),
-                    sections: [
-                      SettingsSection(
-                        title: Text("appearance".tr()),
-                        tiles: [
-                          SettingsTile.switchTile(
-                            onToggle: (value) {
-                              Provider.of<theme_provider.ThemeProvider>(context, listen: false).toggleTheme();
-                            },
-                            initialValue: Provider.of<theme_provider.ThemeProvider>(context).isDarkMode,
-                            leading: const Icon(LucideIcons.moon),
-                            title: Text("dark_mode".tr()),
-                          ),
-                        ],
-                      ),
-                      SettingsSection(
-                        tiles: [
-                          SettingsTile.navigation(
-                            title: Text("edit_profile".tr()),
-                            leading: Icon(LucideIcons.user),
-                            onPressed: (_) => showMaterialModalBottomSheet(
-                              expand: true,
-                              context: context,
-                              builder: (_) {
-                                return ClinicEditProfilePage();
-                              },
-                            ),
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("language".tr()),
-                            leading: Icon(LucideIcons.globe),
-                            onPressed: (_) {
-                              showDialog(
+                        SettingsSection(
+                          tiles: [
+                            SettingsTile.navigation(
+                              title: Text("edit_profile".tr()),
+                              leading: const Icon(LucideIcons.user),
+                              onPressed: (_) => showMaterialModalBottomSheet(
+                                expand: true,
                                 context: context,
-                                builder: (BuildContext context) {
-                                  return AlertDialog(
-                                    title: Text("language".tr()),
-                                    content: StatefulBuilder(
-                                      builder: (context, setState) {
-                                        Locale selectedLocale = context.locale;
-                                        return Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            // ignore: deprecated_member_use
-                                            RadioListTile<Locale>(
-                                              title: const Text('English'),
-                                              value: const Locale('en'),
-                                              // ignore: deprecated_member_use
-                                              groupValue: selectedLocale,
-                                              // ignore: deprecated_member_use
-                                              onChanged: (Locale? value) async {
-                                                if (value != null) {
-                                                  setState(() {
-                                                    selectedLocale = value;
-                                                  });
-                                                  await context.setLocale(
-                                                    value,
-                                                  );
-                                                  if (!context.mounted) return;
-                                                  Navigator.pop(context);
-                                                }
-                                              },
-                                            ),
-                                            // ignore: deprecated_member_use
-                                            RadioListTile<Locale>(
-                                              title: const Text('Français'),
-                                              value: const Locale('fr'),
-                                              // ignore: deprecated_member_use
-                                              groupValue: selectedLocale,
-                                              // ignore: deprecated_member_use
-                                              onChanged: (Locale? value) async {
-                                                if (value != null) {
-                                                  setState(() {
-                                                    selectedLocale = value;
-                                                  });
-                                                  await context.setLocale(
-                                                    value,
-                                                  );
-                                                  if (!context.mounted) return;
-                                                  Navigator.pop(context);
-                                                }
-                                              },
-                                            ),
-                                            // ignore: deprecated_member_use
-                                            RadioListTile<Locale>(
-                                              title: const Text('العربية'),
-                                              value: const Locale('ar'),
-                                              // ignore: deprecated_member_use
-                                              groupValue: selectedLocale,
-                                              // ignore: deprecated_member_use
-                                              onChanged: (Locale? value) async {
-                                                if (value != null) {
-                                                  setState(() {
-                                                    selectedLocale = value;
-                                                  });
-                                                  await context.setLocale(
-                                                    value,
-                                                  );
-                                                  if (!context.mounted) return;
-                                                  Navigator.pop(context);
-                                                }
-                                              },
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                        },
-                                        child: Text('close'.tr()),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("payment".tr()),
-                            leading: Icon(LucideIcons.creditCard),
-                            onPressed: (_) => showMaterialModalBottomSheet(
-                              expand: true,
-                              context: context,
-                              builder: (_) {
-                                return SubscribeScreen();
-                              },
+                                builder: (_) => ClinicEditProfilePage(),
+                              ),
                             ),
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("reset_password".tr()),
-                            leading: const Icon(LucideIcons.lock),
-                            onPressed: (context) async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user != null && user.email != null) {
-                                try {
-                                  await FirebaseAuth.instance
-                                      .sendPasswordResetEmail(
-                                        email: user.email!,
-                                      );
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'password_reset_email_sent'.tr(),
-                                      ),
-                                    ),
-                                  );
-                                } catch (e) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('error_generic'.tr()),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                          SettingsTile.switchTile(
-                            onToggle: (value) {
-                              clinicSettingProvider.togglePauseStatus(value);
-                            },
-                            initialValue: clinicSettingProvider.isPaused,
-                            title: Text("pause_profile".tr()),
-                            leading: Icon(LucideIcons.pauseCircle),
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("qr_code".tr()),
-                            leading: Icon(LucideIcons.qrCode),
-                            onPressed: (_) {
-                              final clinicUid =
-                                  FirebaseAuth.instance.currentUser?.uid;
-                              if (clinicUid != null) {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: Text("qr_code".tr()),
-                                    content: SizedBox(
-                                      width: 250,
-                                      height: 250,
-                                      child: Center(
-                                        child: QrImageView(
-                                          data: clinicUid,
-                                          version: QrVersions.auto,
-                                          size: 200.0,
-                                        ),
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: Text('close'.tr()),
-                                      ),
-                                    ],
-                                  ),
+                            SettingsTile.navigation(
+                              title: Text("language".tr()),
+                              leading: const Icon(LucideIcons.globe),
+                              onPressed: (_) => _showLanguageDialog(context),
+                            ),
+                            SettingsTile.navigation(
+                              title: Text("payment".tr()),
+                              leading: const Icon(LucideIcons.creditCard),
+                              onPressed: (_) => showMaterialModalBottomSheet(
+                                expand: true,
+                                context: context,
+                                builder: (_) => SubscribeScreen(),
+                              ),
+                            ),
+                            SettingsTile.navigation(
+                              title: Text("reset_password".tr()),
+                              leading: const Icon(LucideIcons.lock),
+                              onPressed: (context) => _handlePasswordReset(context),
+                            ),
+                            SettingsTile.switchTile(
+                              onToggle: (value) {
+                                clinicSettingProvider.togglePauseStatus(value);
+                              },
+                              initialValue: clinicSettingProvider.isPaused,
+                              title: Text("pause_profile".tr()),
+                              leading: const Icon(LucideIcons.pauseCircle),
+                            ),
+                            SettingsTile.navigation(
+                              title: Text("qr_code".tr()),
+                              leading: const Icon(LucideIcons.qrCode),
+                              onPressed: (_) => _showQrDialog(context, clinicUid),
+                            ),
+                            SettingsTile.navigation(
+                              title: Text("log_out".tr()),
+                              leading: const Icon(LucideIcons.logOut),
+                              onPressed: (_) {
+                                FirebaseAuth.instance.signOut();
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(builder: (ctx) => const IntroScreen()),
+                                  (route) => false,
                                 );
-                              }
-                            },
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("log_out".tr()),
-                            leading: Icon(LucideIcons.globe),
-                            onPressed: (_) {
-                              FirebaseAuth.instance.signOut();
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (ctx) => const IntroScreen()),
-                                (route) => false,
-                              );
-                            },
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("terms_of_service".tr()),
-                            leading: Icon(LucideIcons.fileText),
-                            onPressed: (context) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => MarkdownViewerScreen(
-                                    title: "terms_of_service".tr(),
-                                    markdownAssetPath: "terms_of_service.md",
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("privacy_policy".tr()),
-                            leading: Icon(LucideIcons.fileLock),
-                            onPressed: (context) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => MarkdownViewerScreen(
-                                    title: "privacy_policy".tr(),
-                                    markdownAssetPath: "privacy_policy.md",
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          SettingsTile.navigation(
-                            title: Text("delete_account".tr()),
-                            leading: Icon(
-                              LucideIcons.trash2,
-                              color: Colors.red,
+                              },
                             ),
-                            onPressed: (_) {
-                              showDialog(
-                                context: context,
-                                builder: (context) {
-                                  final TextEditingController
-                                  passwordController =
-                                      TextEditingController(); // Renamed
-                                  return AlertDialog(
-                                    title: Text(
-                                      "delete_account_confirmation_title".tr(),
-                                    ),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          "delete_account_confirmation_message"
-                                              .tr(),
-                                        ),
-                                        SizedBox(height: 16),
-                                        TextField(
-                                          controller:
-                                              passwordController, // Renamed
-                                          obscureText: true,
-                                          decoration: InputDecoration(
-                                            labelText: "password".tr(),
-                                            border: OutlineInputBorder(),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: Text("cancel".tr()),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          try {
-                                            await ClinicFirestore()
-                                                .deleteClinicAccount(
-                                                  passwordController
-                                                      .text, // Renamed
-                                                );
-                                            if (!context.mounted) return;
-                                            Navigator.of(
-                                              context,
-                                            ).pop(); // Close dialog
-                                            if (!context.mounted) return;
-                                            // Navigate to login/intro screen after successful deletion
-                                            Navigator.pushAndRemoveUntil(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (ctx) => intro(),
-                                              ),
-                                              (route) => false,
-                                            );
-                                          } catch (e) {
-                                            if (!context.mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'error_deleting_account'.tr(
-                                                    args: [e.toString()],
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        child: Text("delete".tr()),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
+                            SettingsTile.navigation(
+                              title: Text("terms_of_service".tr()),
+                              leading: const Icon(LucideIcons.fileText),
+                              onPressed: (context) => _navigateToMarkdown(context, "terms_of_service".tr(), "terms_of_service.md"),
+                            ),
+                            SettingsTile.navigation(
+                              title: Text("privacy_policy".tr()),
+                              leading: const Icon(LucideIcons.fileLock),
+                              onPressed: (context) => _navigateToMarkdown(context, "privacy_policy".tr(), "privacy_policy.md"),
+                            ),
+                            SettingsTile.navigation(
+                              title: Text("delete_account".tr(), style: const TextStyle(color: Colors.red)),
+                              leading: const Icon(LucideIcons.trash2, color: Colors.red),
+                              onPressed: (_) => _showDeleteAccountDialog(context),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("language".tr()),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              Locale selectedLocale = context.locale;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<Locale>(
+                    title: const Text('English'),
+                    value: const Locale('en'),
+                    groupValue: selectedLocale,
+                    onChanged: (Locale? value) async {
+                      if (value != null) {
+                        await context.setLocale(value);
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+                  RadioListTile<Locale>(
+                    title: const Text('Français'),
+                    value: const Locale('fr'),
+                    groupValue: selectedLocale,
+                    onChanged: (Locale? value) async {
+                      if (value != null) {
+                        await context.setLocale(value);
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+                  RadioListTile<Locale>(
+                    title: const Text('العربية'),
+                    value: const Locale('ar'),
+                    groupValue: selectedLocale,
+                    onChanged: (Locale? value) async {
+                      if (value != null) {
+                        await context.setLocale(value);
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showQrDialog(BuildContext context, String? clinicUid) {
+    if (clinicUid == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("qr_code".tr()),
+        content: SizedBox(
+          width: 250,
+          height: 250,
+          child: Center(
+            child: QrImageView(
+              data: clinicUid,
+              version: QrVersions.auto,
+              size: 200.0,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('close'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToMarkdown(BuildContext context, String title, String path) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MarkdownViewerScreen(
+          title: title,
+          markdownAssetPath: path,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handlePasswordReset(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && user.email != null) {
+      try {
+        await FirebaseAuth.instance.sendPasswordResetEmail(email: user.email!);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('password_reset_email_sent'.tr())),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('error_generic'.tr())),
+        );
+      }
+    }
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("delete_account_confirmation_title".tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("delete_account_confirmation_message".tr()),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: "password".tr(),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text("cancel".tr()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await ClinicFirestore().deleteClinicAccount(passwordController.text);
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (ctx) => const IntroScreen()),
+                  (route) => false,
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('error_deleting_account'.tr(args: [e.toString()]))),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text("delete".tr()),
+          ),
+        ],
       ),
     );
   }

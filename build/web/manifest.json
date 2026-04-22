@@ -1,7 +1,7 @@
 {
     "name": "Eyadati - Medical Appointments",
     "short_name": "Eyadati",
-    "start_url": ".",
+    "start_url": "./",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#0175C2",
@@ -13,7 +13,7 @@
             "name": "My Appointments",
             "short_name": "Appointments",
             "description": "View your upcoming medical visits",
-            "url": "/#/appointments",
+            "url": "./#/appointments",
             "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
         }
     ],

@@ -3,6 +3,7 @@ import 'package:eyadati/clinic/clinic_home.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:eyadati/webUI/web_ui_helper.dart';
 import 'package:flutter/material.dart';
 
 class ClinicLoginPage extends StatefulWidget {
@@ -74,81 +75,114 @@ class _ClinicLoginPageState extends State<ClinicLoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('clinic_login'.tr())),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
+      body: FormResponsiveWrapper(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(labelText: 'email'.tr()),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'please_enter_email'.tr();
-                    }
-                    return null;
-                  },
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Image.asset(
+                  'assets/logo.png',
+                  height: 120,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(labelText: 'password'.tr()),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'please_enter_password'.tr();
-                    }
-                    return null;
-                  },
+              ),
+              const SizedBox(height: 32),
+              Text(
+                'clinic_login'.tr(),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: InputDecoration(
+                        labelText: 'email'.tr(),
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'please_enter_email'.tr();
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: InputDecoration(
+                        labelText: 'password'.tr(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'please_enter_password'.tr();
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () async {
-                      if (_emailController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'please_enter_email_to_reset_password'.tr(),
-                            ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () async {
+                    if (_emailController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'please_enter_email_to_reset_password'.tr(),
                           ),
-                        );
-                        return;
-                      }
-                      try {
-                        await FirebaseAuth.instance.sendPasswordResetEmail(
-                          email: _emailController.text.trim(),
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('password_reset_email_sent'.tr()),
-                          ),
-                        );
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('error_generic'.tr())),
-                        );
-                      }
-                    },
-                    child: Text('forgot_password'.tr()),
-                  ),
+                        ),
+                      );
+                      return;
+                    }
+                    try {
+                      await FirebaseAuth.instance.sendPasswordResetEmail(
+                        email: _emailController.text.trim(),
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('password_reset_email_sent'.tr()),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('error_generic'.tr())),
+                      );
+                    }
+                  },
+                  child: Text('forgot_password'.tr()),
                 ),
-                const SizedBox(height: 12),
-                if (_isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  ElevatedButton(onPressed: _login, child: Text('login'.tr())),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator())
+              else
+                ElevatedButton(onPressed: _login, child: Text('login'.tr())),
+            ],
           ),
         ),
       ),
+    ),
     );
   }
 }

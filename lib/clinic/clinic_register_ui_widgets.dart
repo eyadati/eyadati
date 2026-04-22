@@ -1,3 +1,5 @@
+import 'dart:io' if (dart.library.io) 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/clinic/clinic_registration_provider.dart';
 import 'package:eyadati/clinic/clinic_home.dart';
@@ -447,7 +449,9 @@ Widget _buildAvatarPicker(
                 : Theme.of(context).colorScheme.onSurfaceVariant,
             child: provider.pickedImage == null
                 ? const Icon(Icons.add_a_photo, size: 30)
-                : Image.file(provider.pickedImage!),
+                : kIsWeb
+                    ? Image.network(provider.pickedImage!.path)
+                    : Image.file(File(provider.pickedImage!.path)),
           ),
         );
       },

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/FCM/notifications_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:eyadati/NavBarUi/clinic_nav_bar.dart';
 import 'package:eyadati/clinic/clinic_settings_page.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
@@ -38,10 +39,17 @@ class ClinicAppointmentProvider extends ChangeNotifier {
   List<QueryDocumentSnapshot> _appointments = [];
 
   List<QueryDocumentSnapshot> get appointments {
-    // Only return online appointments as requested
+    // Only return online appointments
     return _appointments.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       return data['isManual'] != true;
+    }).toList();
+  }
+
+  List<QueryDocumentSnapshot> get manualAppointments {
+    return _appointments.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return data['isManual'] == true;
     }).toList();
   }
 
@@ -274,8 +282,9 @@ class ClinicAppointmentProvider extends ChangeNotifier {
 /// Main widget that provides the appointment management state
 class ClinicAppointments extends StatelessWidget {
   final String clinicId;
+  final bool showAppBar;
 
-  const ClinicAppointments({super.key, required this.clinicId});
+  const ClinicAppointments({super.key, required this.clinicId, this.showAppBar = true});
 
   @override
   Widget build(BuildContext context) {
@@ -294,13 +303,14 @@ class ClinicAppointments extends StatelessWidget {
               connectivityService, // Pass connectivityService here
         );
       },
-      child: const _ClinicAppointmentsView(),
+      child: _ClinicAppointmentsView(showAppBar: showAppBar),
     );
   }
 }
 
 class _ClinicAppointmentsView extends StatefulWidget {
-  const _ClinicAppointmentsView();
+  final bool showAppBar;
+  const _ClinicAppointmentsView({this.showAppBar = true});
 
   @override
   State<_ClinicAppointmentsView> createState() =>
@@ -342,7 +352,7 @@ class _ClinicAppointmentsViewState extends State<_ClinicAppointmentsView>
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
+      appBar: widget.showAppBar ? AppBar(
         title: Image.asset('assets/logo.png', height: 120),
         centerTitle: true,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -417,7 +427,7 @@ class _ClinicAppointmentsViewState extends State<_ClinicAppointmentsView>
             ),
           ),
         ],
-      ),
+      ) : null,
       body: SafeArea(
         child: Column(
           children: [
@@ -506,6 +516,8 @@ class _AppointmentsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ClinicAppointmentProvider>();
+    final bool isWeb = kIsWeb && MediaQuery.of(context).size.width > 900;
+    final ScrollController scrollController = ScrollController();
 
     if (provider.isInitialLoading && provider.appointments.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -602,193 +614,273 @@ class _AppointmentsPanel extends StatelessWidget {
                   topRight: Radius.circular(13),
                 ),
               ),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: appointments.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == appointments.length) {
-                    return const SizedBox(
-                      height: 100,
-                    ); // Space for Floating NavBar
-                  }
-                  final doc = appointments[index];
-                  final appointment = doc.data() as Map<String, dynamic>;
-                  final appointmentId = doc.id;
+              child: Scrollbar(
+                controller: scrollController,
+                thumbVisibility: isWeb,
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: EdgeInsets.zero,
+                  itemCount: appointments.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == appointments.length) {
+                      return const SizedBox(
+                        height: 100,
+                      ); // Space for Floating NavBar
+                    }
+                    final doc = appointments[index];
+                    final appointment = doc.data() as Map<String, dynamic>;
+                    final appointmentId = doc.id;
 
-                  final slot = Clinic.parseDateTime(appointment['date']);
-                  final timeFormatted = DateFormat(
-                    'HH:mm',
-                    context.locale.toString(),
-                  ).format(slot);
-                  final name = appointment['userName'] ?? 'Unknown';
-                  final phone = appointment['phone'] ?? 'No phone';
-                  final isManual = appointment['isManual'] == true;
+                    final slot = Clinic.parseDateTime(appointment['date']);
+                    final timeFormatted = DateFormat(
+                      'HH:mm',
+                      context.locale.toString(),
+                    ).format(slot);
+                    final name = appointment['userName'] ?? 'Unknown';
+                    final phone = appointment['phone'] ?? 'No phone';
+                    final isManual = appointment['isManual'] == true;
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Slidable(
-                      key: ValueKey(appointmentId),
-                      endActionPane: ActionPane(
-                        motion: const ScrollMotion(),
-                        extentRatio: isManual ? 0.5 : 0.7,
-                        children: [
-                          SlidableAction(
-                            onPressed: (context) async {
-                              final Uri launchUri = Uri(
-                                scheme: 'tel',
-                                path: phone,
-                              );
-                              if (await canLaunchUrl(launchUri)) {
-                                await launchUrl(launchUri);
-                              }
-                            },
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            icon: LucideIcons.phone,
-                            label: 'call'.tr(),
-                            borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                          ),
-                          if (!isManual)
+                    Widget cardContent = Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      elevation: isWeb ? 2 : 1,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: SizedBox(
+                        height: 120,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 100,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Center(
+                                  child: Text(
+                                    timeFormatted,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 18,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const VerticalDivider(width: 1, indent: 20, endIndent: 20),
+                            Expanded(
+                              child: ListTile(
+                                trailing: isWeb 
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(LucideIcons.phone, color: Colors.green),
+                                          onPressed: () async {
+                                            final Uri launchUri = Uri(scheme: 'tel', path: phone);
+                                            if (await canLaunchUrl(launchUri)) {
+                                              await launchUrl(launchUri);
+                                            }
+                                          },
+                                        ),
+                                        if (!isManual)
+                                          IconButton(
+                                            icon: const Icon(LucideIcons.userX, color: Colors.orange),
+                                            onPressed: () async {
+                                              final confirmed = await showDialog<bool>(
+                                                context: context,
+                                                builder: (context) => AlertDialog(
+                                                  title: Text('cancelled'.tr()),
+                                                  content: Text('mark_as_no_show_confirm'.tr()),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.of(context).pop(false),
+                                                      child: Text('no'.tr()),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () => Navigator.of(context).pop(true),
+                                                      child: Text('yes'.tr()),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (confirmed == true) {
+                                                await ClinicFirestore().updateNoShow(appointmentId, provider.clinicId);
+                                              }
+                                            },
+                                          ),
+                                        IconButton(
+                                          icon: Icon(LucideIcons.xCircle, color: Theme.of(context).colorScheme.error),
+                                          onPressed: () async {
+                                            final confirmed = await showDialog<bool>(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                title: Text('cancel_appointment'.tr()),
+                                                content: Text('are_you_sure_to_cancel_appointment'.tr()),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(context, false), child: Text('no'.tr())),
+                                                  TextButton(onPressed: () => Navigator.pop(context, true), child: Text('yes'.tr())),
+                                                ],
+                                              ),
+                                            );
+                                            if (confirmed == true) {
+                                              await provider.cancelAppointment(appointmentId, appointment);
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    )
+                                  : Icon(
+                                      LucideIcons.chevronLeft,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withAlpha(100),
+                                    ),
+                                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                subtitle: Text(phone, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    if (isWeb) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: cardContent,
+                      );
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Slidable(
+                        key: ValueKey(appointmentId),
+                        endActionPane: ActionPane(
+                          motion: const ScrollMotion(),
+                          extentRatio: isManual ? 0.5 : 0.7,
+                          children: [
+                            SlidableAction(
+                              onPressed: (context) async {
+                                final Uri launchUri = Uri(
+                                  scheme: 'tel',
+                                  path: phone,
+                                );
+                                if (await canLaunchUrl(launchUri)) {
+                                  await launchUrl(launchUri);
+                                }
+                              },
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              icon: LucideIcons.phone,
+                              label: 'call'.tr(),
+                              borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                            ),
+                            if (!isManual)
+                              SlidableAction(
+                                onPressed: (context) async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: Text('cancelled'.tr()),
+                                      content: Text('mark_as_no_show_confirm'.tr()),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: Text('no'.tr()),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: Text('yes'.tr()),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirmed == true) {
+                                    try {
+                                      await ClinicFirestore().updateNoShow(appointmentId, provider.clinicId);
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('no_show_marked_success'.tr())),
+                                      );
+                                    } catch (e) {
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    }
+                                  }
+                                },
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                icon: LucideIcons.userX,
+                                label: 'cancelled'.tr(),
+                              ),
                             SlidableAction(
                               onPressed: (context) async {
                                 final confirmed = await showDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    title: Text('no_show'.tr()),
-                                    content: Text('mark_as_no_show_confirm'.tr()),
+                                    title: Text('cancel_appointment'.tr()),
+                                    content: Text(
+                                      'are_you_sure_to_cancel_appointment'.tr(),
+                                    ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.of(context).pop(false),
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(false),
                                         child: Text('no'.tr()),
                                       ),
                                       TextButton(
-                                        onPressed: () => Navigator.of(context).pop(true),
-                                        child: Text('yes'.tr()),
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(true),
+                                        child: Text(
+                                          'yes'.tr(),
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.error,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
                                 );
 
-                                if (confirmed == true) {
-                                  try {
-                                    await ClinicFirestore().updateNoShow(appointmentId, provider.clinicId);
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('no_show_marked_success'.tr())),
-                                    );
-                                  } catch (e) {
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(e.toString())),
-                                    );
-                                  }
+                                if (confirmed != true) return;
+
+                                try {
+                                  await provider.cancelAppointment(
+                                    appointmentId,
+                                    appointment,
+                                  );
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'appointment_cancelled_success'.tr(),
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString())),
+                                  );
                                 }
                               },
-                              backgroundColor: Colors.orange,
+                              backgroundColor: Theme.of(context).colorScheme.error,
                               foregroundColor: Colors.white,
-                              icon: LucideIcons.userX,
-                              label: 'no_show'.tr(),
+                              icon: LucideIcons.xCircle,
+                              label: 'cancel'.tr(),
+                              borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
                             ),
-                          SlidableAction(
-                            onPressed: (context) async {
-                              final confirmed = await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text('cancel_appointment'.tr()),
-                                  content: Text(
-                                    'are_you_sure_to_cancel_appointment'.tr(),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(false),
-                                      child: Text('no'.tr()),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(true),
-                                      child: Text(
-                                        'yes'.tr(),
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.error,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (confirmed != true) return;
-
-                              try {
-                                await provider.cancelAppointment(
-                                  appointmentId,
-                                  appointment,
-                                );
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'appointment_cancelled_success'.tr(),
-                                    ),
-                                  ),
-                                );
-                              } catch (e) {
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(e.toString())),
-                                );
-                              }
-                            },
-                            backgroundColor: Theme.of(context).colorScheme.error,
-                            foregroundColor: Colors.white,
-                            icon: LucideIcons.xCircle,
-                            label: 'cancel'.tr(),
-                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-                          ),
-                        ],
-                      ),
-                      child: Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12),
-                        child: SizedBox(
-                          height: 120,
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 80,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Center(
-                                    child: Text(
-                                      timeFormatted,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: ListTile(
-                                  trailing: Icon(
-                                    LucideIcons.chevronLeft,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withAlpha(100),
-                                  ),
-                                  title: Text(name),
-                                  subtitle: Text(phone),
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
+                        child: cardContent,
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ),

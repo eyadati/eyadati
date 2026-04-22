@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/Appointments/booking_logic.dart';
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:eyadati/utils/models/clinic_model.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -181,9 +182,8 @@ class ManagementProvider extends ChangeNotifier {
   }
 
   String _getSlotKey(DateTime slotTime) {
-    // Ensure UTC consistency and ISO8601 compliance
-    final utcTime = slotTime.toUtc();
-    return "${utcTime.year}-${_twoDigits(utcTime.month)}-${_twoDigits(utcTime.day)}T${_twoDigits(utcTime.hour)}:${_twoDigits(utcTime.minute)}Z";
+    // Ensure local time consistency to match BookingLogic's slot generation
+    return "${slotTime.year}-${_twoDigits(slotTime.month)}-${_twoDigits(slotTime.day)}T${_twoDigits(slotTime.hour)}:${_twoDigits(slotTime.minute)}Z";
   }
 
   String _twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -336,38 +336,14 @@ class _ManagementScreenState extends State<ManagementScreen> {
                             final day = provider.visibleDays[dayIndex];
                             final slots = provider.weekSlots[dayIndex];
 
-                            return Column(
-                              children: [
-                                Expanded(
-                                  child: slots.isEmpty
-                                      ? _buildEmptyState(context, day, provider)
-                                      : ListView.builder(
-                                          padding: const EdgeInsets.fromLTRB(
-                                            0,
-                                            8,
-                                            0,
-                                            0,
-                                          ),
-                                          itemCount: slots.length + 1,
-                                          itemBuilder: (context, slotIndex) {
-                                            if (slotIndex == slots.length) {
-                                              return SizedBox(
-                                                height:
-                                                    92 +
-                                                    MediaQuery.of(
-                                                      context,
-                                                    ).padding.bottom,
-                                              );
-                                            }
-                                            return _buildSlotCard(
-                                              context,
-                                              provider,
-                                              slots[slotIndex],
-                                            );
-                                          },
-                                        ),
-                                ),
-                              ],
+                            if (slots.isEmpty) {
+                              return _buildEmptyState(context, day, provider);
+                            }
+
+                            return ManagementPage(
+                              slots: slots,
+                              provider: provider,
+                              slotCardBuilder: _buildSlotCard,
                             );
                           },
                         );
@@ -539,52 +515,62 @@ class _ManagementScreenState extends State<ManagementScreen> {
     final displayText = provider.getSlotDisplayText(slot);
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         side: isFull
             ? BorderSide(
-                color: Theme.of(context).colorScheme.primary.withAlpha(100),
+                color: Theme.of(context).colorScheme.primary.withAlpha(150),
                 width: 2,
               )
-            : BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                width: 1,
-              ),
+            : BorderSide.none,
       ),
       child: ExpansionTile(
         shape: const RoundedRectangleBorder(side: BorderSide.none),
         collapsedShape: const RoundedRectangleBorder(side: BorderSide.none),
-        leading: IconButton(
-          icon: Icon(
-            LucideIcons.plusCircle,
-            color: isFull ? Colors.grey : Theme.of(context).colorScheme.primary,
+        leading: Container(
+          decoration: BoxDecoration(
+            color: isFull ? Colors.grey.withAlpha(20) : Theme.of(context).colorScheme.primary.withAlpha(20),
+            borderRadius: BorderRadius.circular(8),
           ),
-          onPressed: isFull
-              ? null
-              : () => _showAddManualDialog(context, provider, slot),
+          child: IconButton(
+            icon: Icon(
+              LucideIcons.plusCircle,
+              color: isFull ? Colors.grey : Theme.of(context).colorScheme.primary,
+            ),
+            onPressed: isFull
+                ? null
+                : () => _showAddManualDialog(context, provider, slot),
+          ),
         ),
         title: Text(
           displayText,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+          style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
                 color: isFull
                     ? Theme.of(context).colorScheme.primary.withAlpha(200)
-                    : null,
+                    : Theme.of(context).colorScheme.primary,
               ),
         ),
-        subtitle: Text(
-          "$totalCount / $staffCount ${'appointments'.tr()} (${provider.getOnlineAppointmentsForSlot(slot)} Online, ${manualAppointments.length} Manual)",
-          style: TextStyle(
-            fontSize: 12,
-            color: isFull
-                ? Theme.of(context).colorScheme.primary.withAlpha(180)
-                : Theme.of(context).colorScheme.onSurfaceVariant,
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(
+            "$totalCount / $staffCount ${'appointments'.tr()}\n(${provider.getOnlineAppointmentsForSlot(slot)} Online, ${manualAppointments.length} Manual)",
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isFull
+                  ? Theme.of(context).colorScheme.primary.withAlpha(180)
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         trailing: const Icon(LucideIcons.chevronDown),
         children: [
+          const Divider(indent: 16, endIndent: 16),
           if (manualAppointments.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -641,19 +627,20 @@ class _ManagementScreenState extends State<ManagementScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(
-                LucideIcons.phone,
-                color: Colors.green,
-                size: 20,
+            if (!kIsWeb)
+              IconButton(
+                icon: const Icon(
+                  LucideIcons.phone,
+                  color: Colors.green,
+                  size: 20,
+                ),
+                onPressed: () async {
+                  final Uri launchUri = Uri(scheme: 'tel', path: app['phone'] ?? '');
+                  if (await canLaunchUrl(launchUri)) {
+                    await launchUrl(launchUri);
+                  }
+                },
               ),
-              onPressed: () async {
-                final Uri launchUri = Uri(scheme: 'tel', path: app['phone'] ?? '');
-                if (await canLaunchUrl(launchUri)) {
-                  await launchUrl(launchUri);
-                }
-              },
-            ),
             IconButton(
               icon: Icon(
                 LucideIcons.trash2,
@@ -723,6 +710,64 @@ class _ManagementScreenState extends State<ManagementScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class ManagementPage extends StatefulWidget {
+  final List<DateTime> slots;
+  final ManagementProvider provider;
+  final Widget Function(BuildContext, ManagementProvider, DateTime) slotCardBuilder;
+
+  const ManagementPage({
+    super.key,
+    required this.slots,
+    required this.provider,
+    required this.slotCardBuilder,
+  });
+
+  @override
+  State<ManagementPage> createState() => _ManagementPageState();
+}
+
+class _ManagementPageState extends State<ManagementPage> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            interactive: true,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
+              itemCount: widget.slots.length + 1,
+              itemBuilder: (context, slotIndex) {
+                if (slotIndex == widget.slots.length) {
+                  return SizedBox(
+                    height: 92 + MediaQuery.of(context).padding.bottom,
+                  );
+                }
+                return widget.slotCardBuilder(
+                  context,
+                  widget.provider,
+                  widget.slots[slotIndex],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

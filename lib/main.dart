@@ -15,15 +15,43 @@ import 'package:eyadati/intro.dart';
 import 'package:eyadati/Themes/ThemeProvider.dart';
 import 'package:eyadati/utils/connectivity_service.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:pwa_install/pwa_install.dart';
+import 'dart:ui';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (kIsWeb) return;
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   debugPrint("Handling a background message: ${message.messageId}");
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Global error handling
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    if (kReleaseMode) {
+      // In release, we still want to see errors in console for web debugging
+      debugPrint("FLUTTER ERROR: ${details.exception}");
+      debugPrint("STACK TRACE: ${details.stack}");
+    }
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordFlutterError(details);
+    }
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint("ASYNC ERROR: $error");
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
+    return true;
+  };
+
+  if (kIsWeb) {
+    PWAInstall().setup(); // Initialize PWA logic (using instance)
+  }
   await EasyLocalization.ensureInitialized();
   Provider.debugCheckInvalidValueType = null;
 
@@ -32,24 +60,34 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    final messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
+    if (!kIsWeb) {
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+    }
 
     FlutterError.onError = (errorDetails) {
-      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+      if (!kIsWeb) {
+        FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+      } else {
+        debugPrint(errorDetails.toString());
+      }
     };
     PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      if (!kIsWeb) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      } else {
+        debugPrint(error.toString());
+      }
       return true;
     };
 
@@ -59,10 +97,12 @@ void main() async {
           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVya2xkYXJxd2VlaHZ3Z3BuY3JnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5MTIyMDgsImV4cCI6MjA3NzQ4ODIwOH0.rQPh6hFnn6sz78rLa8_AWU3NV__-EgX8wDOTXbyeQ7o",
     );
 
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+    if (!kIsWeb) {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    }
 
     runApp(
       MultiProvider(
@@ -147,7 +187,23 @@ class _EyadatiAppState extends State<EyadatiApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        dragDevices: {
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.touch,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.unknown
+        },
+      ),
       theme: themeProvider.themeData.copyWith(
+        textTheme: themeProvider.themeData.textTheme.copyWith(
+          bodyLarge: themeProvider.themeData.textTheme.bodyLarge?.copyWith(
+            fontWeight: kIsWeb ? FontWeight.w500 : null,
+          ),
+          bodyMedium: themeProvider.themeData.textTheme.bodyMedium?.copyWith(
+            fontWeight: kIsWeb ? FontWeight.w500 : null,
+          ),
+        ),
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
             TargetPlatform.android: CupertinoPageTransitionsBuilder(),
@@ -158,20 +214,91 @@ class _EyadatiAppState extends State<EyadatiApp> {
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
       locale: context.locale,
-      home: FutureBuilder<Widget>(
-        future: _navigationFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      home: PWAInstallWrapper(
+        child: FutureBuilder<Widget>(
+          future: _navigationFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SplashScreen();
+            } else if (snapshot.hasError) {
+              debugPrint("Error loading initial page: ${snapshot.error}");
+              return intro();
+            } else if (snapshot.hasData) {
+              return snapshot.data!;
+            }
             return const SplashScreen();
-          } else if (snapshot.hasError) {
-            debugPrint("Error loading initial page: ${snapshot.error}");
-            return intro();
-          } else if (snapshot.hasData) {
-            return snapshot.data!;
-          }
-          return const SplashScreen();
-        },
+          },
+        ),
       ),
+    );
+  }
+}
+
+class PWAInstallWrapper extends StatefulWidget {
+  final Widget child;
+  const PWAInstallWrapper({super.key, required this.child});
+
+  @override
+  State<PWAInstallWrapper> createState() => _PWAInstallWrapperState();
+}
+
+class _PWAInstallWrapperState extends State<PWAInstallWrapper> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kIsWeb) return widget.child;
+
+    return Stack(
+      children: [
+        widget.child,
+        if (PWAInstall().installPromptEnabled && !_dismissed)
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(16),
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.download, size: 24),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "install_eyadati".tr() == "install_eyadati" ? "Install Eyadati" : "install_eyadati".tr(),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            "install_for_better_experience".tr(),
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        PWAInstall().promptInstall_();
+                      },
+                      child: Text("install".tr()),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => setState(() => _dismissed = true),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

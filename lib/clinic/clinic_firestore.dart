@@ -421,8 +421,21 @@ class ClinicFirestore {
 
   Future<void> incrementAppointmentCount(String clinicId) async {
     try {
-      await collection.doc(clinicId).update({
-        'appointments_this_month': FieldValue.increment(1),
+      final docRef = collection.doc(clinicId);
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (snapshot.exists) {
+          final data = snapshot.data();
+          if (data != null && data.containsKey('appointments_this_month')) {
+            transaction.update(docRef, {
+              'appointments_this_month': FieldValue.increment(1),
+            });
+          } else {
+            transaction.update(docRef, {
+              'appointments_this_month': 1,
+            });
+          }
+        }
       });
     } catch (e) {
       debugPrint("Error incrementing appointment count: $e");

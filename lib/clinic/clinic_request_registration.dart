@@ -1,5 +1,6 @@
 import 'package:eyadati/utils/colors.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:eyadati/webUI/web_ui_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,8 +35,9 @@ class ClinicRequestRegistrationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('join_eyadati'.tr())),
-      body: Center(
-        child: SingleChildScrollView(
+      body: FormResponsiveWrapper(
+        child: Center(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -91,6 +93,7 @@ class ClinicRequestRegistrationScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

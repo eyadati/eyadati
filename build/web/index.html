@@ -14,7 +14,7 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="/">
+  <base href="/eyadatiWeb/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
@@ -69,8 +69,36 @@
 <body>
   <div class="loading-container">
     <div class="spinner"></div>
-    <p style="color: #666;">Eyadati is loading...</p>
+    <img src="favicon.png" alt="Eyadati Logo" style="width: 100px; margin-top: 10px;">
   </div>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // PWA Install Prompt Logic
+    var deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      deferredPrompt = e;
+      if (window.hasPrompt) window.hasPrompt();
+    });
+
+    window.promptInstall = function() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            if (window.appInstalled) window.appInstalled();
+          }
+          deferredPrompt = null;
+        });
+      }
+    };
+
+    window.getLaunchMode = function() {
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+        if (window.appLaunchedAsPWA) window.appLaunchedAsPWA();
+      } else {
+        if (window.appLaunchedInBrowser) window.appLaunchedInBrowser();
+      }
+    };
+  </script>
 </body>
 </html>

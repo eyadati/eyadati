@@ -1,13 +1,22 @@
 {
-    "name": "eyadati",
-    "short_name": "eyadati",
-    "start_url": ".",
+    "name": "Eyadati - Medical Appointments",
+    "short_name": "Eyadati",
+    "start_url": "./",
     "display": "standalone",
-    "background_color": "#0175C2",
+    "background_color": "#ffffff",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Book medical appointments easily across Algeria.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "shortcuts": [
+        {
+            "name": "My Appointments",
+            "short_name": "Appointments",
+            "description": "View your upcoming medical visits",
+            "url": "./#/appointments",
+            "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+        }
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",

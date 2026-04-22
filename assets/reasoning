@@ -1,0 +1,102 @@
+Here's a Flutter-specific layered reasoning framework. Paste this before any Flutter task.
+
+---
+
+## **Flutter Task Execution Framework**
+
+**Rule: Follow layers in order. No code until Layer 4. No delivery until Layer 6.**
+
+---
+
+### **Layer 1: Context Anchoring**
+State explicitly:
+- Widget, feature, or architectural change requested
+- Target platform(s): web / iOS / Android / macOS / Windows / Linux / all
+- Flutter version constraints if relevant
+- State management approach in use
+- What success looks like for this specific task
+- What is out of scope
+
+**Output:** One sentence per item. No code.
+
+---
+
+### **Layer 2: Flutter Constraint Surface**
+List all constraints that cause failure or rework:
+- **Platform hard limits:** `dart:io` unavailable on web, native plugins fail on web, platform-specific APIs
+- **Plugin compatibility:** Does `pubspec.yaml` already include this plugin? Does it support target platform?
+- **Build context safety:** Async gaps, `mounted` checks, `context` usage after await
+- **Widget lifecycle:** `initState`, `dispose`, `didUpdateWidget` ordering, memory leaks from listeners or timers
+- **State management boundaries:** Where does this state live? Who owns it? Prop drilling vs provider/riverpod/bloc scope
+- **Navigation/routing:** Deep links, back button behavior, route guards
+- **Performance:** Rebuild scope, `const` constructors, list virtualization, image caching
+- **Accessibility:** Semantics, screen reader support, touch targets
+- **Localization:** Hardcoded strings, text direction, date/number formatting
+
+Flag each: hard / soft / hidden / cross-cutting.
+
+**Output:** Bullet list with flags.
+
+---
+
+### **Layer 3: Dependency & Impact Audit**
+Before implementation:
+- Existing widgets this modifies or replaces
+- Existing state this reads or writes
+- Existing routes this affects
+- Existing tests that will break
+- `pubspec.yaml` changes needed (new plugins, version bumps)
+- Native configuration changes needed (AndroidManifest, Info.plist, web/index.html)
+- Order of operations: what must happen before this works
+
+Risk level: low / medium / high.
+
+**Output:** List with risk levels.
+
+---
+
+### **Layer 4: Implementation with Guards**
+Generate code using this structure:
+- Platform gates: `kIsWeb`, `Platform.isAndroid`, `Platform.isIOS`, `Platform.isMacOS`, `Platform.isWindows`, `Platform.isLinux`
+- Null safety: no implicit non-nullables, explicit `?` and `!` with justification
+- `mounted` checks after every `await` before `setState` or `context` usage
+- `const` constructors where possible
+- Explicit `dispose` for controllers, listeners, timers, subscriptions
+- Error boundaries: `try/catch` around external calls, explicit error widgets
+- Loading states: no UI without handling pending/async
+- Empty states: no UI without handling zero-data
+
+**Rule:** If a platform or plugin does not support the target, provide fallback or conditional compilation. Do not silently fail.
+
+---
+
+### **Layer 5: Flutter Self-Critique**
+After generating code, verify:
+- [ ] `dart:io` only imported behind `!kIsWeb` guard
+- [ ] `Platform.isX` only called behind `!kIsWeb` guard (web has no `Platform`)
+- [ ] Every `await` followed by `if (!mounted) return` before `setState` or `context` use
+- [ ] Every `StreamSubscription`, `Timer`, `AnimationController`, `TextEditingController` has `dispose`
+- [ ] Every external call (network, file, plugin) wrapped in `try/catch`
+- [ ] `const` used on all static widgets and constructors
+- [ ] No hardcoded strings without localization comment
+- [ ] No `print()`; use `debugPrint` or proper logging
+- [ ] No `setState` in `build` or after `dispose`
+- [ ] Rebuild scope minimized (not rebuilding entire tree for single cell)
+- [ ] Platform-specific features have fallback on unsupported platforms
+- [ ] `pubspec.yaml` changes listed if needed
+- [ ] Native config changes listed if needed
+
+**If any unchecked:** Regenerate that section.
+
+---
+
+### **Layer 6: Delivery Format**
+Present:
+- What was done
+- Why this approach (reference Layer 2/3 decisions)
+- `pubspec.yaml` additions or changes
+- Native configuration changes required
+- What remains fragile or requires manual review
+- What platform or context change would invalidate this solution
+
+---

@@ -57,14 +57,20 @@ class AppStartupService {
         .collection('clinics')
         .doc(_userId)
         .snapshots()
-        .map((snapshot) => snapshot.exists && snapshot.data() != null 
-            ? Clinic.fromMap(snapshot.data()!) 
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: (sink) {
+            debugPrint("⚠️ Clinic stream timed out.");
+            _clinicSubject.add(null); // Signal no clinic data
+          },
+        )
+        .map((snapshot) => snapshot.exists && snapshot.data() != null
+            ? Clinic.fromMap(snapshot.data()!)
             : null)
         .listen((clinic) {
           _clinicSubject.add(clinic);
         });
   }
-
   /// Checks and updates FCM token if it changed
   Future<void> _checkAndUpdateFCMToken() async {
     final prefs = await SharedPreferences.getInstance();

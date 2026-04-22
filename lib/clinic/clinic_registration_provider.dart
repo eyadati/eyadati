@@ -1,7 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:easy_localization/easy_localization.dart';
-
 import 'package:eyadati/clinic/clinic_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,13 +9,10 @@ import 'package:eyadati/utils/network_helper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // Add Provider import
-import 'package:eyadati/utils/connectivity_service.dart'; // Add ConnectivityService import
-
+import 'package:provider/provider.dart';
+import 'package:eyadati/utils/connectivity_service.dart';
 import 'package:eyadati/utils/constants.dart';
-
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart';
 
 class ClinicOnboardingProvider extends ChangeNotifier {
   // Form key
@@ -49,7 +45,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
 
   // State
 
-  File? pickedImage;
+  XFile? pickedImage;
 
   String? picUrl;
 
@@ -106,7 +102,7 @@ class ClinicOnboardingProvider extends ChangeNotifier {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      pickedImage = File(image.path);
+      pickedImage = image;
       avatarNumber = -1; // Deselect default avatars
       notifyListeners();
     }
@@ -200,34 +196,29 @@ class ClinicOnboardingProvider extends ChangeNotifier {
   // ──────────────────────────────────────────────────────────────────────────
   // Submission with safety checks - Returns success/failure
   // ──────────────────────────────────────────────────────────────────────────
-  Future<File?> _compressImage(File file) async {
-    final tempDir = await getTemporaryDirectory();
-    final targetPath =
-        '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
-
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      targetPath,
+  Future<Uint8List?> _compressImage(Uint8List fileBytes) async {
+    final result = await FlutterImageCompress.compressWithList(
+      fileBytes,
       quality: 80,
       minWidth: 800,
       minHeight: 800,
       format: CompressFormat.jpeg,
     );
-
-    return result != null ? File(result.path) : null;
+    return result;
   }
 
   Future<String?> _uploadImage() async {
     if (pickedImage == null) return null;
 
-    final compressedFile = await _compressImage(pickedImage!);
-    if (compressedFile == null) return null;
+    final fileBytes = await pickedImage!.readAsBytes();
+    final compressedBytes = await _compressImage(fileBytes);
+    if (compressedBytes == null) return null;
 
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
     try {
       await Supabase.instance.client.storage
           .from('eyadati')
-          .upload(fileName, compressedFile);
+          .uploadBinary(fileName, compressedBytes);
       final urlResponse = Supabase.instance.client.storage
           .from('eyadati')
           .getPublicUrl(fileName);

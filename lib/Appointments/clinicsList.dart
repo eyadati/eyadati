@@ -6,13 +6,13 @@ import 'package:eyadati/utils/constants.dart';
 import 'package:eyadati/utils/location_helper.dart';
 import 'package:eyadati/utils/skeletons.dart';
 import 'package:eyadati/utils/widgets.dart';
+import 'package:eyadati/utils/models/clinic_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:modal_bottom_sheet/modal_bottom_sheet.dart';
 import 'package:provider/provider.dart';
-import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
 
 class ClinicSearchProvider extends ChangeNotifier {
   final FirebaseFirestore firestore;
@@ -28,6 +28,8 @@ class ClinicSearchProvider extends ChangeNotifier {
   String _searchQuery = '';
   String? _selectedCity;
   String? _selectedSpecialty;
+  bool _favoritesOnly = false;
+  Set<String> _favoriteIds = {};
 
   // Pagination
   DocumentSnapshot? _lastDocument;
@@ -51,6 +53,7 @@ class ClinicSearchProvider extends ChangeNotifier {
   String? get userCity => _userCity;
   String? get selectedCity => _selectedCity;
   String? get selectedSpecialty => _selectedSpecialty;
+  bool get favoritesOnly => _favoritesOnly;
   String get searchQuery => _searchQuery;
   List<String> get specialtiesList => AppConstants.specialties;
   List<String> get algerianCitiesList => AppConstants.algerianCities;
@@ -101,8 +104,8 @@ class ClinicSearchProvider extends ChangeNotifier {
 
     final cityToQuery = _selectedCity ?? _userCity;
 
-    // We need either a city OR a location to search
-    if (cityToQuery == null && _currentLocation == null) return;
+    // If favoritesOnly is on, we don't necessarily need a city
+    if (!_favoritesOnly && cityToQuery == null && _currentLocation == null) return;
 
     _isLoading = true;
     _error = null;
@@ -116,94 +119,62 @@ class ClinicSearchProvider extends ChangeNotifier {
     try {
       List<Map<String, dynamic>> fetchedClinics = [];
 
-      // Logic: If 'Nearby First' is active AND we don't have a specific city override,
-      // or if we just want to prioritize proximity.
-      if (_currentLocation != null && _selectedCity == null) {
-        // GEO-QUERY: Find anything within 100km of the user
-        final center = GeoFirePoint(
-          GeoPoint(_currentLocation!.latitude, _currentLocation!.longitude),
-        );
-        final GeoCollectionReference<Map<String, dynamic>> geoRef =
-            GeoCollectionReference<Map<String, dynamic>>(
-              firestore.collection('clinics'),
-            );
+      // Unified Simple Query: Fetch clinics by city and active status
+      Query<Map<String, dynamic>> query = firestore
+          .collection("clinics")
+          .where("paused", isEqualTo: false);
 
-        // GeoQuery fetches everything in range, we'll filter specialty manually
-        final geoDocs = await geoRef.fetchWithin(
-          center: center,
-          radiusInKm: 100, // Increased radius
-          field: 'position',
-          geopointFrom: (data) =>
+      if (!_favoritesOnly && cityToQuery != null) {
+        query = query.where("city", isEqualTo: cityToQuery);
+      }
+
+      if (_selectedSpecialty != null) {
+        query = query.where("specialty", isEqualTo: _selectedSpecialty);
+      }
+
+      if (isNextPage && _lastDocument != null) {
+        query = query.startAfterDocument(_lastDocument!);
+      }
+
+      final snapshot = await query.limit(_limit).get(
+        const GetOptions(source: Source.serverAndCache),
+      );
+      if (snapshot.docs.length < _limit) _hasMore = false;
+      if (snapshot.docs.isNotEmpty) _lastDocument = snapshot.docs.last;
+
+      fetchedClinics = snapshot.docs.map((doc) {
+        final data = doc.data();
+        double? dist;
+        if (_currentLocation != null && data['position'] != null) {
+          final geoPoint =
               (data['position'] as Map<String, dynamic>)['geopoint']
-                  as GeoPoint,
-          strictMode: true,
-        );
-
-        fetchedClinics = geoDocs
-            .cast<GeoDocumentSnapshot<Map<String, dynamic>>>()
-            .map((doc) {
-              final data = doc.documentSnapshot.data()!;
-              return {
-                'id': doc.documentSnapshot.id,
-                ...data,
-                'distance': doc.distanceFromCenterInKm * 1000,
-              };
-            })
-            .toList();
-
-        // Filter by specialty if selected
-        if (_selectedSpecialty != null) {
-          fetchedClinics = fetchedClinics
-              .where((c) => c['specialty'] == _selectedSpecialty)
-              .toList();
-        }
-
-        // Distance is already sorted by fetchWithin
-        _hasMore = false;
-      } else {
-        // STANDARD QUERY: Search by City (with client-side distance calc)
-        Query<Map<String, dynamic>> query = firestore
-            .collection("clinics")
-            .where("city", isEqualTo: cityToQuery);
-
-        if (_selectedSpecialty != null) {
-          query = query.where("specialty", isEqualTo: _selectedSpecialty);
-        }
-
-        if (isNextPage && _lastDocument != null) {
-          query = query.startAfterDocument(_lastDocument!);
-        }
-
-        final snapshot = await query.limit(_limit).get(const GetOptions(source: Source.serverAndCache));
-        if (snapshot.docs.length < _limit) _hasMore = false;
-        if (snapshot.docs.isNotEmpty) _lastDocument = snapshot.docs.last;
-
-        fetchedClinics = snapshot.docs.map((doc) {
-          final data = doc.data();
-          double? dist;
-          if (_currentLocation != null && data['position'] != null) {
-            final geoPoint =
-                (data['position'] as Map<String, dynamic>)['geopoint']
-                    as GeoPoint?;
-            if (geoPoint != null) {
-              dist = Geolocator.distanceBetween(
-                _currentLocation!.latitude,
-                _currentLocation!.longitude,
-                geoPoint.latitude,
-                geoPoint.longitude,
-              );
-            }
+                  as GeoPoint?;
+          if (geoPoint != null) {
+            dist = Geolocator.distanceBetween(
+              _currentLocation!.latitude,
+              _currentLocation!.longitude,
+              geoPoint.latitude,
+              geoPoint.longitude,
+            );
           }
-          return {'id': doc.id, ...data, if (dist != null) 'distance': dist};
-        }).toList();
-
-        // If we have location, sort the city results by distance
-        if (_currentLocation != null) {
-          fetchedClinics.sort(
-            (a, b) =>
-                (a['distance'] ?? 999999).compareTo(b['distance'] ?? 999999),
-          );
         }
+        return {'id': doc.id, ...data, if (dist != null) 'distance': dist};
+      }).where((c) {
+        // Soft-filter expired subscriptions client-side to ensure search works during testing
+        final endDate = Clinic.parseDateTime(c['subscriptionEndDate']);
+        bool isNotExpired = DateTime.now().isBefore(endDate);
+        
+        // Apply Favorites Filter
+        bool matchesFavorite = !_favoritesOnly || _favoriteIds.contains(c['id']);
+        
+        return isNotExpired && matchesFavorite;
+      }).toList();
+
+      // Sort results by distance if location is available
+      if (_currentLocation != null) {
+        fetchedClinics.sort(
+          (a, b) => (a['distance'] as num? ?? 999999).compareTo(b['distance'] as num? ?? 999999),
+        );
       }
 
       // Final Search Text Filter
@@ -231,9 +202,11 @@ class ClinicSearchProvider extends ChangeNotifier {
     }
   }
 
-  void applyFilters({String? city, String? specialty}) {
+  void applyFilters({String? city, String? specialty, bool favoritesOnly = false, Set<String>? favoriteIds}) {
     _selectedCity = city;
     _selectedSpecialty = specialty;
+    _favoritesOnly = favoritesOnly;
+    if (favoriteIds != null) _favoriteIds = favoriteIds;
     _lastDocument = null;
     _hasMore = true;
     fetchClinics();
@@ -337,7 +310,7 @@ class _InitialFilterDialogState extends State<_InitialFilterDialog> {
           Text('please_select_filters_to_find_clinics'.tr()),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            initialValue: _tempCity,
+            value: _tempCity,
             decoration: InputDecoration(
               labelText: "city".tr(),
               prefixIcon: const Icon(LucideIcons.mapPin),
@@ -352,7 +325,7 @@ class _InitialFilterDialogState extends State<_InitialFilterDialog> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            initialValue: _tempSpecialty,
+            value: _tempSpecialty,
             decoration: InputDecoration(
               labelText: "specialty".tr(),
               prefixIcon: const Icon(LucideIcons.stethoscope),
@@ -453,50 +426,12 @@ class _ClinicBottomSheetContent extends StatelessWidget {
                           padding: const EdgeInsets.only(right: 8),
                           child: Chip(label: Text(provider.selectedCity!)),
                         ),
-                      ActionChip(
-                        avatar: provider.isLocationLoading
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                LucideIcons.mapPin,
-                                size: 16,
-                                color: provider.isLocationEnabled
-                                    ? Colors.green
-                                    : Colors.grey,
-                              ),
-                        label: Text(
-                          provider.isLocationEnabled
-                              ? 'nearby_sorted'.tr()
-                              : 'sort_by_distance'.tr(),
-                        ),
-                        onPressed: () => provider.requestLocation(),
-                      ),
                     ],
                   ),
                 ),
               ),
             ],
           ),
-          if (provider.isLocationEnabled)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'showing_closest_clinics_first'.tr(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -545,19 +480,19 @@ class _ClinicBottomSheetContent extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: Text('select_filters'.tr()),
+          title: Text('filter_clinics'.tr()),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: tCity,
+                value: tCity,
                 items: provider.algerianCitiesList
                     .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                     .toList(),
                 onChanged: (v) => setState(() => tCity = v),
               ),
               DropdownButtonFormField<String>(
-                initialValue: tSpec,
+                value: tSpec,
                 items: provider.specialtiesList
                     .map((s) => DropdownMenuItem(value: s, child: Text(s.tr())))
                     .toList(),

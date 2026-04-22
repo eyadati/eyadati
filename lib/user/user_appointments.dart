@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:eyadati/FCM/notifications_service.dart';
 import 'package:eyadati/user/user_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -11,18 +12,15 @@ import 'package:marquee/marquee.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:eyadati/utils/connectivity_service.dart'; // Import ConnectivityService
+import 'package:eyadati/utils/connectivity_service.dart';
 import 'package:eyadati/utils/skeletons.dart';
 
-// Represents a combined appointment and its associated clinic data
 class AppointmentWithClinic {
   final Map<String, dynamic> appointment;
   final Map<String, dynamic> clinic;
-
   AppointmentWithClinic({required this.appointment, required this.clinic});
 }
 
-/// Manages user appointments with batched clinic data fetching.
 class UserAppointmentsProvider extends ChangeNotifier {
   final FirebaseAuth auth;
   final FirebaseFirestore firestore;
@@ -35,9 +33,7 @@ class UserAppointmentsProvider extends ChangeNotifier {
 
   @override
   void notifyListeners() {
-    if (!_disposed) {
-      super.notifyListeners();
-    }
+    if (!_disposed) super.notifyListeners();
   }
 
   List<AppointmentWithClinic> _appointments = [];
@@ -47,7 +43,6 @@ class UserAppointmentsProvider extends ChangeNotifier {
   bool _isLoading = true;
   bool get isLoading => _isLoading;
 
-  // Implement lastSyncTimestamp getter
   Future<DateTime?> get lastSyncTimestamp {
     final userId = auth.currentUser?.uid;
     if (userId == null) return Future.value(null);
@@ -62,36 +57,26 @@ class UserAppointmentsProvider extends ChangeNotifier {
     ConnectivityService? connectivityService,
   }) : auth = auth ?? FirebaseAuth.instance,
        firestore = firestore ?? FirebaseFirestore.instance,
-       _userFirestore =
-           userFirestore ??
-           UserFirestore(connectivityService: connectivityService),
+       _userFirestore = userFirestore ?? UserFirestore(connectivityService: connectivityService),
        _notificationService = notificationService ?? NotificationService(),
        _connectivityService = connectivityService {
     _initAppointmentsStream();
-
     _connectivityService?.addListener(_onConnectivityChanged);
   }
 
   void _onConnectivityChanged() {
-    if (_connectivityService?.isOnline == true) {
-      // If reconnected and data might be stale (e.g., from cache), refresh
-      _checkAndRefreshDataOnReconnect();
-    }
+    if (_connectivityService?.isOnline == true) _checkAndRefreshDataOnReconnect();
   }
 
   Future<void> _checkAndRefreshDataOnReconnect() async {
     final lastSync = await lastSyncTimestamp;
-    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) {
-      refresh();
-    }
+    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) refresh();
   }
 
   void _initAppointmentsStream() {
     _isLoading = true;
     notifyListeners();
-
     _appointmentsSubscription?.cancel();
-
     final userId = auth.currentUser?.uid;
     if (userId == null) {
       _isLoading = false;
@@ -99,26 +84,11 @@ class UserAppointmentsProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    final stream = firestore
-        .collection("users")
-        .doc(userId)
-        .collection("appointments")
+    final stream = firestore.collection("users").doc(userId).collection("appointments")
         .where("date", isGreaterThan: Timestamp.fromDate(DateTime.now()))
-        .orderBy("date")
-        .limit(15)
-        .snapshots(includeMetadataChanges: true);
+        .orderBy("date").limit(15).snapshots(includeMetadataChanges: true);
 
     _appointmentsSubscription = stream.listen((snapshot) async {
-      // Implement checks for metadata changes
-      if (snapshot.metadata.isFromCache) {
-        debugPrint("UserAppointments: Data from cache.");
-      }
-      if (snapshot.metadata.hasPendingWrites) {
-        debugPrint(
-          "UserAppointments: Data has pending writes (local changes).",
-        );
-      }
       final appointmentDocs = snapshot.docs;
       if (appointmentDocs.isEmpty) {
         _appointments = [];
@@ -126,21 +96,12 @@ class UserAppointmentsProvider extends ChangeNotifier {
         notifyListeners();
         return;
       }
-
-      final clinicUids = appointmentDocs
-          .map((doc) => doc.data()['clinicUid'] as String)
-          .toSet();
-
-      // Fetch clinic data for UIDs not already in cache
-      final uidsToFetch = clinicUids
-          .where((uid) => !_clinicCache.containsKey(uid))
-          .toList();
+      final clinicUids = appointmentDocs.map((doc) => doc.data()['clinicUid'] as String).toSet();
+      final uidsToFetch = clinicUids.where((uid) => !_clinicCache.containsKey(uid)).toList();
       if (uidsToFetch.isNotEmpty) {
-        // Firestore 'in' query is limited to 30 elements per query.
         for (var i = 0; i < uidsToFetch.length; i += 30) {
           final batchUids = uidsToFetch.skip(i).take(30).toList();
-          final clinicsSnapshot = await firestore
-              .collection('clinics')
+          final clinicsSnapshot = await firestore.collection('clinics')
               .where(FieldPath.documentId, whereIn: batchUids)
               .get(const GetOptions(source: Source.serverAndCache));
           for (var doc in clinicsSnapshot.docs) {
@@ -148,42 +109,27 @@ class UserAppointmentsProvider extends ChangeNotifier {
           }
         }
       }
-
       if (_disposed) return;
-
-      // Combine appointments with cached clinic data
       final newAppointments = <AppointmentWithClinic>[];
       for (var doc in appointmentDocs) {
         final appointmentData = doc.data();
-        appointmentData['id'] = doc.id; // Add document ID to map
+        appointmentData['id'] = doc.id;
         final clinicData = _clinicCache[appointmentData['clinicUid']];
         if (clinicData != null) {
-          newAppointments.add(
-            AppointmentWithClinic(
-              appointment: appointmentData,
-              clinic: clinicData,
-            ),
-          );
+          newAppointments.add(AppointmentWithClinic(appointment: appointmentData, clinic: clinicData));
         }
       }
-
       _appointments = newAppointments;
       _isLoading = false;
       notifyListeners();
     });
   }
 
-  Future<void> cancelAppointment(
-    String appointmentId,
-    String clinicUid,
-    Map<String, dynamic> clinicData,
-  ) async {
+  Future<void> cancelAppointment(String appointmentId, String clinicUid, Map<String, dynamic> clinicData) async {
     final userId = auth.currentUser?.uid;
     if (userId == null) return;
-
     try {
       await _userFirestore.cancelAppointment(appointmentId, userId);
-
       if (clinicData['fcm'] != null) {
         await _notificationService.sendDirectNotification(
           fcmToken: clinicData['fcm'],
@@ -191,15 +137,10 @@ class UserAppointmentsProvider extends ChangeNotifier {
           body: 'the_appointment_got_cancelled'.tr(),
         );
       }
-    } catch (e) {
-      rethrow;
-    }
-    // The stream will update the list automatically, no need for notifyListeners()
+    } catch (e) { rethrow; }
   }
 
-  Future<void> refresh() async {
-    _initAppointmentsStream();
-  }
+  Future<void> refresh() async { _initAppointmentsStream(); }
 
   @override
   void dispose() {
@@ -210,126 +151,74 @@ class UserAppointmentsProvider extends ChangeNotifier {
   }
 }
 
-/// Main entry widget for user appointments list
 class Appointmentslistview extends StatelessWidget {
-  const Appointmentslistview({super.key});
-
+  final ScrollController? scrollController;
+  const Appointmentslistview({super.key, this.scrollController});
   @override
-  Widget build(BuildContext context) {
-    return const _AppointmentsListView();
-  }
+  Widget build(BuildContext context) { return _AppointmentsListView(scrollController: scrollController); }
 }
 
 class _AppointmentsListView extends StatefulWidget {
-  const _AppointmentsListView();
-
+  final ScrollController? scrollController;
+  const _AppointmentsListView({this.scrollController});
   @override
   State<_AppointmentsListView> createState() => _AppointmentsListViewState();
 }
 
-class _AppointmentsListViewState extends State<_AppointmentsListView>
-    with WidgetsBindingObserver {
+class _AppointmentsListViewState extends State<_AppointmentsListView> with WidgetsBindingObserver {
+  late ScrollController _scrollController;
+
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
+  void initState() { 
+    super.initState(); 
+    _scrollController = widget.scrollController ?? ScrollController();
+    WidgetsBinding.instance.addObserver(this); 
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkAndRefreshData();
+  void dispose() { 
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
     }
+    WidgetsBinding.instance.removeObserver(this); 
+    super.dispose(); 
   }
-
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) { if (state == AppLifecycleState.resumed) _checkAndRefreshData(); }
   Future<void> _checkAndRefreshData() async {
     final provider = context.read<UserAppointmentsProvider>();
     final lastSync = await provider.lastSyncTimestamp;
-    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) {
-      provider.refresh();
-    }
+    if (lastSync != null && DateTime.now().difference(lastSync).inMinutes > 5) provider.refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<UserAppointmentsProvider>();
-
-    if (provider.isLoading) {
-      return ListView.builder(
-        itemCount: 5,
-        itemBuilder: (context, index) => const AppointmentCardSkeleton(),
-      );
-    }
-
+    if (provider.isLoading) return ListView.builder(itemCount: 5, itemBuilder: (context, index) => const AppointmentCardSkeleton());
     if (provider.appointments.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('no_appointments'.tr()),
-            // Display last sync timestamp here
-            FutureBuilder<DateTime?>(
-              future: provider.lastSyncTimestamp,
-              builder: (context, timestampSnapshot) {
-                if (timestampSnapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const SizedBox.shrink();
-                }
-                if (timestampSnapshot.hasData &&
-                    timestampSnapshot.data != null) {
-                  final formattedTime = DateFormat.yMd(
-                    context.locale.toString(),
-                  ).add_Hms().format(timestampSnapshot.data!);
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      'last_synced_at'.tr(args: [formattedTime]),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
-      );
-    }
-
-    final appointments = provider.appointments;
-
-    return RefreshIndicator(
-      onRefresh: provider.refresh, // Connect to the refresh method
-      child: ListView.builder(
-        itemCount: appointments.length + 1, // Add 1 for the SizedBox
-        itemBuilder: (context, index) {
-          if (index == appointments.length) {
-            return SizedBox(
-              height: 92 + MediaQuery.of(context).padding.bottom,
-            ); // Adjust height for floating nav bar
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text('no_appointments'.tr()),
+        FutureBuilder<DateTime?>(future: provider.lastSyncTimestamp, builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data != null) {
+            final formattedTime = DateFormat.yMd(context.locale.toString()).add_Hms().format(snapshot.data!);
+            return Padding(padding: const EdgeInsets.only(top: 8.0), child: Text('last_synced_at'.tr(args: [formattedTime]), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)));
           }
-          final appointmentWithClinic = appointments[index];
-          final slot = appointmentWithClinic.appointment["date"] as Timestamp?;
-
-          if (slot == null) return const SizedBox.shrink();
-
-          return _AppointmentCard(
-            appointment: appointmentWithClinic.appointment,
-            clinicData: appointmentWithClinic.clinic,
-            slot: slot,
-          );
-        },
-      ),
-    );
+          return const SizedBox.shrink();
+        }),
+      ]));
+    }
+    final appointments = provider.appointments;
+    return RefreshIndicator(onRefresh: provider.refresh, child: ListView.builder(
+      controller: _scrollController,
+      itemCount: appointments.length + 1,
+      itemBuilder: (context, index) {
+        if (index == appointments.length) return SizedBox(height: 92 + MediaQuery.of(context).padding.bottom);
+        final item = appointments[index];
+        final slot = item.appointment["date"] as Timestamp?;
+        if (slot == null) return const SizedBox.shrink();
+        return _AppointmentCard(appointment: item.appointment, clinicData: item.clinic, slot: slot);
+      },
+    ));
   }
 }
 
@@ -338,26 +227,7 @@ class _AppointmentCard extends StatelessWidget {
   final Map<String, dynamic> clinicData;
   final Timestamp slot;
 
-  const _AppointmentCard({
-    required this.appointment,
-    required this.clinicData,
-    required this.slot,
-  });
-
-  String _formatDateWithContext(Timestamp ts, BuildContext context) {
-    final date = ts.toDate();
-    final weekday = DateFormat('EEEE', context.locale.toString()).format(date);
-    final formatted = DateFormat(
-      'M/d/yyyy',
-      context.locale.toString(),
-    ).format(date);
-    return "$weekday $formatted";
-  }
-
-  String _formatTimeWithContext(Timestamp ts, BuildContext context) {
-    final date = ts.toDate();
-    return DateFormat('hh:mm a', context.locale.toString()).format(date);
-  }
+  const _AppointmentCard({required this.appointment, required this.clinicData, required this.slot});
 
   @override
   Widget build(BuildContext context) {
@@ -366,130 +236,160 @@ class _AppointmentCard extends StatelessWidget {
     final shopName = clinicData["clinicName"] ?? "unknown_shop".tr();
     final address = clinicData["address"] ?? "unknown_address".tr();
     final mapsLink = clinicData["mapsLink"] as String?;
+    final bool isLargeScreen = MediaQuery.of(context).size.width > 900;
 
-    return Slidable(
-      key: ValueKey(appointmentId),
-      endActionPane: ActionPane(
-        motion: const ScrollMotion(),
-        extentRatio: 0.2,
-        children: [
-          IconButton(
-            onPressed: () async {
-              HapticFeedback.warningNotification();
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text('cancel_appointment'.tr()),
-                  content: Text('are_you_sure_to_cancel_appointment'.tr()),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: Text('no'.tr()),
+    final content = Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      elevation: isLargeScreen ? 2 : 1,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    shopName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: Text(
-                        'yes'.tr(),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (mapsLink != null && mapsLink.isNotEmpty)
+                      IconButton(
+                        onPressed: () => launchUrl(Uri.parse(mapsLink), mode: LaunchMode.platformDefault),
+                        icon: const Icon(LucideIcons.mapPin, color: Colors.green),
                       ),
-                    ),
+                    if (isLargeScreen)
+                      IconButton(
+                        onPressed: () => _handleCancel(context, appointmentId, clinicUid),
+                        icon: Icon(LucideIcons.xCircle, color: Theme.of(context).colorScheme.error),
+                        tooltip: 'cancel_appointment'.tr(),
+                      ),
                   ],
                 ),
-              );
-
-              if (confirmed != true) return;
-
-              try {
-                if (!context.mounted) return;
-                await context
-                    .read<UserAppointmentsProvider>()
-                    .cancelAppointment(appointmentId, clinicUid, clinicData);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('appointment_cancelled_success'.tr())),
-                );
-              } catch (e) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(e.toString())));
-              }
-            },
-            icon: Icon(
-              LucideIcons.xCircle,
-              color: Theme.of(context).colorScheme.error,
-              size: 40,
+              ],
             ),
-          ),
-        ],
-      ),
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(8),
-          title: _buildMarqueeRow("clinic".tr(), shopName, isTitle: true),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMarqueeRow("address".tr(), address),
-              const SizedBox(height: 4),
-              Text(
-                _formatDateWithContext(slot, context),
-                style: const TextStyle(fontSize: 14),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _formatTimeWithContext(slot, context),
-                    style: TextStyle(fontWeight: FontWeight.bold),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  if (mapsLink != null && mapsLink.isNotEmpty)
-                    IconButton(
-                      onPressed: () async {
-                        await launchUrl(
-                          mode: LaunchMode.platformDefault,
-                          Uri.parse(mapsLink),
-                        );
-                      },
-                      icon: const Icon(
-                        LucideIcons.mapPin,
-                        size: 40,
-                        color: Colors.green,
-                      ),
+                  child: Icon(LucideIcons.mapPin, size: 18, color: Theme.of(context).colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    address,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                ],
-              ),
-            ],
-          ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withAlpha(20),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(LucideIcons.calendar, size: 18, color: Theme.of(context).colorScheme.primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        DateFormat('EEEE, MMMM d', context.locale.toString()).format(slot.toDate()),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withAlpha(20),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(LucideIcons.clock, size: 18, color: Theme.of(context).colorScheme.primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        DateFormat('hh:mm a', context.locale.toString()).format(slot.toDate()),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+
+    if (kIsWeb || isLargeScreen) return content;
+    return Slidable(
+      key: ValueKey(appointmentId),
+      endActionPane: ActionPane(motion: const ScrollMotion(), extentRatio: 0.2, children: [
+        IconButton(onPressed: () => _handleCancel(context, appointmentId, clinicUid), icon: Icon(LucideIcons.xCircle, color: Theme.of(context).colorScheme.error, size: 40)),
+      ]),
+      child: content,
+    );
+  }
+
+  Future<void> _handleCancel(BuildContext context, String appointmentId, String clinicUid) async {
+    HapticFeedback.warningNotification();
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: Text('cancel_appointment'.tr()),
+      content: Text('are_you_sure_to_cancel_appointment'.tr()),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('no'.tr())),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('yes'.tr(), style: TextStyle(color: Theme.of(context).colorScheme.error))),
+      ],
+    ));
+    if (confirmed != true) return;
+    try {
+      await context.read<UserAppointmentsProvider>().cancelAppointment(appointmentId, clinicUid, clinicData);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('appointment_cancelled_success'.tr())));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
 
   Widget _buildMarqueeRow(String label, String value, {bool isTitle = false}) {
-    return SizedBox(
-      height: isTitle ? 35 : 30,
-      child: Row(
-        children: [
-          Text("${label.tr()}: "),
-          Expanded(
-            child: Marquee(
-              text: value,
-              style: TextStyle(
-                fontWeight: isTitle ? FontWeight.bold : FontWeight.normal,
-                fontSize: isTitle ? 16 : 14,
-              ),
-              velocity: isTitle ? 25 : 15,
-              blankSpace: isTitle ? 50 : 40,
-              pauseAfterRound: const Duration(seconds: 1),
-            ),
-          ),
-        ],
-      ),
-    );
+    return SizedBox(height: isTitle ? 35 : 30, child: Row(children: [
+      Text("${label.tr()}: "),
+      Expanded(child: Marquee(text: value, style: TextStyle(fontWeight: isTitle ? FontWeight.bold : FontWeight.normal, fontSize: isTitle ? 16 : 14), velocity: isTitle ? 25 : 15, blankSpace: isTitle ? 50 : 40, pauseAfterRound: const Duration(seconds: 1))),
+    ]));
   }
 }
